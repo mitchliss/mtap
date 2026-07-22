@@ -17,17 +17,32 @@ Unlike most tap-the-map games where one stray touch locks in your answer:
 
 ## Scoring
 
-| Result | Points |
+Base accuracy per round:
+
+| Result | Base points |
 |---|---|
 | Within 50 km | **100** (bullseye) |
 | Distance-based decay | up to **80** |
 | Right country | minimum **30** |
 | Right continent | minimum **10** |
 
+Rounds ramp in difficulty and the base score is multiplied MapTap-style:
+rounds 1–2 (easy) **×1**, round 3 (medium) **×2**, rounds 4–5 (hard) **×3**.
+Perfect game = **1000**.
+
 Everyone in the world gets the same 5 places each day (deterministic date-seeded pick
 from a curated database of ~180 locations). Practice mode deals a random game any time.
 Results, streaks, and stats persist in `localStorage`. Share button copies an emoji
-scorecard to the clipboard.
+scorecard to the clipboard. After a game, **Explore the locations** puts numbered
+markers on the globe — spin it, tap a marker (or use ‹ › / arrow keys), and read
+about each place and how close you got.
+
+## Desktop shortcut
+
+`scripts\install-shortcut.ps1` creates a **MarcTap** icon on the Desktop. It launches
+`scripts\launch-marctap.vbs`, which silently starts the local server (serving `dist/`)
+if it isn't already running and opens the game in the default browser.
+`scripts\make-icon.ps1` regenerates `assets\marctap.ico`.
 
 ## Run it locally
 

@@ -7,7 +7,7 @@ import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
   dailySeed, practiceSeed, dailyAlreadyPlayed, recordDailyResult,
   emojiForScore, verdictForResult, buildShareText, computeStreak,
-  loadSettings, saveSettings,
+  loadSettings, saveSettings, pickLocations, multiplierForRound,
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
 
@@ -24,7 +24,9 @@ const els = {
   startPuzzleLabel: $('start-puzzle-label'), startStreak: $('start-streak'),
   endScreen: $('end-screen'), endTitle: $('end-title'), endScoreValue: $('end-score-value'),
   endEmoji: $('end-emoji'), endRounds: $('end-rounds'), endStats: $('end-stats'),
-  btnShare: $('btn-share'), btnPlayPractice: $('btn-play-practice'), btnReview: $('btn-review'),
+  btnShare: $('btn-share'), btnPlayPractice: $('btn-play-practice'), btnExplore: $('btn-explore'),
+  overviewPanel: $('overview-panel'), ovPrev: $('ov-prev'), ovNext: $('ov-next'), ovBack: $('ov-back'),
+  ovRound: $('ov-round'), ovName: $('ov-name'), ovMeta: $('ov-meta'), ovFact: $('ov-fact'),
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
@@ -136,7 +138,9 @@ function startGame(isPractice) {
 function beginRound() {
   const loc = session.currentLocation;
   els.promptPlace.textContent = loc.name;
-  els.promptSub.textContent = `Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}`;
+  const mult = session.currentMultiplier;
+  els.promptSub.innerHTML = `Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
+    (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '');
   renderRoundDots();
   show(els.promptCard);
   hide(els.resultPanel);
@@ -186,14 +190,16 @@ function confirmGuess(lat, lng) {
   setTimeout(() => {
     els.resultPlace.textContent = result.target.name;
     els.resultDistance.textContent = result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
-    els.resultPoints.textContent = `+${result.score}`;
+    els.resultPoints.textContent = result.multiplier > 1
+      ? `+${result.points} (${result.score}×${result.multiplier})`
+      : `+${result.points}`;
     els.resultVerdict.textContent = verdictForResult(result);
     els.resultFact.textContent = result.target.fact || '';
     els.btnNext.textContent = session.roundIndex + 1 >= ROUNDS_PER_GAME ? 'See results →' : 'Next →';
     show(els.resultPanel);
     renderRoundDots();
-    flyPoints(`+${result.score}`);
-    setScoreDisplay(prevTotal + result.score, prevTotal);
+    flyPoints(`+${result.points}`);
+    setScoreDisplay(prevTotal + result.points, prevTotal);
     if (result.score >= 70) sounds.good(); else if (result.score < 15) sounds.bad(); else sounds.tap();
   }, 900);
 }
@@ -219,7 +225,10 @@ function endGame() {
   const rounds = session.results.map((r) => ({
     name: r.target.name,
     score: r.score,
+    points: r.points,
+    multiplier: r.multiplier,
     distanceKm: Math.round(r.distanceKm),
+    guess: { lat: r.guess.lat, lng: r.guess.lng },
   }));
 
   if (!session.isPractice) {
@@ -233,16 +242,18 @@ function endGame() {
   els.endEmoji.textContent = session.results.map((r) => emojiForScore(r.score)).join(' ');
 
   els.endRounds.innerHTML = '';
-  session.results.forEach((r) => {
+  session.results.forEach((r, i) => {
     const row = document.createElement('div');
     row.className = 'end-round-row';
     row.innerHTML = `
       <span>${emojiForScore(r.score)}</span>
       <span class="rr-name"></span>
+      <span class="rr-mult">${r.multiplier > 1 ? '×' + r.multiplier : ''}</span>
       <span class="rr-dist"></span>
-      <span class="rr-pts">+${r.score}</span>`;
+      <span class="rr-pts">+${r.points}</span>`;
     row.querySelector('.rr-name').textContent = r.target.name;
     row.querySelector('.rr-dist').textContent = formatDistance(r.distanceKm, settings.miles);
+    row.addEventListener('click', () => enterOverview(i));
     els.endRounds.appendChild(row);
   });
 
@@ -260,22 +271,84 @@ function showEndScreenForRecorded(record) {
   els.endScoreValue.textContent = record.total;
   els.endEmoji.textContent = record.rounds.map((r) => emojiForScore(r.score)).join(' ');
   els.endRounds.innerHTML = '';
-  record.rounds.forEach((r) => {
+  record.rounds.forEach((r, i) => {
+    const pts = r.points != null ? r.points : r.score; // old records predate multipliers
     const row = document.createElement('div');
     row.className = 'end-round-row';
     row.innerHTML = `
       <span>${emojiForScore(r.score)}</span>
       <span class="rr-name"></span>
+      <span class="rr-mult">${r.multiplier > 1 ? '×' + r.multiplier : ''}</span>
       <span class="rr-dist"></span>
-      <span class="rr-pts">+${r.score}</span>`;
+      <span class="rr-pts">+${pts}</span>`;
     row.querySelector('.rr-name').textContent = r.name;
     row.querySelector('.rr-dist').textContent = formatDistance(r.distanceKm, settings.miles);
+    row.addEventListener('click', () => enterOverview(i));
     els.endRounds.appendChild(row);
   });
   const stats = computeStreak();
   els.endStats.innerHTML =
     `🔥 Streak: <b>${stats.streak}</b> · Played: <b>${stats.played}</b> · Best: <b>${stats.best}</b> · Avg: <b>${stats.average}</b>`;
   hide(els.startScreen);
+  show(els.endScreen);
+  globe.setAutoRotate(settings.autoRotate);
+}
+
+// ---------- post-game overview (spin the globe, read about the places) ----------
+
+let overviewItems = null;
+let overviewIndex = 0;
+
+function buildOverviewItems() {
+  // Prefer the live session; otherwise reconstruct today's daily from the stored
+  // record + the deterministic daily pick (same seed -> same 5 locations).
+  if (session && session.results.length === ROUNDS_PER_GAME) {
+    return session.results.map((r) => ({
+      lat: r.target.lat, lng: r.target.lng, name: r.target.name, fact: r.target.fact || '',
+      guess: r.guess, distanceKm: r.distanceKm,
+      score: r.score, points: r.points, multiplier: r.multiplier,
+    }));
+  }
+  const record = dailyAlreadyPlayed(puzzleNumberForToday());
+  if (!record) return null;
+  const locs = pickLocations(dailySeed());
+  return record.rounds.map((r, i) => ({
+    lat: locs[i].lat, lng: locs[i].lng, name: r.name, fact: locs[i].fact || '',
+    guess: r.guess || null, distanceKm: r.distanceKm,
+    score: r.score, points: r.points != null ? r.points : r.score,
+    multiplier: r.multiplier || multiplierForRound(i),
+  }));
+}
+
+function enterOverview(startIndex = 0) {
+  overviewItems = buildOverviewItems();
+  if (!overviewItems) { toast('Play today\'s game first! 🌍'); return; }
+  hide(els.endScreen);
+  hide(els.promptCard);
+  globe.setAutoRotate(false);
+  globe.setInteractive(false);
+  globe.clearResults();
+  globe.clearPin();
+  globe.showOverview(overviewItems);
+  show(els.overviewPanel);
+  selectOverviewIndex(startIndex);
+}
+
+function selectOverviewIndex(i) {
+  overviewIndex = ((i % overviewItems.length) + overviewItems.length) % overviewItems.length;
+  const item = overviewItems[overviewIndex];
+  els.ovRound.textContent = `Location ${overviewIndex + 1} of ${overviewItems.length}` +
+    (item.multiplier > 1 ? ` · ×${item.multiplier}` : '');
+  els.ovName.textContent = item.name;
+  els.ovMeta.textContent = `${emojiForScore(item.score)} Your guess: ${formatDistance(item.distanceKm, settings.miles)} away · +${item.points} pts`;
+  els.ovFact.textContent = item.fact;
+  globe.selectOverview(overviewIndex);
+}
+
+function exitOverview() {
+  hide(els.overviewPanel);
+  globe.clearOverview();
+  overviewItems = null;
   show(els.endScreen);
   globe.setAutoRotate(settings.autoRotate);
 }
@@ -322,6 +395,7 @@ async function boot() {
   globe = new Globe(document.getElementById('globe-container'), {
     onTap: onGlobeTap,
     onDoubleTap: onGlobeDoubleTap,
+    onOverviewSelect: (i) => selectOverviewIndex(i),
   });
   globe.setAutoRotate(settings.autoRotate);
 
@@ -339,10 +413,10 @@ async function boot() {
   });
   els.btnPractice.addEventListener('click', () => startGame(true));
   els.btnPlayPractice.addEventListener('click', () => startGame(true));
-  els.btnReview.addEventListener('click', () => {
-    hide(els.endScreen);
-    show(els.startScreen);
-  });
+  els.btnExplore.addEventListener('click', () => enterOverview(0));
+  els.ovPrev.addEventListener('click', () => selectOverviewIndex(overviewIndex - 1));
+  els.ovNext.addEventListener('click', () => selectOverviewIndex(overviewIndex + 1));
+  els.ovBack.addEventListener('click', exitOverview);
 
   els.btnConfirm.addEventListener('click', () => {
     const pin = globe.getPin();
@@ -373,8 +447,14 @@ async function boot() {
     btn.addEventListener('pointercancel', stop);
   });
 
-  // Keyboard shortcuts: arrows nudge, Enter confirms.
+  // Keyboard shortcuts: arrows nudge, Enter confirms; in overview, arrows browse.
   window.addEventListener('keydown', (e) => {
+    if (overviewItems && !els.overviewPanel.classList.contains('hidden')) {
+      if (e.key === 'ArrowLeft') { e.preventDefault(); selectOverviewIndex(overviewIndex - 1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); selectOverviewIndex(overviewIndex + 1); }
+      else if (e.key === 'Escape') exitOverview();
+      return;
+    }
     if (roundLocked || !session || session.isOver) return;
     const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
     if (map[e.key] && globe.getPin()) {

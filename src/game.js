@@ -6,7 +6,10 @@ import { mulberry32, seededShuffle, puzzleNumberForToday, todayKey } from './rng
 
 export const ROUNDS_PER_GAME = 5;
 export const MAX_ROUND_SCORE = 100;
-export const MAX_GAME_SCORE = ROUNDS_PER_GAME * MAX_ROUND_SCORE;
+// MapTap-style round weighting: early rounds are easy and worth x1,
+// round 3 is medium x2, rounds 4-5 are hard and worth TRIPLE.
+export const ROUND_MULTIPLIERS = [1, 1, 2, 3, 3];
+export const MAX_GAME_SCORE = ROUND_MULTIPLIERS.reduce((a, m) => a + m * MAX_ROUND_SCORE, 0); // 1000
 
 // ---------- round selection ----------
 
@@ -15,7 +18,7 @@ export const MAX_GAME_SCORE = ROUNDS_PER_GAME * MAX_ROUND_SCORE;
 export function pickLocations(seed) {
   const rng = mulberry32(seed * 7919 + 13);
   const shuffled = seededShuffle(LOCATIONS, rng);
-  const wantDiff = [1, 1, 2, 2, 3]; // ramp difficulty across the game
+  const wantDiff = [1, 1, 2, 3, 3]; // ramp difficulty to match the x1/x1/x2/x3/x3 multipliers
   const picked = [];
   const usedCountries = new Set();
 
@@ -148,6 +151,9 @@ export function buildShareText(puzzleNumber, rounds, total, isPractice) {
   return `${title} 🌍 ${total}/${MAX_GAME_SCORE}\n${emojis}`;
 }
 
+// Multiplier for a given 0-based round index (shared by UI + reconstruction).
+export function multiplierForRound(i) { return ROUND_MULTIPLIERS[i] || 1; }
+
 // ---------- game state machine ----------
 
 export class GameSession {
@@ -160,7 +166,8 @@ export class GameSession {
   }
 
   get currentLocation() { return this.locations[this.roundIndex]; }
-  get totalScore() { return this.results.reduce((a, r) => a + r.score, 0); }
+  get currentMultiplier() { return ROUND_MULTIPLIERS[this.roundIndex] || 1; }
+  get totalScore() { return this.results.reduce((a, r) => a + r.points, 0); }
   get isOver() { return this.roundIndex >= this.locations.length; }
 
   submitGuess(lat, lng) {
@@ -168,6 +175,9 @@ export class GameSession {
     const result = scoreGuess(lat, lng, target);
     result.target = target;
     result.guess = { lat, lng };
+    // score = base accuracy 0-100; points = score x round multiplier (what totals up).
+    result.multiplier = this.currentMultiplier;
+    result.points = result.score * result.multiplier;
     this.results.push(result);
     return result;
   }

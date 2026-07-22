@@ -251,6 +251,45 @@ function makePinTexture(color, ringColor) {
   return tex;
 }
 
+// Numbered round badge for the post-game overview: colored circle + white number + tail.
+function makeBadgeTexture(number, color) {
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx = c.getContext('2d');
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 4;
+  // tail
+  ctx.beginPath();
+  ctx.moveTo(S / 2 - 12, 78);
+  ctx.quadraticCurveTo(S / 2, 92, S / 2, 116);
+  ctx.quadraticCurveTo(S / 2, 92, S / 2 + 12, 78);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  // head
+  ctx.beginPath();
+  ctx.arc(S / 2, 48, 36, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(S / 2, 48, 36, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '800 44px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(number), S / 2, 50);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 // ---------- main class ----------
 
 export class Globe {
@@ -340,6 +379,8 @@ export class Globe {
     this._resultObjects = [];  // cleared between rounds
     this._flights = [];        // camera fly animations
     this._pulses = [];         // pulsing marker animations
+    this._overviewMarkers = []; // post-game numbered badges
+    this.overviewActive = false;
 
     this._bindPointerEvents();
     this._onResize = () => this.resize();
@@ -462,6 +503,12 @@ export class Globe {
       // falls through and counts as a tap, so double-tapping the pin confirms.
       if (wasPinPress && moved) { downPos = null; return; }
       const quick = performance.now() - downTime < 450;
+      if (!moved && quick && this.overviewActive) {
+        const idx = this._overviewHit(e);
+        if (idx !== null && this.cb.onOverviewSelect) this.cb.onOverviewSelect(idx);
+        downPos = null;
+        return;
+      }
       if (!moved && quick && this.interactive) {
         const ll = this._globeHit(e);
         if (ll) {
@@ -550,6 +597,80 @@ export class Globe {
     if (lng < -180) lng += 360;
     this._placePin(lat, lng);
     return { lat, lng };
+  }
+
+  // ---------- post-game overview ----------
+
+  // items: [{ lat, lng, guess?: {lat,lng} }]. Shows numbered badges for all rounds,
+  // faint arcs to each guess, and makes badges tappable (cb.onOverviewSelect(i)).
+  showOverview(items) {
+    this.clearOverview();
+    this.overviewActive = true;
+    items.forEach((item, i) => {
+      const tex = makeBadgeTexture(i + 1, '#38d67a');
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, sizeAttenuation: true });
+      const badge = new THREE.Sprite(mat);
+      badge.center.set(0.5, 0.06);
+      badge.position.copy(latLngToVec3(item.lat, item.lng, GLOBE_RADIUS * 1.002));
+      const s0 = this._spriteScaleForDistance();
+      badge.scale.set(s0, s0, 1);
+      badge.userData.overviewIndex = i;
+      this.markerRoot.add(badge);
+      this._overviewMarkers.push(badge);
+
+      if (item.guess) {
+        const arc = this._buildArc(item.guess, item);
+        arc.geo.setDrawRange(0, arc.segments + 1); // static, fully drawn
+        arc.line.material.opacity = 0.3;
+        this.markerRoot.add(arc.line);
+        this._overviewMarkers.push(arc.line);
+
+        const dotGeo = new THREE.CircleGeometry(0.005, 20);
+        const dotMat = new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.65 });
+        const dot = new THREE.Mesh(dotGeo, dotMat);
+        dot.position.copy(latLngToVec3(item.guess.lat, item.guess.lng, GLOBE_RADIUS * 1.004));
+        dot.lookAt(dot.position.clone().multiplyScalar(2));
+        this.markerRoot.add(dot);
+        this._overviewMarkers.push(dot);
+      }
+    });
+  }
+
+  // Emphasize the selected badge and fly the camera to it.
+  selectOverview(i, flyDistance = 2.2) {
+    this._selectedOverview = i;
+    const badges = this._overviewMarkers.filter((o) => o.userData && o.userData.overviewIndex !== undefined);
+    badges.forEach((b) => {
+      b.userData.selected = b.userData.overviewIndex === i;
+      b.material.color.set(b.userData.selected ? 0xffffff : 0xbbbbbb);
+    });
+    const badge = badges.find((b) => b.userData.overviewIndex === i);
+    if (badge) {
+      const ll = vec3ToLatLng(badge.position);
+      this.flyTo(ll.lat, ll.lng, flyDistance);
+    }
+  }
+
+  clearOverview() {
+    for (const obj of this._overviewMarkers) {
+      this.markerRoot.remove(obj);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    }
+    this._overviewMarkers = [];
+    this.overviewActive = false;
+  }
+
+  _overviewHit(e) {
+    const badges = this._overviewMarkers.filter((o) => o.userData && o.userData.overviewIndex !== undefined);
+    if (!badges.length) return null;
+    this._setPointerFromEvent(e);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hits = this.raycaster.intersectObjects(badges, false);
+    return hits.length ? hits[0].object.userData.overviewIndex : null;
   }
 
   // ---------- result display ----------
@@ -699,6 +820,12 @@ export class Globe {
     const s = this._spriteScaleForDistance();
     if (this.pin) this.pin.scale.set(s, s, 1);
     if (this._answerPin) this._answerPin.scale.set(s, s, 1);
+    for (const o of this._overviewMarkers) {
+      if (o.userData && o.userData.overviewIndex !== undefined) {
+        const k = o.userData.selected ? s * 1.25 : s;
+        o.scale.set(k, k, 1);
+      }
+    }
 
     // Arc draw animation.
     if (this._arcAnim) {

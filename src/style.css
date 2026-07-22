@@ -326,6 +326,56 @@ html, body {
 .settings-about { margin-top: 16px; font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; }
 .settings-about a { color: var(--accent); }
 
+/* ============ Multiplier chips ============ */
+.mult-chip {
+  display: inline-block;
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.78rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  vertical-align: 1px;
+}
+.end-round-row { cursor: pointer; transition: background .15s; }
+.end-round-row:hover { background: rgba(77, 163, 255, 0.16); }
+.rr-mult { color: var(--gold); font-weight: 800; font-size: 0.78rem; min-width: 22px; }
+
+/* ============ Overview panel ============ */
+.overview-panel {
+  position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  z-index: 28;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  padding: 14px 14px 12px;
+  width: min(94vw, 520px);
+  text-align: center;
+  animation: riseIn .3s cubic-bezier(.2,.9,.3,1.15);
+}
+.overview-nav { display: flex; align-items: stretch; gap: 8px; }
+.ov-arrow {
+  flex: 0 0 44px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  background: rgba(77, 163, 255, 0.12);
+  color: var(--accent);
+  font-size: 1.7rem;
+  cursor: pointer;
+  transition: background .12s, transform .08s;
+}
+.ov-arrow:hover { background: rgba(77, 163, 255, 0.3); }
+.ov-arrow:active { transform: scale(0.94); }
+.overview-body { flex: 1; min-width: 0; }
+.ov-round { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim); }
+.ov-name { font-size: 1.15rem; font-weight: 800; margin-top: 2px; text-wrap: balance; }
+.ov-meta { font-size: 0.85rem; color: var(--gold); margin-top: 3px; }
+.ov-fact { font-size: 0.82rem; color: var(--text-dim); margin-top: 5px; line-height: 1.45; }
+.ov-hint { font-size: 0.72rem; color: var(--text-dim); margin: 9px 0 8px; }
+#ov-back { width: 100%; }
+
 /* ============ Toast ============ */
 .toast {
   position: absolute; top: 70px; left: 50%; transform: translateX(-50%);

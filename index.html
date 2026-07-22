@@ -76,6 +76,22 @@
       <button id="btn-next" class="btn primary big">Next →</button>
     </div>
 
+    <!-- ======= Post-game overview panel (spin the globe, read about the places) ======= -->
+    <div id="overview-panel" class="overview-panel hidden">
+      <div class="overview-nav">
+        <button id="ov-prev" class="ov-arrow" title="Previous location">‹</button>
+        <div class="overview-body">
+          <div class="ov-round" id="ov-round">Location 1 of 5</div>
+          <div class="ov-name" id="ov-name"></div>
+          <div class="ov-meta" id="ov-meta"></div>
+          <div class="ov-fact" id="ov-fact"></div>
+        </div>
+        <button id="ov-next" class="ov-arrow" title="Next location">›</button>
+      </div>
+      <div class="ov-hint">Spin the globe or tap a numbered marker</div>
+      <button id="ov-back" class="btn ghost">← Back to results</button>
+    </div>
+
     <!-- ======= Start screen ======= -->
     <div id="start-screen" class="overlay-screen">
       <div class="start-inner">
@@ -96,14 +112,14 @@
       <div class="end-inner">
         <h2 id="end-title">Game complete!</h2>
         <div class="end-score">
-          <span id="end-score-value">0</span><span class="end-score-max">/500</span>
+          <span id="end-score-value">0</span><span class="end-score-max">/1000</span>
         </div>
         <div id="end-emoji" class="end-emoji"></div>
         <div id="end-rounds" class="end-rounds"></div>
         <div class="end-actions">
-          <button id="btn-share" class="btn primary big">📋 Share score</button>
+          <button id="btn-explore" class="btn primary big">🌐 Explore the locations</button>
+          <button id="btn-share" class="btn ghost">📋 Share score</button>
           <button id="btn-play-practice" class="btn ghost">🎲 Play practice game</button>
-          <button id="btn-review" class="btn ghost">🌐 Review the globe</button>
         </div>
         <div id="end-stats" class="end-stats"></div>
       </div>
@@ -121,11 +137,16 @@
           <li>📏 The closer you are, the more points you score — up to <b>100</b> per round.</li>
         </ol>
         <div class="help-scoring">
-          <div class="help-scoring-title">Scoring</div>
+          <div class="help-scoring-title">Scoring (per round, before multiplier)</div>
           <div class="help-row"><span>🎯 Within 50 km</span><b>100 pts</b></div>
           <div class="help-row"><span>📏 Distance-based</span><b>up to 80 pts</b></div>
           <div class="help-row"><span>🗺️ Right country</span><b>min 30 pts</b></div>
           <div class="help-row"><span>🌎 Right continent</span><b>min 10 pts</b></div>
+          <div class="help-scoring-title" style="margin-top:10px;">Round multipliers</div>
+          <div class="help-row"><span>Rounds 1–2 (easy)</span><b>×1</b></div>
+          <div class="help-row"><span>Round 3 (medium)</span><b>×2</b></div>
+          <div class="help-row"><span>Rounds 4–5 (hard)</span><b>×3</b></div>
+          <div class="help-row"><span>Perfect game</span><b>1000 pts</b></div>
         </div>
         <button class="btn primary big" data-close="help-modal">Got it</button>
       </div>
@@ -153,7 +174,7 @@
           <input type="checkbox" id="set-autorotate" checked />
         </label>
         <div class="settings-about">
-          MarcTap v2.0 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MarcTap v2.1 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>
