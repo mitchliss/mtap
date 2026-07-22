@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#060a18" />
+  <meta name="description" content="MarcTap — a daily 3D globe geography guessing game. Five places a day. Tap the globe, adjust your pin, confirm your guess." />
+  <title>MarcTap — Daily Globe Geography Game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%232563eb'/%3E%3Ccircle cx='50' cy='50' r='42' fill='none' stroke='%2393c5fd' stroke-width='4'/%3E%3Cpath d='M28 62c8-4 10-16 20-16s12 10 24 6' stroke='%234ade80' stroke-width='7' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='63' cy='34' r='7' fill='%23fbbf24'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div id="app">
+    <!-- 3D globe canvas mounts here -->
+    <div id="globe-container"></div>
+
+    <!-- ======= Top HUD ======= -->
+    <header id="topbar">
+      <div class="brand">
+        <span class="brand-mark">🌍</span>
+        <span class="brand-name">Marc<span class="accent">Tap</span></span>
+      </div>
+      <div id="puzzle-meta" class="puzzle-meta">
+        <span id="puzzle-number">#1</span>
+        <span id="puzzle-date"></span>
+      </div>
+      <div class="hud-right">
+        <div class="scorebox" title="Total score this game">
+          <span class="scorebox-label">Score</span>
+          <span id="score-value">0</span>
+        </div>
+        <button id="btn-help" class="icon-btn" title="How to play" aria-label="How to play">?</button>
+        <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+      </div>
+    </header>
+
+    <!-- ======= Round prompt card ======= -->
+    <div id="prompt-card" class="prompt-card hidden">
+      <div class="prompt-progress" id="round-dots"></div>
+      <div class="prompt-label">Tap where you think this is…</div>
+      <div class="prompt-place" id="prompt-place">Eiffel Tower</div>
+      <div class="prompt-sub" id="prompt-sub"></div>
+    </div>
+
+    <!-- ======= Pin adjust / confirm bar (the MarcTap improvement) ======= -->
+    <div id="confirm-bar" class="confirm-bar hidden">
+      <div class="confirm-hint">Drag the pin or nudge it, then confirm. <span class="kbd-hint">Double-tap confirms instantly.</span></div>
+      <div class="confirm-controls">
+        <div class="nudge-pad" aria-label="Nudge pin">
+          <button class="nudge n-up" data-nudge="up" title="Nudge north">▲</button>
+          <button class="nudge n-left" data-nudge="left" title="Nudge west">◀</button>
+          <button class="nudge n-right" data-nudge="right" title="Nudge east">▶</button>
+          <button class="nudge n-down" data-nudge="down" title="Nudge south">▼</button>
+        </div>
+        <div class="confirm-actions">
+          <button id="btn-clear" class="btn ghost">Clear</button>
+          <button id="btn-confirm" class="btn primary big">✓ Confirm guess</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======= Round result panel ======= -->
+    <div id="result-panel" class="result-panel hidden">
+      <div class="result-place" id="result-place"></div>
+      <div class="result-stats">
+        <div class="stat">
+          <div class="stat-value" id="result-distance">—</div>
+          <div class="stat-label">away</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value points" id="result-points">+0</div>
+          <div class="stat-label">points</div>
+        </div>
+      </div>
+      <div class="result-verdict" id="result-verdict"></div>
+      <div class="result-fact" id="result-fact"></div>
+      <button id="btn-next" class="btn primary big">Next →</button>
+    </div>
+
+    <!-- ======= Start screen ======= -->
+    <div id="start-screen" class="overlay-screen">
+      <div class="start-inner">
+        <div class="start-logo">🌍</div>
+        <h1 class="start-title">Marc<span class="accent">Tap</span></h1>
+        <p class="start-tag">The daily globe game. Five places. How close can you get?</p>
+        <div class="start-meta">
+          <span id="start-puzzle-label">MarcTap #1 · Jul 22, 2026</span>
+        </div>
+        <button id="btn-play" class="btn primary huge">▶ Play today's game</button>
+        <button id="btn-practice" class="btn ghost">🎲 Practice round</button>
+        <div id="start-streak" class="start-streak"></div>
+      </div>
+    </div>
+
+    <!-- ======= End screen ======= -->
+    <div id="end-screen" class="overlay-screen hidden">
+      <div class="end-inner">
+        <h2 id="end-title">Game complete!</h2>
+        <div class="end-score">
+          <span id="end-score-value">0</span><span class="end-score-max">/500</span>
+        </div>
+        <div id="end-emoji" class="end-emoji"></div>
+        <div id="end-rounds" class="end-rounds"></div>
+        <div class="end-actions">
+          <button id="btn-share" class="btn primary big">📋 Share score</button>
+          <button id="btn-play-practice" class="btn ghost">🎲 Play practice game</button>
+          <button id="btn-review" class="btn ghost">🌐 Review the globe</button>
+        </div>
+        <div id="end-stats" class="end-stats"></div>
+      </div>
+    </div>
+
+    <!-- ======= Help modal ======= -->
+    <div id="help-modal" class="modal hidden">
+      <div class="modal-card">
+        <button class="modal-close" data-close="help-modal">×</button>
+        <h2>How to play</h2>
+        <ol class="help-list">
+          <li>🌍 Each day you get <b>5 places</b> to find — spin and zoom the globe.</li>
+          <li>📍 <b>Tap</b> the globe to drop a pin. It's not final yet!</li>
+          <li>🎯 <b>Drag the pin</b>, use the nudge arrows for precision, then press <b>Confirm</b> — or <b>double-tap</b> to lock a guess instantly.</li>
+          <li>📏 The closer you are, the more points you score — up to <b>100</b> per round.</li>
+        </ol>
+        <div class="help-scoring">
+          <div class="help-scoring-title">Scoring</div>
+          <div class="help-row"><span>🎯 Within 50 km</span><b>100 pts</b></div>
+          <div class="help-row"><span>📏 Distance-based</span><b>up to 80 pts</b></div>
+          <div class="help-row"><span>🗺️ Right country</span><b>min 30 pts</b></div>
+          <div class="help-row"><span>🌎 Right continent</span><b>min 10 pts</b></div>
+        </div>
+        <button class="btn primary big" data-close="help-modal">Got it</button>
+      </div>
+    </div>
+
+    <!-- ======= Settings modal ======= -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-card">
+        <button class="modal-close" data-close="settings-modal">×</button>
+        <h2>Settings</h2>
+        <label class="setting-row">
+          <span>Use miles<small>Show distances in miles instead of km</small></span>
+          <input type="checkbox" id="set-miles" />
+        </label>
+        <label class="setting-row">
+          <span>Double-tap confirms<small>Double-tap locks the guess in one go</small></span>
+          <input type="checkbox" id="set-doubletap" checked />
+        </label>
+        <label class="setting-row">
+          <span>Sound effects<small>Little blips on tap and score</small></span>
+          <input type="checkbox" id="set-sound" checked />
+        </label>
+        <label class="setting-row">
+          <span>Auto-rotate on menus<small>Globe slowly spins while idle</small></span>
+          <input type="checkbox" id="set-autorotate" checked />
+        </label>
+        <div class="settings-about">
+          MarcTap v1.0 — built for Marc. Land shapes: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+        </div>
+      </div>
+    </div>
+
+    <!-- toast -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
