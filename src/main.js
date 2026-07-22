@@ -10,6 +10,7 @@ import {
   loadSettings, saveSettings, pickLocations, multiplierForRound,
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
+import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -27,6 +28,8 @@ const els = {
   btnShare: $('btn-share'), btnPlayPractice: $('btn-play-practice'), btnExplore: $('btn-explore'),
   overviewPanel: $('overview-panel'), ovPrev: $('ov-prev'), ovNext: $('ov-next'), ovBack: $('ov-back'),
   ovRound: $('ov-round'), ovName: $('ov-name'), ovMeta: $('ov-meta'), ovFact: $('ov-fact'),
+  ovWiki: $('ov-wiki'), ovWikiImg: $('ov-wiki-img'), ovWikiExtract: $('ov-wiki-extract'), ovWikiLink: $('ov-wiki-link'),
+  onThisDay: $('onthisday'), otdItems: $('otd-items'),
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
@@ -263,6 +266,7 @@ function endGame() {
     : `🔥 Streak: <b>${stats.streak}</b> · Played: <b>${stats.played}</b> · Best: <b>${stats.best}</b> · Avg: <b>${stats.average}</b>`;
 
   show(els.endScreen);
+  renderOnThisDay();
 }
 
 function showEndScreenForRecorded(record) {
@@ -292,6 +296,7 @@ function showEndScreenForRecorded(record) {
   hide(els.startScreen);
   show(els.endScreen);
   globe.setAutoRotate(settings.autoRotate);
+  renderOnThisDay();
 }
 
 // ---------- post-game overview (spin the globe, read about the places) ----------
@@ -334,6 +339,8 @@ function enterOverview(startIndex = 0) {
   selectOverviewIndex(startIndex);
 }
 
+let ovFetchToken = 0;
+
 function selectOverviewIndex(i) {
   overviewIndex = ((i % overviewItems.length) + overviewItems.length) % overviewItems.length;
   const item = overviewItems[overviewIndex];
@@ -343,6 +350,23 @@ function selectOverviewIndex(i) {
   els.ovMeta.textContent = `${emojiForScore(item.score)} Your guess: ${formatDistance(item.distanceKm, settings.miles)} away · +${item.points} pts`;
   els.ovFact.textContent = item.fact;
   globe.selectOverview(overviewIndex);
+
+  // Wikipedia photo + extract, guarded against rapid navigation races.
+  hide(els.ovWiki);
+  const token = ++ovFetchToken;
+  fetchWikiSummary(item.name).then((wiki) => {
+    if (token !== ovFetchToken || !wiki) return;
+    els.ovWikiExtract.textContent = wiki.extract;
+    if (wiki.thumbnail) {
+      els.ovWikiImg.src = wiki.thumbnail;
+      show(els.ovWikiImg);
+    } else {
+      hide(els.ovWikiImg);
+    }
+    if (wiki.url) { els.ovWikiLink.href = wiki.url; show(els.ovWikiLink); }
+    else hide(els.ovWikiLink);
+    show(els.ovWiki);
+  });
 }
 
 function exitOverview() {
@@ -351,6 +375,32 @@ function exitOverview() {
   overviewItems = null;
   show(els.endScreen);
   globe.setAutoRotate(settings.autoRotate);
+}
+
+// "On this day in history" card on the end screen (Wikipedia on-this-day feed).
+async function renderOnThisDay() {
+  const events = await fetchOnThisDay(3);
+  if (!events || !events.length) { hide(els.onThisDay); return; }
+  els.otdItems.innerHTML = '';
+  events.forEach((ev) => {
+    const row = document.createElement('div');
+    row.className = 'otd-item';
+    const thumb = ev.thumbnail ? `<img class="otd-thumb" alt="" />` : '';
+    row.innerHTML = `<span class="otd-year">${ev.year}</span><span class="otd-text"></span>${thumb}`;
+    const textEl = row.querySelector('.otd-text');
+    if (ev.url) {
+      const a = document.createElement('a');
+      a.href = ev.url; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = ev.text;
+      textEl.appendChild(a);
+    } else {
+      textEl.textContent = ev.text;
+    }
+    const img = row.querySelector('.otd-thumb');
+    if (img) img.src = ev.thumbnail;
+    els.otdItems.appendChild(row);
+  });
+  show(els.onThisDay);
 }
 
 // ---------- share ----------
