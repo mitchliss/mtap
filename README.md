@@ -56,10 +56,14 @@ To test the production build locally first: `npm run preview`
 
 ## Tech
 
-- [three.js](https://threejs.org/) — WebGL globe, custom canvas-painted texture, pins, arcs
+- [three.js](https://threejs.org/) — WebGL globe, pins, arcs, camera flights
 - [Vite](https://vitejs.dev/) — dev server & bundler
+- [NASA Blue Marble](https://visibleearth.nasa.gov/) topography + bathymetry imagery
+  (public domain) — the globe surface, with country borders and a faint graticule
+  composited on at load; oceans get a specular sun glint via a generated water mask
 - [Natural Earth](https://www.naturalearthdata.com/) 1:50m country boundaries (public domain) —
-  drawn onto the globe texture at load, and used for point-in-polygon country detection
+  border overlay + point-in-polygon country detection (and a painted-map fallback if the
+  imagery can't load)
 - No other runtime dependencies; sounds are synthesized with WebAudio, icons are emoji
 
 ## Project layout

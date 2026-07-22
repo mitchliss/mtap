@@ -28,7 +28,107 @@ export function vec3ToLatLng(v) {
   return { lat, lng };
 }
 
-// ---------- texture painting ----------
+// ---------- texture pipeline ----------
+//
+// v2: the globe uses real NASA Blue Marble imagery (topography + bathymetry, public
+// domain) with country borders and a faint graticule composited on top. The painted
+// polygon map from v1 is kept as an offline fallback.
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function strokeBoundaries(ctx, geojson, W, H, style) {
+  const px = (lng) => ((lng + 180) / 360) * W;
+  const py = (lat) => ((90 - lat) / 180) * H;
+  ctx.strokeStyle = style.color;
+  ctx.lineWidth = style.width;
+  for (const feature of geojson.features) {
+    const geom = feature.geometry;
+    const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+    for (const poly of polys) {
+      for (const ring of poly) {
+        ctx.beginPath();
+        let prevX = null;
+        ring.forEach(([lng, lat], i) => {
+          const x = px(lng), y = py(lat);
+          // Break the path across the antimeridian so borders don't streak across the map.
+          if (i === 0 || (prevX !== null && Math.abs(x - prevX) > W / 2)) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          prevX = x;
+        });
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+async function buildEarthTexture(geojson, baseUrl) {
+  const img = await loadImage(`${baseUrl}textures/earth-blue-marble.jpg`);
+  const W = img.naturalWidth, H = img.naturalHeight; // 5400 x 2700
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Base imagery, gently brightened so the game reads clearly at all zoom levels.
+  ctx.filter = 'brightness(1.35) saturate(1.15)';
+  ctx.drawImage(img, 0, 0, W, H);
+  ctx.filter = 'none';
+
+  // Very faint graticule (helps open-ocean guessing without breaking realism).
+  const px = (lng) => ((lng + 180) / 360) * W;
+  const py = (lat) => ((90 - lat) / 180) * H;
+  ctx.strokeStyle = 'rgba(180, 210, 255, 0.07)';
+  ctx.lineWidth = 1;
+  for (let lng = -180; lng <= 180; lng += 15) {
+    ctx.beginPath(); ctx.moveTo(px(lng), 0); ctx.lineTo(px(lng), H); ctx.stroke();
+  }
+  for (let lat = -75; lat <= 75; lat += 15) {
+    ctx.beginPath(); ctx.moveTo(0, py(lat)); ctx.lineTo(W, py(lat)); ctx.stroke();
+  }
+
+  // Country borders: a soft dark underline + crisp light line reads on any terrain.
+  strokeBoundaries(ctx, geojson, W, H, { color: 'rgba(0, 0, 0, 0.28)', width: 2.2 });
+  strokeBoundaries(ctx, geojson, W, H, { color: 'rgba(255, 255, 255, 0.42)', width: 0.9 });
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.anisotropy = 16;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// Specular map: oceans glint in the sun, land stays matte.
+function buildSpecularMap(geojson) {
+  const W = 2048, H = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#666666'; // water: moderate specular
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#000000'; // land: none
+  for (const feature of geojson.features) {
+    const geom = feature.geometry;
+    const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+    for (const poly of polys) {
+      ctx.beginPath();
+      for (const ring of poly) {
+        ring.forEach(([lng, lat], i) => {
+          const x = ((lng + 180) / 360) * W;
+          const y = ((90 - lat) / 180) * H;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+      }
+      ctx.fill('evenodd');
+    }
+  }
+  return new THREE.CanvasTexture(canvas);
+}
 
 function drawGlobeTexture(geojson) {
   const W = 4096, H = 2048;
@@ -167,12 +267,13 @@ export class Globe {
     this.renderer.setClearColor(0x060a18);
     container.appendChild(this.renderer.domElement);
 
-    // Lights
-    this.scene.add(new THREE.AmbientLight(0xffffff, 1.15));
-    const sun = new THREE.DirectionalLight(0xfff4e0, 1.1);
+    // Lights — mostly even (a geography game needs no dark side) with a gentle
+    // key light for dimensionality and the ocean specular glint.
+    this.scene.add(new THREE.AmbientLight(0xffffff, 1.75));
+    const sun = new THREE.DirectionalLight(0xfff6e6, 1.0);
     sun.position.set(3, 2, 2.5);
     this.scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x88aaff, 0.35);
+    const fill = new THREE.DirectionalLight(0x88aaff, 0.25);
     fill.position.set(-3, -1, -2);
     this.scene.add(fill);
 
@@ -203,8 +304,8 @@ export class Globe {
         fragmentShader: `
           varying vec3 vNormal;
           void main() {
-            float intensity = pow(0.72 - dot(vNormal, vec3(0.0, 0.0, -1.0)), 3.5);
-            gl_FragColor = vec4(0.35, 0.6, 1.0, 1.0) * intensity;
+            float intensity = pow(0.76 - dot(vNormal, vec3(0.0, 0.0, -1.0)), 3.2);
+            gl_FragColor = vec4(0.38, 0.62, 1.0, 1.0) * intensity;
           }`,
       })
     );
@@ -250,7 +351,16 @@ export class Globe {
   }
 
   async init(geojson) {
-    const tex = drawGlobeTexture(geojson);
+    let tex;
+    try {
+      tex = await buildEarthTexture(geojson, import.meta.env.BASE_URL);
+      this.sphere.material.specularMap = buildSpecularMap(geojson);
+      this.sphere.material.specular = new THREE.Color(0x88aabb);
+      this.sphere.material.shininess = 22;
+    } catch (err) {
+      console.warn('Satellite texture unavailable, using painted fallback', err);
+      tex = drawGlobeTexture(geojson);
+    }
     this.sphere.material.map = tex;
     this.sphere.material.color.set(0xffffff);
     this.sphere.material.needsUpdate = true;
