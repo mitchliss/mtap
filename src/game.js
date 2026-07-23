@@ -103,6 +103,7 @@ export function verdictForResult(r) {
 
 // ---------- persistence ----------
 
+// Deliberately unchanged after the MTap rename - keeps existing streaks/history.
 const LS_PREFIX = 'marctap.';
 
 export function loadJSON(key, fallback) {
@@ -162,7 +163,7 @@ export function computeStreak() {
 
 export function buildShareText(puzzleNumber, rounds, total, isPractice) {
   const emojis = rounds.map((r) => emojiForScore(r.score)).join('');
-  const title = isPractice ? 'MarcTap practice' : `MarcTap #${puzzleNumber}`;
+  const title = isPractice ? 'MTap practice' : `MTap #${puzzleNumber}`;
   return `${title} 🌍 ${total}/${MAX_GAME_SCORE}\n${emojis}`;
 }
 

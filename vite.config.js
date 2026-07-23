@@ -7,4 +7,11 @@ export default defineConfig({
     target: 'es2019',
     chunkSizeWarningLimit: 1200,
   },
+  // host: true + allowedHosts: true so the ngrok tunnel (START-MTAP.bat) can reach
+  // the preview server (Vite validates the Host header and 403s unknown hosts otherwise).
+  preview: {
+    host: true,
+    port: 5210,
+    allowedHosts: true,
+  },
 });

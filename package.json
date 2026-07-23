@@ -1,9 +1,9 @@
 {
-  "name": "marctap",
+  "name": "mtap",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.4.0",
   "type": "module",
-  "description": "MarcTap - daily 3D globe geography guessing game",
+  "description": "MTap - daily 3D globe geography guessing game",
   "scripts": {
     "dev": "vite --port 5210",
     "build": "vite build",

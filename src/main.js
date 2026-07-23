@@ -240,7 +240,7 @@ function endGame() {
 
   els.endTitle.textContent = session.isPractice
     ? 'Practice complete!'
-    : `MarcTap #${puzzleNumberForToday()} complete!`;
+    : `MTap #${puzzleNumberForToday()} complete!`;
   els.endScoreValue.textContent = total;
   els.endEmoji.textContent = session.results.map((r) => emojiForScore(r.score)).join(' ');
 
@@ -271,7 +271,7 @@ function endGame() {
 
 function showEndScreenForRecorded(record) {
   // Rebuild the end screen from a stored daily result (revisiting after playing).
-  els.endTitle.textContent = `MarcTap #${puzzleNumberForToday()} — already played today!`;
+  els.endTitle.textContent = `MTap #${puzzleNumberForToday()} — already played today!`;
   els.endScoreValue.textContent = record.total;
   els.endEmoji.textContent = record.rounds.map((r) => emojiForScore(r.score)).join(' ');
   els.endRounds.innerHTML = '';
@@ -450,7 +450,7 @@ async function boot() {
   // Header labels
   els.puzzleNumber.textContent = `#${puzzleNumberForToday()}`;
   els.puzzleDate.textContent = todayDateText();
-  els.startPuzzleLabel.textContent = `MarcTap #${puzzleNumberForToday()} · ${todayDateText()}`;
+  els.startPuzzleLabel.textContent = `MTap #${puzzleNumberForToday()} · ${todayDateText()}`;
 
   const stats = computeStreak();
   if (stats.played > 0) {

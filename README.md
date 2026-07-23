@@ -1,4 +1,4 @@
-# MarcTap 🌍
+# MTap 🌍 (formerly MarcTap)
 
 A daily 3D-globe geography guessing game, inspired by the tap-the-map genre but built
 from scratch with original code, data, and design.
@@ -6,7 +6,7 @@ from scratch with original code, data, and design.
 Five places a day. Spin the globe, drop a pin, fine-tune it, confirm your guess.
 The closer you are, the more points you score — up to 100 per round, 500 per game.
 
-## The MarcTap twist: no accidental guesses
+## The MTap twist: no accidental guesses
 
 Unlike most tap-the-map games where one stray touch locks in your answer:
 
@@ -43,7 +43,7 @@ about each place and how close you got.
 
 ## Desktop shortcut
 
-`scripts\install-shortcut.ps1` creates a **MarcTap** icon on the Desktop. It launches
+`scripts\install-shortcut.ps1` creates an **MTap** icon on the Desktop. It launches
 `scripts\launch-marctap.vbs`, which silently starts the local server (serving `dist/`)
 if it isn't already running and opens the game in the default browser.
 `scripts\make-icon.ps1` regenerates `assets\marctap.ico`.
