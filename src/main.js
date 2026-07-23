@@ -11,6 +11,7 @@ import {
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
+import { startMusic, stopMusic } from './music.js';
 import {
   readHashPayload, encodePayload, shareBaseUrl,
   getActivePlayer, setActivePlayer, getPlayers,
@@ -49,7 +50,7 @@ const els = {
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
-  setMiles: $('set-miles'), setDoubleTap: $('set-doubletap'), setSound: $('set-sound'), setAutoRotate: $('set-autorotate'),
+  setMiles: $('set-miles'), setDoubleTap: $('set-doubletap'), setSound: $('set-sound'), setMusic: $('set-music'), setAutoRotate: $('set-autorotate'),
   toast: $('toast'),
 };
 
@@ -155,6 +156,7 @@ function startGame(isPractice) {
   globe.setAutoRotate(false);
   globe.setInteractive(true);
   setScoreDisplay(0);
+  if (settings.music) startMusic();
   beginRound();
 }
 
@@ -253,6 +255,7 @@ function endGame() {
   globe.clearPin();
   globe.setInteractive(false);
   globe.setAutoRotate(settings.autoRotate);
+  stopMusic();
   sounds.fanfare();
 
   const total = session.totalScore;
@@ -730,6 +733,7 @@ async function boot() {
   els.setMiles.checked = settings.miles;
   els.setDoubleTap.checked = settings.doubleTap;
   els.setSound.checked = settings.sound;
+  els.setMusic.checked = settings.music;
   els.setAutoRotate.checked = settings.autoRotate;
 
   // Globe
@@ -848,12 +852,16 @@ async function boot() {
       miles: els.setMiles.checked,
       doubleTap: els.setDoubleTap.checked,
       sound: els.setSound.checked,
+      music: els.setMusic.checked,
       autoRotate: els.setAutoRotate.checked,
     };
     saveSettings(settings);
     if (!session || session.isOver) globe.setAutoRotate(settings.autoRotate);
+    // Music toggle takes effect immediately, even mid-game.
+    if (!settings.music) stopMusic();
+    else if (session && !session.isOver) startMusic();
   };
-  [els.setMiles, els.setDoubleTap, els.setSound, els.setAutoRotate].forEach((el) =>
+  [els.setMiles, els.setDoubleTap, els.setSound, els.setMusic, els.setAutoRotate].forEach((el) =>
     el.addEventListener('change', syncSettings)
   );
 

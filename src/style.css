@@ -23,9 +23,17 @@ html, body {
   color: var(--text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none; /* stop iOS pull-to-refresh fighting globe drags */
 }
 
-#app { position: fixed; inset: 0; }
+#app {
+  position: fixed;
+  inset: 0;
+  /* iOS Safari: 100vh includes area behind the dynamic toolbars, which hid the
+     bottom confirm bar. dvh tracks the VISIBLE viewport. */
+  height: 100vh;
+  height: 100dvh;
+}
 
 #globe-container {
   position: absolute; inset: 0;
@@ -566,11 +574,61 @@ html, body {
 /* ============ Mobile tweaks ============ */
 @media (max-width: 560px) {
   .brand-name { display: none; }
-  .puzzle-meta { position: static; transform: none; }
-  #topbar { gap: 6px; }
-  .prompt-card { top: 58px; padding: 10px 14px 12px; }
+  .puzzle-meta { position: static; transform: none; padding: 4px 10px; font-size: 0.78rem; }
+  #topbar { gap: 6px; padding: 8px 10px; }
+  .scorebox { padding: 3px 10px; min-width: 58px; }
+  #score-value { font-size: 1.05rem; }
+  .icon-btn { width: 34px; height: 34px; }
+
+  .prompt-card {
+    top: 54px;
+    padding: 8px 12px 10px;
+    max-width: 94vw;
+  }
+  .prompt-place { font-size: 1.05rem; }
+  .prompt-sub { font-size: 0.75rem; }
+  .prompt-label { font-size: 0.62rem; letter-spacing: 1.2px; }
+
+  /* Compact confirm bar: nudge pad beside stacked buttons, well above the iOS
+     home indicator, never taller than it needs to be. */
+  .confirm-bar {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    padding: 8px 10px;
+    width: 96vw;
+  }
+  .confirm-hint { font-size: 0.68rem; margin-bottom: 6px; }
+  .kbd-hint { display: none; }
   .confirm-controls { gap: 10px; }
-  .nudge-pad { width: 84px; height: 84px; }
-  .n-up { left: 27px; } .n-down { left: 27px; }
-  .n-left { top: 27px; } .n-right { top: 27px; }
+  .nudge-pad { width: 76px; height: 76px; }
+  .nudge { width: 26px; height: 26px; font-size: 0.65rem; }
+  .n-up { left: 25px; } .n-down { left: 25px; }
+  .n-left { top: 25px; } .n-right { top: 25px; }
+  .confirm-actions { gap: 6px; }
+  .btn.big { padding: 11px 14px; font-size: 0.95rem; }
+
+  .result-panel {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    padding: 12px 14px;
+  }
+  .overview-panel {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    padding: 10px 10px 9px;
+  }
+  .ov-name { font-size: 1rem; }
+  .ov-fact { font-size: 0.76rem; }
+  .ov-wiki-extract { -webkit-line-clamp: 3; }
+  .start-title { font-size: 2.4rem; }
+  .start-logo { font-size: 3rem; }
+}
+
+/* Short screens (landscape phones): shrink vertical chrome hard */
+@media (max-height: 500px) {
+  .prompt-card { top: 50px; padding: 6px 10px; }
+  .prompt-progress { display: none; }
+  .confirm-hint { display: none; }
+  .confirm-bar { padding: 6px 10px; }
+  .nudge-pad { width: 64px; height: 64px; }
+  .nudge { width: 22px; height: 22px; }
+  .n-up { left: 21px; } .n-down { left: 21px; }
+  .n-left { top: 21px; } .n-right { top: 21px; }
 }

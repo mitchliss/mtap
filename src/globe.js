@@ -304,6 +304,10 @@ export class Globe {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x060a18);
+    // touch-action must be on the CANVAS itself (it is not inherited): without it,
+    // iOS hijacks vertical drags for scroll/pull-to-refresh, so the globe spins
+    // horizontally but won't tilt on phones.
+    this.renderer.domElement.style.touchAction = 'none';
     container.appendChild(this.renderer.domElement);
 
     // Lights — mostly even (a geography game needs no dark side) with a gentle
