@@ -13,10 +13,15 @@ export const MAX_GAME_SCORE = ROUND_MULTIPLIERS.reduce((a, m) => a + m * MAX_ROU
 
 // ---------- round selection ----------
 
+// Bump this to re-deal every daily puzzle (e.g. after a scoring change, so the
+// day can be retested with fresh locations). A stored daily result from an older
+// generation no longer counts as "already played".
+export const DAILY_GENERATION = 2;
+
 // Deterministic daily pick: 5 locations, easy -> hard, no repeated country,
 // at least 3 different continents.
 export function pickLocations(seed) {
-  const rng = mulberry32(seed * 7919 + 13);
+  const rng = mulberry32((seed + DAILY_GENERATION * 1000003) * 7919 + 13);
   const shuffled = seededShuffle(LOCATIONS, rng);
   const wantDiff = [1, 1, 2, 3, 3]; // ramp difficulty to match the x1/x1/x2/x3/x3 multipliers
   const picked = [];
@@ -125,14 +130,18 @@ export function loadHistory() { return loadJSON('history', {}); }
 
 export function recordDailyResult(puzzleNumber, rounds, total) {
   const history = loadHistory();
-  history[puzzleNumber] = { date: todayKey(), total, rounds };
+  history[puzzleNumber] = { date: todayKey(), total, rounds, gen: DAILY_GENERATION };
   saveJSON('history', history);
   return history;
 }
 
 export function dailyAlreadyPlayed(puzzleNumber) {
   const history = loadHistory();
-  return history[puzzleNumber] || null;
+  const rec = history[puzzleNumber] || null;
+  // A result recorded under an older generation doesn't block a replay
+  // (the day was re-dealt with different locations).
+  if (rec && (rec.gen || 1) !== DAILY_GENERATION) return null;
+  return rec;
 }
 
 export function computeStreak() {
