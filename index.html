@@ -138,6 +138,7 @@
           <button id="btn-play-practice" class="btn ghost">🎲 Play practice game</button>
         </div>
         <div id="end-stats" class="end-stats"></div>
+        <div id="next-countdown" class="next-countdown hidden">Next MTap in <b>--:--:--</b></div>
         <div id="onthisday" class="onthisday hidden">
           <div class="otd-title">📅 On this day in history</div>
           <div id="otd-items"></div>
@@ -162,10 +163,28 @@
     <div id="leaderboard-modal" class="modal hidden">
       <div class="modal-card">
         <button class="modal-close" data-close="leaderboard-modal">×</button>
-        <h2>🏆 Family Leaderboard</h2>
+        <h2>🏆 Leaderboard</h2>
         <div id="lb-today-label" class="lb-today-label"></div>
+        <div id="lb-filter" class="lb-filter hidden">
+          <button id="lb-filter-all" class="lb-chip active">Everyone</button>
+          <button id="lb-filter-crew" class="lb-chip">👥 <span id="lb-crew-name">My crew</span></button>
+        </div>
         <div id="lb-rows" class="lb-rows"></div>
-        <div class="lb-hint">Scores from family members arrive when you open their shared links — share yours after each game so everyone's board matches!</div>
+        <button id="btn-crew" class="btn ghost small">👥 Set up your crew</button>
+        <div class="lb-hint">Scores from family &amp; friends arrive when you open their shared links — share yours after each game so everyone's board matches!</div>
+      </div>
+    </div>
+
+    <!-- ======= Crew setup ======= -->
+    <div id="crew-modal" class="modal hidden">
+      <div class="modal-card">
+        <button class="modal-close" data-close="crew-modal">×</button>
+        <h2>👥 Your crew</h2>
+        <p class="name-sub">Name your group and tap who's in it. Share the crew link once — everyone who opens it gets the same group on their leaderboard.</p>
+        <input id="crew-name" type="text" maxlength="24" placeholder="e.g. Liss Fam" autocomplete="off" />
+        <div id="crew-members" class="crew-members"></div>
+        <div class="crew-hint">People appear here once you've seen a score from them (play on this device or open their share link).</div>
+        <button id="crew-share" class="btn primary big">📣 Share crew link</button>
       </div>
     </div>
 
@@ -253,7 +272,7 @@
           <input type="checkbox" id="set-autorotate" checked />
         </label>
         <div class="settings-about">
-          MTap v2.5 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v2.7 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>

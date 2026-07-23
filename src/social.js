@@ -131,6 +131,46 @@ export function getChallenge(puzzleNumber) {
   return c && c.p === puzzleNumber ? c : null;
 }
 
+// ---------- crew (friend group) ----------
+
+export function getCrew() { return loadJSON('social.crew', { name: '', members: [] }); }
+export function saveCrew(crew) { saveJSON('social.crew', crew); }
+
+export function toggleCrewMember(name) {
+  const crew = getCrew();
+  const key = name.toLowerCase();
+  const idx = crew.members.findIndex((m) => m.toLowerCase() === key);
+  if (idx >= 0) crew.members.splice(idx, 1); else crew.members.push(name);
+  saveCrew(crew);
+  return crew;
+}
+
+export function isCrewMember(name) {
+  if (!name) return false;
+  const crew = getCrew();
+  return crew.members.some((m) => m.toLowerCase() === name.toLowerCase());
+}
+
+export function buildCrewPayload() {
+  const crew = getCrew();
+  return { t: 'c', g: crew.name, m: crew.members };
+}
+
+export function importCrewPayload(p) {
+  // { t:'c', g:name, m:[names] } -> union-merge into the local crew
+  if (!p || p.t !== 'c' || !Array.isArray(p.m)) return null;
+  const crew = getCrew();
+  if (p.g && !crew.name) crew.name = String(p.g).slice(0, 24);
+  for (const m of p.m.slice(0, 30)) {
+    const name = String(m).slice(0, 24);
+    if (name && !crew.members.some((x) => x.toLowerCase() === name.toLowerCase())) {
+      crew.members.push(name);
+    }
+  }
+  saveCrew(crew);
+  return crew;
+}
+
 // ---------- family places pack ----------
 
 export function getFamilyPlaces() { return loadJSON('social.places', []); }

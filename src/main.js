@@ -18,6 +18,7 @@ import {
   recordPlayerResult, importResultPayload, buildResultPayload, leaderboardRows,
   setChallenge, getChallenge,
   getFamilyPlaces, addFamilyPlace, buildPlacePayload, importPlacePayload, familyPlaceForPuzzle,
+  getCrew, saveCrew, toggleCrewMember, isCrewMember, buildCrewPayload, importCrewPayload,
 } from './social.js';
 
 const $ = (id) => document.getElementById(id);
@@ -46,6 +47,9 @@ const els = {
   btnAddPlace: $('btn-add-place'),
   challengeBanner: $('challenge-banner'),
   endBonus: $('end-bonus'), endChallenge: $('end-challenge'),
+  crewModal: $('crew-modal'), crewName: $('crew-name'), crewMembers: $('crew-members'), crewShare: $('crew-share'),
+  btnCrew: $('btn-crew'), lbFilter: $('lb-filter'), lbFilterAll: $('lb-filter-all'), lbFilterCrew: $('lb-filter-crew'), lbCrewName: $('lb-crew-name'),
+  nextCountdown: $('next-countdown'),
   startPlayer: $('start-player'), setPlayerName: $('set-player-name'), btnSwitchPlayer: $('btn-switch-player'),
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
@@ -236,6 +240,7 @@ function confirmGuess(lat, lng) {
     renderRoundDots();
     flyPoints(`+${result.points}`);
     setScoreDisplay(prevTotal + result.points, prevTotal);
+    if (result.bullseye) burstConfetti(60);
     if (result.score >= 70) sounds.good(); else if (result.score < 15) sounds.bad(); else sounds.tap();
   }, 900);
 }
@@ -271,10 +276,18 @@ function endGame() {
   }));
 
   const player = getActivePlayer();
+  const prevBest = computeStreak().best; // before this game is recorded
   if (!session.isPractice) {
     recordDailyResult(puzzleNumberForToday(), rounds, total);
     const emojis = session.results.filter((r) => !r.isBonus).map((r) => emojiForScore(r.score)).join('');
     if (player) recordPlayerResult(player, puzzleNumberForToday(), total, emojis, bonus);
+    if (total > prevBest && prevBest > 0) {
+      burstConfetti(110);
+      toast(`🎉 New personal best: ${total}!`, 3000);
+    }
+    startNextCountdown();
+  } else {
+    hide(els.nextCountdown);
   }
 
   // Family bonus line
@@ -365,6 +378,7 @@ function showEndScreenForRecorded(record) {
   hide(els.startScreen);
   show(els.endScreen);
   globe.setAutoRotate(settings.autoRotate);
+  startNextCountdown();
   renderOnThisDay();
 }
 
@@ -499,6 +513,99 @@ async function renderOnThisDay() {
 // ---------- social: profiles, leaderboard, family places, challenges ----------
 
 let placingPlace = null; // { name, fact } while pinning a new family place
+let lbShowCrewOnly = false;
+
+// Native share sheet when available (iPhone: opens Messages/contacts directly);
+// clipboard fallback everywhere else.
+async function shareOrCopy(text, copiedToast) {
+  if (navigator.share) {
+    try { await navigator.share({ text }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; /* else fall through */ }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(copiedToast || 'Copied! 📋');
+  } catch {
+    toast('Could not copy — ' + text.slice(0, 100), 5000);
+  }
+}
+
+// Celebration confetti (bullseyes + personal bests)
+function burstConfetti(count = 70) {
+  const colors = ['#4da3ff', '#4ade80', '#fbbf24', '#ff4d6d', '#a78bfa', '#f0f4ff'];
+  for (let i = 0; i < count; i++) {
+    const bit = document.createElement('div');
+    bit.className = 'confetti-bit';
+    bit.style.left = Math.random() * 100 + 'vw';
+    bit.style.background = colors[Math.floor(Math.random() * colors.length)];
+    const dur = 1.6 + Math.random() * 1.6;
+    bit.style.animationDuration = dur + 's';
+    bit.style.animationDelay = Math.random() * 0.5 + 's';
+    bit.style.transform = `rotate(${Math.random() * 360}deg)`;
+    document.body.appendChild(bit);
+    setTimeout(() => bit.remove(), (dur + 0.6) * 1000);
+  }
+}
+
+// Wordle-style countdown to the next daily puzzle (local midnight).
+let countdownTimer = null;
+function startNextCountdown() {
+  clearInterval(countdownTimer);
+  const tick = () => {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const ms = midnight - now;
+    const h = String(Math.floor(ms / 3600000)).padStart(2, '0');
+    const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0');
+    const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+    els.nextCountdown.innerHTML = `Next MTap in <b>${h}:${m}:${s}</b>`;
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+  show(els.nextCountdown);
+}
+
+// --- crew (friend group) ---
+
+function renderCrewModal() {
+  const crew = getCrew();
+  els.crewName.value = crew.name;
+  els.crewMembers.innerHTML = '';
+  const known = Object.values(getPlayers());
+  // Crew members not seen as players yet still get chips (so imports show).
+  const names = new Map();
+  known.forEach((p) => names.set(p.name.toLowerCase(), p.name));
+  crew.members.forEach((m) => names.set(m.toLowerCase(), m));
+  if (!names.size) {
+    els.crewMembers.innerHTML = '<div class="crew-hint">Nobody to add yet.</div>';
+    return;
+  }
+  for (const name of names.values()) {
+    const chip = document.createElement('button');
+    chip.className = 'crew-chip' + (isCrewMember(name) ? ' in' : '');
+    chip.textContent = (isCrewMember(name) ? '✓ ' : '') + name;
+    chip.addEventListener('click', () => {
+      const crewNow = getCrew();
+      crewNow.name = els.crewName.value.trim().slice(0, 24);
+      saveCrew(crewNow);
+      toggleCrewMember(name);
+      renderCrewModal();
+    });
+    els.crewMembers.appendChild(chip);
+  }
+}
+
+function shareCrewLink() {
+  const crew = getCrew();
+  crew.name = els.crewName.value.trim().slice(0, 24) || 'Our crew';
+  saveCrew(crew);
+  if (!crew.members.length) { toast('Tap some names into the crew first 👥'); return; }
+  const link = `${shareBaseUrl()}#mt=${encodePayload(buildCrewPayload())}`;
+  shareOrCopy(
+    `👥 Join "${crew.name}" on MTap — our own leaderboard group! Open this and we're all connected: ${link}`,
+    'Crew link copied! 📋'
+  );
+}
 
 function refreshPlayerUI() {
   const name = getActivePlayer();
@@ -581,7 +688,18 @@ function renderLeaderboard() {
   const pn = puzzleNumberForToday();
   els.lbTodayLabel.textContent = `MTap #${pn} · ${todayDateText()}`;
   els.lbRows.innerHTML = '';
-  const rows = leaderboardRows(pn);
+  const crew = getCrew();
+  if (crew.members.length) {
+    show(els.lbFilter);
+    els.lbCrewName.textContent = crew.name || 'My crew';
+    els.lbFilterAll.classList.toggle('active', !lbShowCrewOnly);
+    els.lbFilterCrew.classList.toggle('active', lbShowCrewOnly);
+  } else {
+    hide(els.lbFilter);
+    lbShowCrewOnly = false;
+  }
+  let rows = leaderboardRows(pn);
+  if (lbShowCrewOnly) rows = rows.filter((r) => isCrewMember(r.name));
   const me = getActivePlayer();
   if (!rows.length) {
     els.lbRows.innerHTML = '<div class="lb-hint">No scores yet — play today\'s game!</div>';
@@ -595,7 +713,7 @@ function renderLeaderboard() {
     rank.textContent = r.today !== null ? ['🥇', '🥈', '🥉'][i] || `${i + 1}.` : '·';
     const nameEl = document.createElement('span');
     nameEl.className = 'lb-name';
-    nameEl.textContent = r.name;
+    nameEl.textContent = (isCrewMember(r.name) ? '👥 ' : '') + r.name;
     if (r.streak > 1) {
       const s = document.createElement('small');
       s.textContent = `🔥${r.streak}`;
@@ -650,10 +768,8 @@ function finalizePlace() {
   globe.setInteractive(false);
   const link = `${shareBaseUrl()}#mt=${encodePayload(buildPlacePayload(saved))}`;
   els.placeShareSummary.textContent = `"${saved.name}" is now a ×2 bonus round in your daily games${saved.by ? ` (added by ${saved.by})` : ''}.`;
-  els.placeShareCopy.onclick = async () => {
-    try { await navigator.clipboard.writeText(`🏠 I added "${saved.name}" to our MTap family map! Open to get it in your game: ${link}`); toast('Link copied! 📋'); }
-    catch { toast('Copy failed — link: ' + link, 5000); }
-  };
+  els.placeShareCopy.onclick = () =>
+    shareOrCopy(`🏠 I added "${saved.name}" to our MTap family map! Open to get it in your game: ${link}`, 'Link copied! 📋');
   show(els.placeShareModal);
   show(els.startScreen);
   globe.setAutoRotate(settings.autoRotate);
@@ -674,6 +790,11 @@ function processIncomingPayload() {
     const place = importPlacePayload(p);
     if (place) {
       toast(`🏠 "${place.name}" added to your family map!`, 3200);
+    }
+  } else if (p.t === 'c') {
+    const crew = importCrewPayload(p);
+    if (crew) {
+      toast(`👥 You're in "${crew.name || 'the crew'}"! Leaderboard grouped.`, 3200);
     }
   }
   refreshPlayerUI();
@@ -708,12 +829,7 @@ async function shareScore() {
       (bonus ? `\n🏠 Family bonus +${bonus}` : '') +
       `\nThink you can beat it? ${link}`;
   }
-  try {
-    await navigator.clipboard.writeText(text);
-    toast('Copied! Paste it in the family chat 📣');
-  } catch {
-    toast('Could not copy — here it is: ' + text, 4000);
-  }
+  await shareOrCopy(text, 'Copied! Paste it in the family chat 📣');
 }
 
 // ---------- boot ----------
@@ -764,6 +880,15 @@ async function boot() {
     setTimeout(() => els.placeName.focus(), 150);
   });
   els.placeNext.addEventListener('click', startPlacePinning);
+  els.btnCrew.addEventListener('click', () => { hide(els.lbModal); renderCrewModal(); show(els.crewModal); });
+  els.crewShare.addEventListener('click', shareCrewLink);
+  els.crewName.addEventListener('change', () => {
+    const crew = getCrew();
+    crew.name = els.crewName.value.trim().slice(0, 24);
+    saveCrew(crew);
+  });
+  els.lbFilterAll.addEventListener('click', () => { lbShowCrewOnly = false; renderLeaderboard(); });
+  els.lbFilterCrew.addEventListener('click', () => { lbShowCrewOnly = true; renderLeaderboard(); });
   els.btnSwitchPlayer.addEventListener('click', () => { hide(els.settingsModal); openNameModal(true); });
   els.nameSave.addEventListener('click', () => saveName(els.nameInput.value));
   els.nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(els.nameInput.value); });
