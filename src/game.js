@@ -43,31 +43,37 @@ export function practiceSeed() {
 
 // ---------- scoring ----------
 
-// Within 50 km -> perfect 100.  Beyond that an exponential decay capped at 80,
-// with floors for landing in the right country (30) or continent (10).
+// Calibrated 1:1 against maptap.gg (probed live 2026-07-23):
+//   - accuracy = 100 * e^(-d/4643) -> the score halves every ~3,219 km (2,000 mi).
+//     286 km away = 94, 1,000 km = 81, 2,800 km = 55, 5,000 km = 34.
+//   - landing in the right country lifts low scores toward a floor of 25; the
+//     right continent (on land) toward 10. The lift rescales accuracy into
+//     [floor, 100] but is capped at 80 - and never LOWERS a good raw score.
+const DECAY_KM = 4643;
+const COUNTRY_FLOOR = 25;
+const CONTINENT_FLOOR = 10;
+const FLOOR_CAP = 80;
+
 export function scoreGuess(guessLat, guessLng, target) {
   const d = distanceKm(guessLat, guessLng, target.lat, target.lng);
-  let score;
-  let bullseye = false;
-  if (d <= 50) {
-    score = MAX_ROUND_SCORE;
-    bullseye = true;
-  } else {
-    score = Math.round(80 * Math.exp(-(d - 50) / 1250));
-  }
+  const accuracy = Math.round(Math.max(0, Math.min(100, 100 * Math.exp(-d / DECAY_KM))));
 
   const guessCountry = countryAt(guessLat, guessLng);
+  let floor = 0;
   let countryMatch = false;
   let continentMatch = false;
-  if (!bullseye && guessCountry) {
-    if (target.country && guessCountry.name === target.country) {
-      countryMatch = true;
-      score = Math.max(score, 30);
-    } else if (target.continent && guessCountry.continent === target.continent) {
-      continentMatch = true;
-      score = Math.max(score, 10);
-    }
+  if (guessCountry && target.country && guessCountry.name === target.country) {
+    floor = COUNTRY_FLOOR;
+    countryMatch = true;
+  } else if (guessCountry && target.continent && guessCountry.continent === target.continent) {
+    // guessCountry non-null = tap was on land; open-ocean taps get no continent bonus.
+    floor = CONTINENT_FLOOR;
+    continentMatch = true;
   }
+
+  const boosted = floor + (accuracy / 100) * (100 - floor);
+  const score = Math.round(Math.max(accuracy, Math.min(boosted, FLOOR_CAP)));
+  const bullseye = accuracy >= 100; // within ~23 km rounds to a perfect 100
 
   return { distanceKm: d, score, bullseye, countryMatch, continentMatch, guessCountry };
 }

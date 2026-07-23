@@ -76,6 +76,9 @@ export async function fetchOnThisDay(limit = 3) {
           text: e.text,
           thumbnail: page && page.thumbnail ? page.thumbnail.source : null,
           url: page && page.content_urls && page.content_urls.desktop ? page.content_urls.desktop.page : null,
+          // The feed ships each linked page's lead extract - enough for a story card.
+          extract: page && page.extract ? page.extract : null,
+          pageTitle: page ? (page.titles && page.titles.normalized) || page.title : null,
         };
       });
     onThisDayCache = events.length ? events : null;

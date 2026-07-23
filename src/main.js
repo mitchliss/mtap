@@ -255,7 +255,7 @@ function endGame() {
       <span class="rr-dist"></span>
       <span class="rr-pts">+${r.points}</span>`;
     row.querySelector('.rr-name').textContent = r.target.name;
-    row.querySelector('.rr-dist').textContent = formatDistance(r.distanceKm, settings.miles);
+    row.querySelector('.rr-dist').textContent = `${r.score}% · ${formatDistance(r.distanceKm, settings.miles)}`;
     row.addEventListener('click', () => enterOverview(i));
     els.endRounds.appendChild(row);
   });
@@ -286,7 +286,7 @@ function showEndScreenForRecorded(record) {
       <span class="rr-dist"></span>
       <span class="rr-pts">+${pts}</span>`;
     row.querySelector('.rr-name').textContent = r.name;
-    row.querySelector('.rr-dist').textContent = formatDistance(r.distanceKm, settings.miles);
+    row.querySelector('.rr-dist').textContent = `${r.score}% · ${formatDistance(r.distanceKm, settings.miles)}`;
     row.addEventListener('click', () => enterOverview(i));
     els.endRounds.appendChild(row);
   });
@@ -377,12 +377,34 @@ function exitOverview() {
   globe.setAutoRotate(settings.autoRotate);
 }
 
-// "On this day in history" card on the end screen (Wikipedia on-this-day feed).
+// "On this day in history" on the end screen (Wikipedia on-this-day feed):
+// one featured story with a photo and a short article extract, then the rest as lines.
 async function renderOnThisDay() {
-  const events = await fetchOnThisDay(3);
+  const events = await fetchOnThisDay(4);
   if (!events || !events.length) { hide(els.onThisDay); return; }
   els.otdItems.innerHTML = '';
-  events.forEach((ev) => {
+
+  const featuredIdx = events.findIndex((e) => e.thumbnail && e.extract);
+  const featured = featuredIdx >= 0 ? events[featuredIdx] : null;
+  const rest = events.filter((_, i) => i !== featuredIdx).slice(0, 3);
+
+  if (featured) {
+    const card = document.createElement('div');
+    card.className = 'otd-featured';
+    card.innerHTML = `
+      <img class="otd-featured-img" alt="" />
+      <div class="otd-featured-head"><span class="otd-year">${featured.year}</span> <span class="otd-featured-text"></span></div>
+      <div class="otd-featured-extract"></div>
+      <a class="ov-wiki-link" target="_blank" rel="noopener">Read the full story →</a>`;
+    card.querySelector('.otd-featured-img').src = featured.thumbnail;
+    card.querySelector('.otd-featured-text').textContent = featured.text;
+    card.querySelector('.otd-featured-extract').textContent = featured.extract;
+    const link = card.querySelector('.ov-wiki-link');
+    if (featured.url) link.href = featured.url; else link.remove();
+    els.otdItems.appendChild(card);
+  }
+
+  rest.forEach((ev) => {
     const row = document.createElement('div');
     row.className = 'otd-item';
     const thumb = ev.thumbnail ? `<img class="otd-thumb" alt="" />` : '';

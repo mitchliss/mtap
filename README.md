@@ -17,14 +17,18 @@ Unlike most tap-the-map games where one stray touch locks in your answer:
 
 ## Scoring
 
-Base accuracy per round:
+Base accuracy per round — calibrated 1:1 against maptap.gg (probed live 2026-07-23):
 
 | Result | Base points |
 |---|---|
-| Within 50 km | **100** (bullseye) |
-| Distance-based decay | up to **80** |
-| Right country | minimum **30** |
-| Right continent | minimum **10** |
+| Distance d | `round(100 · e^(−d/4643 km))` — halves every ~3,200 km |
+| Within ~23 km | **100** (bullseye) |
+| 300 km away | ≈**94** |
+| 1,000 km away | ≈**81** |
+| Right country | accuracy rescaled into [25, 100], boost capped at **80** |
+| Right continent (on land) | same rescale with floor **10**, capped at **80** |
+
+The country/continent boost never lowers a good raw distance score.
 
 Rounds ramp in difficulty and the base score is multiplied MapTap-style:
 rounds 1–2 (easy) **×1**, round 3 (medium) **×2**, rounds 4–5 (hard) **×3**.

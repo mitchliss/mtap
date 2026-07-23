@@ -421,6 +421,30 @@ html, body {
 .wiki-credit { text-align: center; font-size: 0.68rem; color: var(--text-dim); margin-top: 8px; }
 .wiki-credit a { color: var(--accent); }
 
+/* Featured story card (photo + short article extract) */
+.otd-featured {
+  background: rgba(13, 20, 41, 0.6);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  text-align: left;
+}
+.otd-featured-img {
+  width: 100%; max-height: 170px; object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  margin-bottom: 9px;
+  display: block;
+}
+.otd-featured-head { font-size: 0.9rem; line-height: 1.45; margin-bottom: 6px; }
+.otd-featured-text { font-weight: 700; }
+.otd-featured-extract {
+  font-size: 0.8rem; color: var(--text-dim); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 5px;
+}
+
 /* ============ Toast ============ */
 .toast {
   position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
