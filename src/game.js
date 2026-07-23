@@ -172,6 +172,8 @@ export function multiplierForRound(i) { return ROUND_MULTIPLIERS[i] || 1; }
 
 // ---------- game state machine ----------
 
+export const FAMILY_ROUND_MULTIPLIER = 2;
+
 export class GameSession {
   constructor(seed, isPractice) {
     this.seed = seed;
@@ -181,9 +183,31 @@ export class GameSession {
     this.results = [];
   }
 
+  // Adds a 6th "Family Round" from the shared family places pack. Its points are
+  // a BONUS tracked separately so leaderboard totals stay comparable (/1000)
+  // between family members with and without the pack.
+  appendFamilyRound(place) {
+    if (!place || this.locations.some((l) => l.isFamily)) return;
+    this.locations.push({
+      name: place.name,
+      lat: place.lat,
+      lng: place.lng,
+      country: place.country,
+      continent: place.continent,
+      fact: place.fact || '',
+      by: place.by || '',
+      isFamily: true,
+    });
+  }
+
   get currentLocation() { return this.locations[this.roundIndex]; }
-  get currentMultiplier() { return ROUND_MULTIPLIERS[this.roundIndex] || 1; }
-  get totalScore() { return this.results.reduce((a, r) => a + r.points, 0); }
+  get currentMultiplier() {
+    const loc = this.currentLocation;
+    if (loc && loc.isFamily) return FAMILY_ROUND_MULTIPLIER;
+    return ROUND_MULTIPLIERS[this.roundIndex] || 1;
+  }
+  get totalScore() { return this.results.filter((r) => !r.isBonus).reduce((a, r) => a + r.points, 0); }
+  get bonusScore() { return this.results.filter((r) => r.isBonus).reduce((a, r) => a + r.points, 0); }
   get isOver() { return this.roundIndex >= this.locations.length; }
 
   submitGuess(lat, lng) {
@@ -194,6 +218,7 @@ export class GameSession {
     // score = base accuracy 0-100; points = score x round multiplier (what totals up).
     result.multiplier = this.currentMultiplier;
     result.points = result.score * result.multiplier;
+    result.isBonus = !!target.isFamily;
     this.results.push(result);
     return result;
   }

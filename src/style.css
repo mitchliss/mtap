@@ -445,6 +445,96 @@ html, body {
   margin-bottom: 5px;
 }
 
+/* ============ Social: profiles, leaderboard, family places ============ */
+.btn.small { padding: 7px 13px; font-size: 0.82rem; }
+.start-social-row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.start-player { margin-top: 10px; font-size: 0.8rem; color: var(--text-dim); }
+.start-player a { color: var(--accent); cursor: pointer; text-decoration: none; }
+
+.challenge-banner {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(255, 77, 109, 0.16));
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin: 0 auto 16px;
+  max-width: 340px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  animation: dropIn .4s ease;
+}
+
+.name-card { text-align: center; }
+.name-emoji { font-size: 2.6rem; }
+.name-sub { color: var(--text-dim); font-size: 0.88rem; margin: 6px 0 14px; line-height: 1.45; }
+#name-input, #place-name, #place-fact {
+  width: 100%;
+  background: rgba(147, 163, 196, 0.1);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1.05rem;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  outline: none;
+}
+#name-input:focus, #place-name:focus, #place-fact:focus { border-color: var(--accent); }
+.name-known { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-bottom: 12px; }
+.name-chip {
+  background: rgba(77, 163, 255, 0.14);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.name-chip:hover { border-color: var(--accent); }
+
+.lb-today-label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+.lb-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.lb-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(147, 163, 196, 0.08);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+.lb-row.me { border: 1px solid rgba(77, 163, 255, 0.5); }
+.lb-rank { font-weight: 800; color: var(--text-dim); min-width: 24px; }
+.lb-row.rank1 .lb-rank { color: var(--gold); }
+.lb-name { flex: 1; font-weight: 700; }
+.lb-name small { color: var(--text-dim); font-weight: 400; margin-left: 6px; }
+.lb-today { font-weight: 800; color: var(--gold); min-width: 44px; text-align: right; }
+.lb-stats { font-size: 0.72rem; color: var(--text-dim); text-align: right; line-height: 1.35; }
+.lb-hint { font-size: 0.75rem; color: var(--text-dim); line-height: 1.5; }
+
+.place-label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin: 4px 0 5px; }
+
+.end-bonus {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 10px;
+  padding: 7px 12px;
+  margin-bottom: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.end-challenge {
+  background: rgba(77, 163, 255, 0.1);
+  border: 1px solid rgba(77, 163, 255, 0.4);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+/* Family-round prompt accent */
+.prompt-card.family-round { border-color: rgba(251, 191, 36, 0.55); }
+.prompt-card.family-round .prompt-label { color: var(--gold); }
+
 /* ============ Toast ============ */
 .toast {
   position: absolute; top: 70px; left: 50%; transform: translateX(-50%);

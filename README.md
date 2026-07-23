@@ -48,6 +48,24 @@ about each place and how close you got.
 if it isn't already running and opens the game in the default browser.
 `scripts\make-icon.ps1` regenerates `assets\marctap.ico`.
 
+## Social features (serverless by design)
+
+The Liss & Spellman family layer — everything lives in each device's `localStorage`
+and travels between family members as base64 payloads in share-link URL hashes
+(`#mt=...`). The family group chat IS the network: no server, no accounts, nothing
+personal in this public repo.
+
+- **Profiles** — "Who's playing?" on first visit; returning players get greeted by
+  name with their streak. Multiple players per device; switch in Settings.
+- **Leaderboard** — 🏆 per-player today/best/avg/streak. Opening anyone's shared
+  result link merges their score into your board, so everyone converges.
+- **Challenges** — every shared score doubles as a challenge link; the recipient
+  sees "beat it!" before playing and a head-to-head verdict after.
+- **Family places** — 🏠 anyone can pin a meaningful spot (name-as-clue + fun fact
+  + "added by"), share it as a link, and every family member's daily game gains a
+  ×2 **Family Round**. Its points are a separate bonus so leaderboard totals stay
+  comparable (/1000) whether or not you have the pack.
+
 ## Run it locally
 
 ```

@@ -11,6 +11,13 @@ import {
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
+import {
+  readHashPayload, encodePayload, shareBaseUrl,
+  getActivePlayer, setActivePlayer, getPlayers,
+  recordPlayerResult, importResultPayload, buildResultPayload, leaderboardRows,
+  setChallenge, getChallenge,
+  getFamilyPlaces, addFamilyPlace, buildPlacePayload, importPlacePayload, familyPlaceForPuzzle,
+} from './social.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -30,6 +37,15 @@ const els = {
   ovRound: $('ov-round'), ovName: $('ov-name'), ovMeta: $('ov-meta'), ovFact: $('ov-fact'),
   ovWiki: $('ov-wiki'), ovWikiImg: $('ov-wiki-img'), ovWikiExtract: $('ov-wiki-extract'), ovWikiLink: $('ov-wiki-link'),
   onThisDay: $('onthisday'), otdItems: $('otd-items'),
+  nameModal: $('name-modal'), nameTitle: $('name-title'), nameInput: $('name-input'), nameKnown: $('name-known'), nameSave: $('name-save'),
+  lbModal: $('leaderboard-modal'), lbRows: $('lb-rows'), lbTodayLabel: $('lb-today-label'),
+  btnLeaderboard: $('btn-leaderboard'), btnEndLeaderboard: $('btn-end-leaderboard'),
+  placeModal: $('place-modal'), placeName: $('place-name'), placeFact: $('place-fact'), placeNext: $('place-next'),
+  placeShareModal: $('place-share-modal'), placeShareSummary: $('place-share-summary'), placeShareCopy: $('place-share-copy'),
+  btnAddPlace: $('btn-add-place'),
+  challengeBanner: $('challenge-banner'),
+  endBonus: $('end-bonus'), endChallenge: $('end-challenge'),
+  startPlayer: $('start-player'), setPlayerName: $('set-player-name'), btnSwitchPlayer: $('btn-switch-player'),
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
@@ -82,7 +98,7 @@ function toast(msg, ms = 1800) {
 
 function renderRoundDots() {
   els.roundDots.innerHTML = '';
-  for (let i = 0; i < ROUNDS_PER_GAME; i++) {
+  for (let i = 0; i < session.locations.length; i++) {
     const dot = document.createElement('div');
     dot.className = 'round-dot';
     const r = session.results[i];
@@ -124,6 +140,10 @@ function flyPoints(text) {
 function startGame(isPractice) {
   const seed = isPractice ? practiceSeed() : dailySeed();
   session = new GameSession(seed, isPractice);
+  if (!isPractice) {
+    const familyPlace = familyPlaceForPuzzle(puzzleNumberForToday());
+    if (familyPlace) session.appendFamilyRound(familyPlace);
+  }
   awaitingConfirm = false;
   roundLocked = false;
   hide(els.startScreen);
@@ -142,8 +162,18 @@ function beginRound() {
   const loc = session.currentLocation;
   els.promptPlace.textContent = loc.name;
   const mult = session.currentMultiplier;
-  els.promptSub.innerHTML = `Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
-    (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '');
+  const labelEl = document.querySelector('#prompt-card .prompt-label');
+  if (loc.isFamily) {
+    labelEl.textContent = '🏠 Family round — tap where this is…';
+    els.promptCard.classList.add('family-round');
+    els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
+      (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
+  } else {
+    labelEl.textContent = 'Tap where you think this is…';
+    els.promptCard.classList.remove('family-round');
+    els.promptSub.innerHTML = `Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
+      (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '');
+  }
   renderRoundDots();
   show(els.promptCard);
   hide(els.resultPanel);
@@ -174,6 +204,7 @@ function onGlobeDoubleTap(lat, lng) {
 }
 
 function confirmGuess(lat, lng) {
+  if (placingPlace) { finalizePlace(); return; }
   if (roundLocked) return;
   const pin = globe.getPin();
   const g = pin || { lat, lng };
@@ -225,6 +256,7 @@ function endGame() {
   sounds.fanfare();
 
   const total = session.totalScore;
+  const bonus = session.bonusScore;
   const rounds = session.results.map((r) => ({
     name: r.target.name,
     score: r.score,
@@ -232,10 +264,36 @@ function endGame() {
     multiplier: r.multiplier,
     distanceKm: Math.round(r.distanceKm),
     guess: { lat: r.guess.lat, lng: r.guess.lng },
+    b: r.isBonus ? 1 : 0,
   }));
 
+  const player = getActivePlayer();
   if (!session.isPractice) {
     recordDailyResult(puzzleNumberForToday(), rounds, total);
+    const emojis = session.results.filter((r) => !r.isBonus).map((r) => emojiForScore(r.score)).join('');
+    if (player) recordPlayerResult(player, puzzleNumberForToday(), total, emojis, bonus);
+  }
+
+  // Family bonus line
+  if (bonus > 0) {
+    els.endBonus.textContent = `🏠 Family round bonus: +${bonus}`;
+    show(els.endBonus);
+  } else {
+    hide(els.endBonus);
+  }
+
+  // Challenge verdict
+  hide(els.endChallenge);
+  if (!session.isPractice && player) {
+    const c = getChallenge(puzzleNumberForToday());
+    if (c && c.n.toLowerCase() !== player.toLowerCase()) {
+      const diff = total - c.s;
+      els.endChallenge.textContent =
+        diff > 0 ? `🏆 You beat ${c.n}'s ${c.s} by ${diff}!` :
+        diff === 0 ? `🤝 Dead tie with ${c.n} at ${c.s}!` :
+        `😤 ${c.n}'s ${c.s} stands — you were ${-diff} short.`;
+      show(els.endChallenge);
+    }
   }
 
   els.endTitle.textContent = session.isPractice
@@ -273,6 +331,14 @@ function showEndScreenForRecorded(record) {
   // Rebuild the end screen from a stored daily result (revisiting after playing).
   els.endTitle.textContent = `MTap #${puzzleNumberForToday()} — already played today!`;
   els.endScoreValue.textContent = record.total;
+  hide(els.endChallenge);
+  const recBonus = (record.rounds || []).filter((r) => r.b).reduce((a, r) => a + (r.points || 0), 0);
+  if (recBonus > 0) {
+    els.endBonus.textContent = `🏠 Family round bonus: +${recBonus}`;
+    show(els.endBonus);
+  } else {
+    hide(els.endBonus);
+  }
   els.endEmoji.textContent = record.rounds.map((r) => emojiForScore(r.score)).join(' ');
   els.endRounds.innerHTML = '';
   record.rounds.forEach((r, i) => {
@@ -317,7 +383,9 @@ function buildOverviewItems() {
   const record = dailyAlreadyPlayed(puzzleNumberForToday());
   if (!record) return null;
   const locs = pickLocations(dailySeed());
-  return record.rounds.map((r, i) => ({
+  // Only the 5 standard rounds reconstruct from the daily seed; a stored family
+  // bonus round has no seed-derived location, so it's skipped on revisit.
+  return record.rounds.slice(0, locs.length).filter((r) => !r.b).map((r, i) => ({
     lat: locs[i].lat, lng: locs[i].lng, name: r.name, fact: locs[i].fact || '',
     guess: r.guess || null, distanceKm: r.distanceKm,
     score: r.score, points: r.points != null ? r.points : r.score,
@@ -425,20 +493,221 @@ async function renderOnThisDay() {
   show(els.onThisDay);
 }
 
+// ---------- social: profiles, leaderboard, family places, challenges ----------
+
+let placingPlace = null; // { name, fact } while pinning a new family place
+
+function refreshPlayerUI() {
+  const name = getActivePlayer();
+  els.setPlayerName.textContent = name || '—';
+  els.startPlayer.innerHTML = '';
+  if (name) {
+    const span = document.createElement('span');
+    span.append('Playing as ');
+    const b = document.createElement('b');
+    b.textContent = name;
+    span.appendChild(b);
+    span.append(' · ');
+    const a = document.createElement('a');
+    a.textContent = 'Switch player';
+    a.addEventListener('click', () => openNameModal(true));
+    span.appendChild(a);
+    els.startPlayer.appendChild(span);
+  }
+  // Personalized greeting + streak
+  const stats = computeStreak();
+  if (name && stats.played > 0) {
+    els.startStreak.innerHTML = `Welcome back, <b></b>! 🔥 Streak: <b>${stats.streak}</b> · Best: <b>${stats.best}</b>`;
+    els.startStreak.querySelector('b').textContent = name;
+  } else if (name) {
+    els.startStreak.innerHTML = `Good luck, <b></b>! First game — make it count 🌍`;
+    els.startStreak.querySelector('b').textContent = name;
+  }
+  // Challenge banner (only until they play today)
+  const c = getChallenge(puzzleNumberForToday());
+  if (c && c.n !== name && !dailyAlreadyPlayed(puzzleNumberForToday())) {
+    els.challengeBanner.textContent = `🎯 ${c.n} scored ${c.s} today — beat it!`;
+    show(els.challengeBanner);
+  } else {
+    hide(els.challengeBanner);
+  }
+}
+
+function openNameModal(isSwitch) {
+  els.nameTitle.textContent = isSwitch ? 'Who\'s playing now?' : 'Who\'s playing?';
+  els.nameInput.value = '';
+  els.nameKnown.innerHTML = '';
+  const players = Object.values(getPlayers()).filter((p) => p.isLocal);
+  players.forEach((p) => {
+    const chip = document.createElement('button');
+    chip.className = 'name-chip';
+    chip.textContent = p.name;
+    chip.addEventListener('click', () => saveName(p.name));
+    els.nameKnown.appendChild(chip);
+  });
+  show(els.nameModal);
+  setTimeout(() => els.nameInput.focus(), 150);
+}
+
+function saveName(raw) {
+  const name = setActivePlayer(raw);
+  if (!name) { toast('Type a name first 🙂'); return; }
+  hide(els.nameModal);
+  migrateHistoryToPlayer(name);
+  refreshPlayerUI();
+  toast(`Welcome, ${name}! 🌍`);
+}
+
+// One-time: attribute this device's pre-profile results to the first profile.
+function migrateHistoryToPlayer(name) {
+  const players = getPlayers();
+  const hasResults = Object.values(players).some((p) => Object.keys(p.results || {}).length);
+  if (hasResults) return;
+  const history = loadHistoryForMigration();
+  for (const [n, rec] of Object.entries(history)) {
+    const emojis = (rec.rounds || []).filter((r) => !r.b).map((r) => emojiForScore(r.score)).join('');
+    recordPlayerResult(name, Number(n), rec.total, emojis, 0);
+  }
+}
+
+function loadHistoryForMigration() {
+  try { return JSON.parse(localStorage.getItem('marctap.history')) || {}; } catch { return {}; }
+}
+
+function renderLeaderboard() {
+  const pn = puzzleNumberForToday();
+  els.lbTodayLabel.textContent = `MTap #${pn} · ${todayDateText()}`;
+  els.lbRows.innerHTML = '';
+  const rows = leaderboardRows(pn);
+  const me = getActivePlayer();
+  if (!rows.length) {
+    els.lbRows.innerHTML = '<div class="lb-hint">No scores yet — play today\'s game!</div>';
+    return;
+  }
+  rows.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (i === 0 && r.today !== null ? ' rank1' : '') + (me && r.name.toLowerCase() === me.toLowerCase() ? ' me' : '');
+    const rank = document.createElement('span');
+    rank.className = 'lb-rank';
+    rank.textContent = r.today !== null ? ['🥇', '🥈', '🥉'][i] || `${i + 1}.` : '·';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'lb-name';
+    nameEl.textContent = r.name;
+    if (r.streak > 1) {
+      const s = document.createElement('small');
+      s.textContent = `🔥${r.streak}`;
+      nameEl.appendChild(s);
+    }
+    const today = document.createElement('span');
+    today.className = 'lb-today';
+    today.textContent = r.today !== null ? r.today + (r.bonus ? ` +${r.bonus}🏠` : '') : '—';
+    const stats = document.createElement('span');
+    stats.className = 'lb-stats';
+    stats.textContent = `best ${r.best} · avg ${r.avg} · ${r.played} played`;
+    row.append(rank, nameEl, today, stats);
+    els.lbRows.appendChild(row);
+  });
+}
+
+function openLeaderboard() { renderLeaderboard(); show(els.lbModal); }
+
+// --- add-a-family-place flow ---
+
+function startPlacePinning() {
+  const name = els.placeName.value.trim();
+  if (!name) { toast('Give the place a name first 🙂'); return; }
+  placingPlace = { name, fact: els.placeFact.value.trim() };
+  hide(els.placeModal);
+  hide(els.startScreen);
+  globe.setAutoRotate(false);
+  globe.setInteractive(true);
+  els.promptPlace.textContent = name;
+  els.promptSub.textContent = 'Pin the exact spot, then confirm';
+  document.querySelector('#prompt-card .prompt-label').textContent = '🏠 Tap the globe to place it';
+  els.promptCard.classList.add('family-round');
+  show(els.promptCard);
+  toast('Tap the globe, drag the pin, then Confirm 📍', 3200);
+}
+
+function finalizePlace() {
+  const pin = globe.getPin();
+  if (!pin || !placingPlace) return;
+  const saved = addFamilyPlace({
+    name: placingPlace.name,
+    lat: pin.lat,
+    lng: pin.lng,
+    fact: placingPlace.fact,
+    by: getActivePlayer() || '',
+  });
+  placingPlace = null;
+  hide(els.confirmBar);
+  hide(els.promptCard);
+  els.promptCard.classList.remove('family-round');
+  globe.clearPin();
+  globe.setInteractive(false);
+  const link = `${shareBaseUrl()}#mt=${encodePayload(buildPlacePayload(saved))}`;
+  els.placeShareSummary.textContent = `"${saved.name}" is now a ×2 bonus round in your daily games${saved.by ? ` (added by ${saved.by})` : ''}.`;
+  els.placeShareCopy.onclick = async () => {
+    try { await navigator.clipboard.writeText(`🏠 I added "${saved.name}" to our MTap family map! Open to get it in your game: ${link}`); toast('Link copied! 📋'); }
+    catch { toast('Copy failed — link: ' + link, 5000); }
+  };
+  show(els.placeShareModal);
+  show(els.startScreen);
+  globe.setAutoRotate(settings.autoRotate);
+}
+
+// --- incoming share links ---
+
+function processIncomingPayload() {
+  const p = readHashPayload();
+  if (!p) return;
+  if (p.t === 'r') {
+    const r = importResultPayload(p);
+    if (r) {
+      if (r.puzzle === puzzleNumberForToday()) setChallenge(r.name, r.puzzle, r.score);
+      toast(`🏆 ${r.name}'s ${r.score} added to your leaderboard!`, 3200);
+    }
+  } else if (p.t === 'l') {
+    const place = importPlacePayload(p);
+    if (place) {
+      toast(`🏠 "${place.name}" added to your family map!`, 3200);
+    }
+  }
+  refreshPlayerUI();
+}
+
 // ---------- share ----------
 
 async function shareScore() {
-  let text;
-  if (session && session.isOver !== undefined && session.results.length === ROUNDS_PER_GAME) {
-    text = buildShareText(puzzleNumberForToday(), session.results, session.totalScore, session.isPractice);
+  const pn = puzzleNumberForToday();
+  const player = getActivePlayer() || 'Someone';
+  let total, emojis, bonus, isPractice;
+  if (session && session.results.length >= ROUNDS_PER_GAME) {
+    total = session.totalScore;
+    bonus = session.bonusScore;
+    emojis = session.results.filter((r) => !r.isBonus).map((r) => emojiForScore(r.score)).join('');
+    isPractice = session.isPractice;
   } else {
-    const record = dailyAlreadyPlayed(puzzleNumberForToday());
+    const record = dailyAlreadyPlayed(pn);
     if (!record) return;
-    text = buildShareText(puzzleNumberForToday(), record.rounds, record.total, false);
+    total = record.total;
+    bonus = (record.rounds || []).filter((r) => r.b).reduce((a, r) => a + (r.points || 0), 0);
+    emojis = (record.rounds || []).filter((r) => !r.b).map((r) => emojiForScore(r.score)).join('');
+    isPractice = false;
+  }
+  let text;
+  if (isPractice) {
+    text = `${player} scored ${total}/${MAX_GAME_SCORE} on an MTap practice game 🌍\n${emojis}`;
+  } else {
+    // Result link doubles as a challenge + leaderboard merge for whoever opens it.
+    const link = `${shareBaseUrl()}#mt=${encodePayload(buildResultPayload(player, pn, total, emojis, bonus))}`;
+    text = `${player} scored ${total}/${MAX_GAME_SCORE} on MTap #${pn} 🌍\n${emojis}` +
+      (bonus ? `\n🏠 Family bonus +${bonus}` : '') +
+      `\nThink you can beat it? ${link}`;
   }
   try {
     await navigator.clipboard.writeText(text);
-    toast('Score copied to clipboard! 📋');
+    toast('Copied! Paste it in the family chat 📣');
   } catch {
     toast('Could not copy — here it is: ' + text, 4000);
   }
@@ -473,6 +742,27 @@ async function boot() {
 
   const geojson = await loadCountries(`${import.meta.env.BASE_URL}data/countries-50m.geojson`);
   await globe.init(geojson);
+
+  // Social boot: import any share-link payload (needs country data), then profiles.
+  processIncomingPayload();
+  window.addEventListener('hashchange', processIncomingPayload);
+  if (!getActivePlayer()) {
+    setTimeout(() => openNameModal(false), 400);
+  }
+  refreshPlayerUI();
+
+  els.btnLeaderboard.addEventListener('click', openLeaderboard);
+  els.btnEndLeaderboard.addEventListener('click', openLeaderboard);
+  els.btnAddPlace.addEventListener('click', () => {
+    els.placeName.value = '';
+    els.placeFact.value = '';
+    show(els.placeModal);
+    setTimeout(() => els.placeName.focus(), 150);
+  });
+  els.placeNext.addEventListener('click', startPlacePinning);
+  els.btnSwitchPlayer.addEventListener('click', () => { hide(els.settingsModal); openNameModal(true); });
+  els.nameSave.addEventListener('click', () => saveName(els.nameInput.value));
+  els.nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(els.nameInput.value); });
 
   // If today's daily is already done, let the player know on Play.
   els.btnPlay.addEventListener('click', () => {
