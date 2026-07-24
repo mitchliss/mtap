@@ -299,7 +299,8 @@ export class Globe {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
-    this.camera.position.set(0, 0.55, 2.9);
+    // Start deep in space; cinematicIntro() swoops down to play distance on boot.
+    this.camera.position.set(0, 2.2, 8.4);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -364,7 +365,9 @@ export class Globe {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.minDistance = 1.15;
-    this.controls.maxDistance = 4.2;
+    // Starts loose so the intro can begin in deep space; cinematicIntro()
+    // tightens it to the play range (4.2) when the swoop lands.
+    this.controls.maxDistance = 9;
     this.controls.rotateSpeed = 0.55;
     this.controls.zoomSpeed = 0.9;
     this.controls.autoRotate = false;
@@ -763,6 +766,32 @@ export class Globe {
     this._pulses = [];
     this._arcAnim = null;
     this._answerPin = null;
+  }
+
+  // Boot cinematic: swoop from deep space down to play distance with a decaying
+  // spin around the planet - the "arriving at Earth" opening.
+  cinematicIntro(ms = 2600, endDistance = 2.9) {
+    const startPos = this.camera.position.clone();
+    const startDist = startPos.length();
+    const startDir = startPos.clone().normalize();
+    const spinTotal = Math.PI * 1.3;
+    const yAxis = new THREE.Vector3(0, 1, 0);
+    const endY = 0.19; // settle at a gentle tilt
+    const start = performance.now();
+    this._flights = [{
+      step: () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        const e = 1 - Math.pow(1 - t, 3); // easeOutCubic - fast arrival, soft landing
+        const dir = startDir.clone().applyAxisAngle(yAxis, spinTotal * e);
+        dir.y += (endY - startDir.y) * e;
+        dir.normalize();
+        const d = startDist + (endDistance - startDist) * e;
+        this.camera.position.copy(dir.multiplyScalar(d));
+        this.camera.lookAt(0, 0, 0);
+        if (t >= 1) this.controls.maxDistance = 4.2; // back to normal play range
+        return t >= 1;
+      },
+    }];
   }
 
   // Smoothly move the camera so (lat, lng) faces the viewer at the given distance.

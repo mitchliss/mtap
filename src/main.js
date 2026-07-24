@@ -89,9 +89,49 @@ function blip(freq, durationMs = 90, type = 'sine', gainValue = 0.06) {
     osc.stop(audioCtx.currentTime + durationMs / 1000);
   } catch { /* audio unavailable */ }
 }
+// Arrow-flight confirm: a noise whoosh sweeping down, landing with a thunk.
+function arrowSound() {
+  if (!settings.sound) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = audioCtx.currentTime;
+    // whoosh: filtered noise, band sweeping 3200 -> 350 Hz
+    const len = 0.28;
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(3200, t0);
+    bp.frequency.exponentialRampToValueAtTime(350, t0 + len);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.16, t0 + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
+    src.connect(bp).connect(g).connect(audioCtx.destination);
+    src.start(t0);
+    // thunk: pitch-dropping sine hit right as the whoosh lands
+    const hit = audioCtx.createOscillator();
+    hit.type = 'sine';
+    const tHit = t0 + 0.2;
+    hit.frequency.setValueAtTime(220, tHit);
+    hit.frequency.exponentialRampToValueAtTime(70, tHit + 0.12);
+    const hg = audioCtx.createGain();
+    hg.gain.setValueAtTime(0.0001, tHit);
+    hg.gain.linearRampToValueAtTime(0.22, tHit + 0.008);
+    hg.gain.exponentialRampToValueAtTime(0.0001, tHit + 0.22);
+    hit.connect(hg).connect(audioCtx.destination);
+    hit.start(tHit);
+    hit.stop(tHit + 0.3);
+  } catch { /* audio unavailable */ }
+}
+
 const sounds = {
   tap: () => blip(520, 70, 'sine'),
-  confirm: () => blip(700, 120, 'triangle'),
+  confirm: () => arrowSound(),
   good: () => { blip(660, 110, 'triangle'); setTimeout(() => blip(880, 160, 'triangle'), 110); },
   bad: () => blip(220, 220, 'sawtooth', 0.04),
   fanfare: () => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 180, 'triangle'), i * 130)); },
@@ -932,6 +972,7 @@ async function boot() {
 
   const geojson = await loadCountries(`${import.meta.env.BASE_URL}data/countries-50m.geojson`);
   await globe.init(geojson);
+  globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
 
   // Social boot: import any share-link payload (needs country data), then profiles.
   processIncomingPayload();
