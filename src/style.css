@@ -587,6 +587,26 @@ html, body {
 }
 
 .place-label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin: 4px 0 5px; }
+#place-loc { margin-bottom: 10px; }
+#place-find { width: 100%; }
+.place-results { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+.place-result {
+  border: 1px solid var(--panel-border);
+  background: rgba(77, 163, 255, 0.10);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.place-result:hover { border-color: var(--accent); background: rgba(77, 163, 255, 0.22); }
+.place-result small { display: block; color: var(--text-dim); font-weight: 400; font-size: 0.72rem; margin-top: 2px; }
+.place-searching { font-size: 0.8rem; color: var(--text-dim); text-align: center; padding: 4px; }
+.place-alt { display: block; text-align: center; margin-top: 12px; font-size: 0.78rem; color: var(--text-dim); text-decoration: none; }
+.place-alt:hover { color: var(--accent); }
 
 .end-bonus {
   background: rgba(251, 191, 36, 0.1);

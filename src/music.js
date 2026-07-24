@@ -37,6 +37,41 @@ const ARP = [
   [1, -1, 0, -1, 2, -1, 1, -1, 2, 1, -1, 2, -1, 1, -1, 2],
 ];
 
+// ---- iOS unlock ----
+// On iPhone, WebAudio is muted by the physical ring/silent switch (Safari runs it
+// in the "ambient" audio session). Playing a looping, silent <audio> element -
+// which must start inside a user gesture - flips the session to "playback", after
+// which WebAudio (music + sound effects) is audible regardless of the switch.
+let unlockEl = null;
+
+function silentWavUrl() {
+  // Generate 1s of silence as a WAV in memory - no asset, no license, ~16KB.
+  const rate = 8000;
+  const n = rate;
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v = new DataView(buf);
+  const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  writeStr(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+
+export function unlockIosAudio() {
+  try {
+    if (!unlockEl) {
+      unlockEl = new Audio(silentWavUrl());
+      unlockEl.loop = true;
+      unlockEl.volume = 0.01; // silent samples anyway; non-zero keeps it "really playing"
+      unlockEl.setAttribute('playsinline', '');
+    }
+    const p = unlockEl.play();
+    if (p && p.catch) p.catch(() => { /* retried on next gesture */ });
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+  } catch { /* audio unavailable */ }
+}
+
 function ensureCtx() {
   if (!ctx) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -182,6 +217,7 @@ function schedulerTick() {
 }
 
 export function startMusic() {
+  unlockIosAudio(); // called from a tap/click handler, so the gesture blesses it
   ensureCtx();
   if (playing) return;
   playing = true;

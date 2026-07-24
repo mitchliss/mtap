@@ -11,7 +11,8 @@ import {
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
-import { startMusic, stopMusic } from './music.js';
+import { startMusic, stopMusic, unlockIosAudio } from './music.js';
+import { geocodePlace } from './geocode.js';
 import {
   accountsEnabled, onAuthChange, signUp, signIn, signOutUser, resetPassword,
   currentUser, syncNow, lastSyncTime,
@@ -46,7 +47,8 @@ const els = {
   nameModal: $('name-modal'), nameTitle: $('name-title'), nameInput: $('name-input'), nameKnown: $('name-known'), nameSave: $('name-save'),
   lbModal: $('leaderboard-modal'), lbRows: $('lb-rows'), lbTodayLabel: $('lb-today-label'),
   btnLeaderboard: $('btn-leaderboard'), btnEndLeaderboard: $('btn-end-leaderboard'),
-  placeModal: $('place-modal'), placeName: $('place-name'), placeFact: $('place-fact'), placeNext: $('place-next'),
+  placeModal: $('place-modal'), placeName: $('place-name'), placeFact: $('place-fact'),
+  placeLoc: $('place-loc'), placeFind: $('place-find'), placeResults: $('place-results'), placePinManual: $('place-pin-manual'),
   placeShareModal: $('place-share-modal'), placeShareSummary: $('place-share-summary'), placeShareCopy: $('place-share-copy'),
   btnAddPlace: $('btn-add-place'),
   challengeBanner: $('challenge-banner'),
@@ -78,6 +80,7 @@ function blip(freq, durationMs = 90, type = 'sine', gainValue = 0.06) {
   if (!settings.sound) return;
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = type;
@@ -799,29 +802,58 @@ function startPlacePinning() {
   toast('Tap the globe, drag the pin, then Confirm 📍', 3200);
 }
 
+// Shared save path for both entry modes (geocoded and hand-pinned).
+function savePlaceAt(name, fact, lat, lng) {
+  const saved = addFamilyPlace({ name, lat, lng, fact, by: getActivePlayer() || '' });
+  const link = `${shareBaseUrl()}#mt=${encodePayload(buildPlacePayload(saved))}`;
+  els.placeShareSummary.textContent = `"${saved.name}" is now a ×2 bonus round in your daily games${saved.by ? ` (added by ${saved.by})` : ''}.`;
+  els.placeShareCopy.onclick = () =>
+    shareOrCopy(`🏠 I added "${saved.name}" to our MTap family map! Open to get it in your game: ${link}`, 'Link copied! 📋');
+  show(els.placeShareModal);
+  globe.flyTo(lat, lng, 2.0);
+  return saved;
+}
+
 function finalizePlace() {
   const pin = globe.getPin();
   if (!pin || !placingPlace) return;
-  const saved = addFamilyPlace({
-    name: placingPlace.name,
-    lat: pin.lat,
-    lng: pin.lng,
-    fact: placingPlace.fact,
-    by: getActivePlayer() || '',
-  });
+  const { name, fact } = placingPlace;
   placingPlace = null;
   hide(els.confirmBar);
   hide(els.promptCard);
   els.promptCard.classList.remove('family-round');
   globe.clearPin();
   globe.setInteractive(false);
-  const link = `${shareBaseUrl()}#mt=${encodePayload(buildPlacePayload(saved))}`;
-  els.placeShareSummary.textContent = `"${saved.name}" is now a ×2 bonus round in your daily games${saved.by ? ` (added by ${saved.by})` : ''}.`;
-  els.placeShareCopy.onclick = () =>
-    shareOrCopy(`🏠 I added "${saved.name}" to our MTap family map! Open to get it in your game: ${link}`, 'Link copied! 📋');
-  show(els.placeShareModal);
+  savePlaceAt(name, fact, pin.lat, pin.lng);
   show(els.startScreen);
   globe.setAutoRotate(settings.autoRotate);
+}
+
+// Geocoded entry: type "city, state/country" -> validate -> the app pins it.
+async function findPlaceByText() {
+  const name = els.placeName.value.trim();
+  if (!name) { toast('Give the place a name first 🙂'); return; }
+  const q = els.placeLoc.value.trim();
+  if (!q) { toast('Type the city and state/country 🌍'); return; }
+  els.placeResults.innerHTML = '<div class="place-searching">Searching the map…</div>';
+  const results = await geocodePlace(q);
+  els.placeResults.innerHTML = '';
+  if (!results || !results.length) {
+    els.placeResults.innerHTML =
+      '<div class="place-searching">Couldn\'t find that — try "City, State" or "City, Country", or pin it manually below.</div>';
+    return;
+  }
+  results.forEach((r) => {
+    const btn = document.createElement('button');
+    btn.className = 'place-result';
+    btn.innerHTML = `📍 <span class="pr-label"></span><small>Tap to use this location</small>`;
+    btn.querySelector('.pr-label').textContent = r.label;
+    btn.addEventListener('click', () => {
+      hide(els.placeModal);
+      savePlaceAt(name, els.placeFact.value.trim(), r.lat, r.lng);
+    });
+    els.placeResults.appendChild(btn);
+  });
 }
 
 // --- incoming share links ---
@@ -977,6 +1009,10 @@ async function boot() {
   // Social boot: import any share-link payload (needs country data), then profiles.
   processIncomingPayload();
   window.addEventListener('hashchange', processIncomingPayload);
+
+  // iOS: every tap re-blesses audio (silent-switch bypass + resume after calls/
+  // interruptions). Cheap no-op when already unlocked.
+  window.addEventListener('pointerdown', unlockIosAudio, { passive: true });
   if (!getActivePlayer()) {
     setTimeout(() => openNameModal(false), 400);
   }
@@ -987,10 +1023,14 @@ async function boot() {
   els.btnAddPlace.addEventListener('click', () => {
     els.placeName.value = '';
     els.placeFact.value = '';
+    els.placeLoc.value = '';
+    els.placeResults.innerHTML = '';
     show(els.placeModal);
     setTimeout(() => els.placeName.focus(), 150);
   });
-  els.placeNext.addEventListener('click', startPlacePinning);
+  els.placeFind.addEventListener('click', findPlaceByText);
+  els.placeLoc.addEventListener('keydown', (e) => { if (e.key === 'Enter') findPlaceByText(); });
+  els.placePinManual.addEventListener('click', (e) => { e.preventDefault(); startPlacePinning(); });
   els.btnCrew.addEventListener('click', () => { hide(els.lbModal); renderCrewModal(); show(els.crewModal); });
   els.crewShare.addEventListener('click', shareCrewLink);
   els.crewName.addEventListener('change', () => {

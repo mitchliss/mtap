@@ -198,7 +198,11 @@
         <input id="place-name" type="text" maxlength="60" placeholder="e.g. Where Grandma & Grandpa met" autocomplete="off" />
         <label class="place-label">Fun fact (shown after guessing — optional)</label>
         <input id="place-fact" type="text" maxlength="200" placeholder="e.g. A dance hall on a Tuesday in 1962" autocomplete="off" />
-        <button id="place-next" class="btn primary big">Next: pin it on the globe →</button>
+        <label class="place-label">Where is it? City, state / country</label>
+        <input id="place-loc" type="text" maxlength="80" placeholder="e.g. Wilmette, Illinois" autocomplete="off" />
+        <button id="place-find" class="btn primary big">🔎 Find this place</button>
+        <div id="place-results" class="place-results"></div>
+        <a id="place-pin-manual" class="place-alt" href="#">Prefer to drop the pin yourself? Pin it on the globe →</a>
       </div>
     </div>
 
@@ -295,7 +299,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v2.9 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v2.9.2 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>
