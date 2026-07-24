@@ -23,4 +23,13 @@
 // Note: a Firebase *web* config is public by design (it identifies the project;
 // the Firestore rules above are what protect the data) - safe to commit.
 
-export const FIREBASE_CONFIG = null;
+// Configured live 2026-07-24 (project "mtap", user data protected by the
+// per-user Firestore rules above; this web config is public by design).
+export const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyAOE3ELSl3ltP0qrGYwOGaxFAEXHmKFRmQ',
+  authDomain: 'mtap-a41a6.firebaseapp.com',
+  projectId: 'mtap-a41a6',
+  storageBucket: 'mtap-a41a6.firebasestorage.app',
+  messagingSenderId: '689481515240',
+  appId: '1:689481515240:web:5634759199a27ea8b9c95d',
+};
