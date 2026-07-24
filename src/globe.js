@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { toRad, toDeg } from './geo.js';
 import { mulberry32 } from './rng.js';
+import { TileDetail } from './tiledetail.js';
 
 const GLOBE_RADIUS = 1;
 
@@ -364,7 +365,7 @@ export class Globe {
     this.controls.enablePan = false;
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 1.15;
+    this.controls.minDistance = 1.06; // tile streaming keeps close zoom sharp
     // Starts loose so the intro can begin in deep space; cinematicIntro()
     // tightens it to the play range (4.2) when the swoop lands.
     this.controls.maxDistance = 9;
@@ -414,6 +415,16 @@ export class Globe {
     this.sphere.material.needsUpdate = true;
     this.pinTexGuess = makePinTexture('#ff4d6d', '#ffd6de');
     this.pinTexAnswer = makePinTexture('#38d67a', '#d7ffe8');
+    // Zoom-detail satellite tile streaming (self-disables if tiles unreachable).
+    this.tileDetail = new TileDetail(this, geojson);
+  }
+
+  // Lat/lng of the point on the globe the camera is looking at.
+  cameraLatLng() {
+    const v = this.camera.position;
+    const r = v.length();
+    if (r === 0) return null;
+    return { lat: toDeg(Math.asin(v.y / r)), lng: toDeg(Math.atan2(-v.z, v.x)) };
   }
 
   resize() {
@@ -866,6 +877,9 @@ export class Globe {
       const n = Math.floor(this._arcAnim.progress * this._arcAnim.segments) + 1;
       this._arcAnim.geo.setDrawRange(0, n);
     }
+
+    // Zoom-detail tile streaming.
+    if (this.tileDetail) this.tileDetail.update(dt);
 
     // Pulsing rings.
     for (const p of this._pulses) {

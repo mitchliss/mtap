@@ -108,6 +108,11 @@ To test the production build locally first: `npm run preview`
 - [NASA Blue Marble](https://visibleearth.nasa.gov/) topography + bathymetry imagery
   (public domain) — the globe surface, with country borders and a faint graticule
   composited on at load; oceans get a specular sun glint via a generated water mask
+- [Sentinel-2 cloudless](https://s2maps.eu) by EOX IT Services GmbH (free for
+  non-commercial use with attribution) — streamed as zoom detail: when the camera
+  gets close, visible-region tiles are fetched, resampled from mercator onto an
+  equirectangular patch (borders redrawn), and cross-faded over the base globe.
+  Self-disables gracefully when offline.
 - [Natural Earth](https://www.naturalearthdata.com/) 1:50m country boundaries (public domain) —
   border overlay + point-in-polygon country detection (and a painted-map fallback if the
   imagery can't load)
