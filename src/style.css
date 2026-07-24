@@ -474,19 +474,31 @@ html, body {
 .name-card { text-align: center; }
 .name-emoji { font-size: 2.6rem; }
 .name-sub { color: var(--text-dim); font-size: 0.88rem; margin: 6px 0 14px; line-height: 1.45; }
-#name-input, #place-name, #place-fact, #acct-email, #acct-pass {
+/* Unified modal text inputs - high contrast on the dark glass panels
+   (covers every current and future field in any modal). */
+.modal-card input[type="text"],
+.modal-card input[type="email"],
+.modal-card input[type="password"] {
   width: 100%;
-  background: rgba(147, 163, 196, 0.1);
-  border: 1px solid var(--panel-border);
+  background: rgba(8, 14, 32, 0.72);
+  border: 1.5px solid rgba(130, 168, 255, 0.4);
   border-radius: 12px;
-  color: var(--text);
+  color: #f4f7ff;
   font-family: inherit;
   font-size: 1.05rem;
-  padding: 12px 14px;
-  margin-bottom: 12px;
+  padding: 13px 15px;
+  margin-bottom: 10px;
   outline: none;
+  transition: border-color .15s, box-shadow .15s, background .15s;
 }
-#name-input:focus, #place-name:focus, #place-fact:focus, #acct-email:focus, #acct-pass:focus { border-color: var(--accent); }
+.modal-card input::placeholder { color: rgba(165, 182, 216, 0.62); }
+.modal-card input[type="text"]:focus,
+.modal-card input[type="email"]:focus,
+.modal-card input[type="password"]:focus {
+  border-color: var(--accent);
+  background: rgba(8, 14, 32, 0.92);
+  box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.25);
+}
 
 /* Account section (settings) */
 .settings-account {
@@ -586,7 +598,25 @@ html, body {
   100% { transform: translateY(105vh) rotate(660deg); opacity: 0.75; }
 }
 
-.place-label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin: 4px 0 5px; }
+.place-field { margin-bottom: 15px; }
+.place-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.8rem; font-weight: 700;
+  letter-spacing: 0.4px;
+  color: #ccd7ef;
+  margin: 0 0 7px;
+}
+.step-num {
+  flex: 0 0 auto;
+  width: 21px; height: 21px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #4da3ff);
+  color: #fff;
+  font-size: 0.72rem; font-weight: 800;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.label-opt { color: var(--text-dim); font-weight: 400; font-size: 0.72rem; }
+.place-loc-hint { font-size: 0.74rem; color: var(--text-dim); margin-top: -2px; line-height: 1.4; }
 #place-loc { margin-bottom: 10px; }
 #place-find { width: 100%; }
 .place-results { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
