@@ -474,7 +474,7 @@ html, body {
 .name-card { text-align: center; }
 .name-emoji { font-size: 2.6rem; }
 .name-sub { color: var(--text-dim); font-size: 0.88rem; margin: 6px 0 14px; line-height: 1.45; }
-#name-input, #place-name, #place-fact {
+#name-input, #place-name, #place-fact, #acct-email, #acct-pass {
   width: 100%;
   background: rgba(147, 163, 196, 0.1);
   border: 1px solid var(--panel-border);
@@ -486,7 +486,22 @@ html, body {
   margin-bottom: 12px;
   outline: none;
 }
-#name-input:focus, #place-name:focus, #place-fact:focus { border-color: var(--accent); }
+#name-input:focus, #place-name:focus, #place-fact:focus, #acct-email:focus, #acct-pass:focus { border-color: var(--accent); }
+
+/* Account section (settings) */
+.settings-account {
+  margin-top: 16px;
+  padding: 13px 14px;
+  background: rgba(147, 163, 196, 0.07);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+}
+.acct-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 9px; }
+.acct-btn-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.acct-btn-row .btn { flex: 1; }
+.acct-forgot { font-size: 0.75rem; color: var(--accent); cursor: pointer; text-decoration: none; }
+.acct-forgot:hover { text-decoration: underline; }
+#acct-email, #acct-pass { font-size: 0.92rem; padding: 10px 12px; margin-bottom: 8px; }
 .name-known { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-bottom: 12px; }
 .name-chip {
   background: rgba(77, 163, 255, 0.14);

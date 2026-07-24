@@ -66,6 +66,16 @@ personal in this public repo.
   ×2 **Family Round**. Its points are a separate bonus so leaderboard totals stay
   comparable (/1000) whether or not you have the pack.
 
+## Accounts (optional, off by default)
+
+The Settings screen has an email/password Account section for cross-device sync
+(scores, streaks, family places, crew). It stays hidden-as-"coming soon" until
+Firebase is configured — a one-time free setup (~5 minutes): follow the numbered
+steps in [src/firebase-config.js](src/firebase-config.js), paste the web config
+into that file, and push. The Firebase SDK loads from Google's CDN only when
+configured; with it off, the game remains fully serverless. Sync is a two-way
+merge (best score per puzzle wins, places/crew union), so no device loses data.
+
 ## Run it locally
 
 ```

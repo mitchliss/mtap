@@ -271,8 +271,31 @@
           <span>Auto-rotate on menus<small>Globe slowly spins while idle</small></span>
           <input type="checkbox" id="set-autorotate" checked />
         </label>
+        <div class="settings-account">
+          <div class="acct-title">Account · cross-device sync</div>
+          <div id="acct-disabled" class="settings-about">
+            Sign-in is ready to switch on — it needs a one-time free Firebase setup (see the README). Until then, everything saves on this device and share links keep the family in sync.
+          </div>
+          <div id="acct-signedout" class="hidden">
+            <input id="acct-email" type="email" placeholder="Email" autocomplete="email" />
+            <input id="acct-pass" type="password" placeholder="Password (6+ characters)" autocomplete="current-password" />
+            <div class="acct-btn-row">
+              <button id="acct-signin" class="btn primary small">Sign in</button>
+              <button id="acct-signup" class="btn ghost small">Create account</button>
+            </div>
+            <a id="acct-forgot" class="acct-forgot">Forgot password?</a>
+          </div>
+          <div id="acct-signedin" class="hidden">
+            <div id="acct-email-label" class="settings-about"></div>
+            <div class="acct-btn-row">
+              <button id="acct-sync" class="btn primary small">Sync now</button>
+              <button id="acct-signout" class="btn ghost small">Sign out</button>
+            </div>
+            <div id="acct-status" class="settings-about"></div>
+          </div>
+        </div>
         <div class="settings-about">
-          MTap v2.7 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v2.8 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>

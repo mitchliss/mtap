@@ -13,6 +13,10 @@ import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
 import { startMusic, stopMusic } from './music.js';
 import {
+  accountsEnabled, onAuthChange, signUp, signIn, signOutUser, resetPassword,
+  currentUser, syncNow, lastSyncTime,
+} from './account.js';
+import {
   readHashPayload, encodePayload, shareBaseUrl,
   getActivePlayer, setActivePlayer, getPlayers,
   recordPlayerResult, importResultPayload, buildResultPayload, leaderboardRows,
@@ -50,6 +54,10 @@ const els = {
   crewModal: $('crew-modal'), crewName: $('crew-name'), crewMembers: $('crew-members'), crewShare: $('crew-share'),
   btnCrew: $('btn-crew'), lbFilter: $('lb-filter'), lbFilterAll: $('lb-filter-all'), lbFilterCrew: $('lb-filter-crew'), lbCrewName: $('lb-crew-name'),
   nextCountdown: $('next-countdown'),
+  acctDisabled: $('acct-disabled'), acctSignedOut: $('acct-signedout'), acctSignedIn: $('acct-signedin'),
+  acctEmail: $('acct-email'), acctPass: $('acct-pass'),
+  acctSignInBtn: $('acct-signin'), acctSignUpBtn: $('acct-signup'), acctForgot: $('acct-forgot'),
+  acctEmailLabel: $('acct-email-label'), acctSync: $('acct-sync'), acctSignOut: $('acct-signout'), acctStatus: $('acct-status'),
   startPlayer: $('start-player'), setPlayerName: $('set-player-name'), btnSwitchPlayer: $('btn-switch-player'),
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
@@ -286,6 +294,7 @@ function endGame() {
       toast(`🎉 New personal best: ${total}!`, 3000);
     }
     startNextCountdown();
+    runSync('auto'); // cloud backup when signed in; no-op otherwise
   } else {
     hide(els.nextCountdown);
   }
@@ -800,32 +809,93 @@ function processIncomingPayload() {
   refreshPlayerUI();
 }
 
+// ---------- accounts (only active when Firebase is configured) ----------
+
+function fmtSyncTime() {
+  const t = lastSyncTime();
+  return t ? `Last synced ${new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : '';
+}
+
+function initAccountUI() {
+  if (!accountsEnabled) return; // the "coming soon" note stays visible
+  hide(els.acctDisabled);
+  show(els.acctSignedOut);
+  onAuthChange((user) => {
+    if (user) {
+      hide(els.acctSignedOut);
+      show(els.acctSignedIn);
+      els.acctEmailLabel.textContent = `Signed in as ${user.email}`;
+      els.acctStatus.textContent = fmtSyncTime();
+      runSync('auto');
+    } else {
+      show(els.acctSignedOut);
+      hide(els.acctSignedIn);
+    }
+    refreshPlayerUI();
+  });
+
+  els.acctSignInBtn.addEventListener('click', async () => {
+    const r = await signIn(els.acctEmail.value.trim(), els.acctPass.value);
+    if (!r.ok) toast(r.error, 3500); else toast('Signed in! Syncing… ☁️');
+  });
+  els.acctSignUpBtn.addEventListener('click', async () => {
+    const r = await signUp(els.acctEmail.value.trim(), els.acctPass.value);
+    if (!r.ok) toast(r.error, 3500); else toast('Account created! ☁️');
+  });
+  els.acctForgot.addEventListener('click', async () => {
+    const email = els.acctEmail.value.trim();
+    if (!email) { toast('Type your email first'); return; }
+    const r = await resetPassword(email);
+    toast(r.ok ? 'Reset email sent 📧' : r.error, 3500);
+  });
+  els.acctSync.addEventListener('click', () => runSync('manual'));
+  els.acctSignOut.addEventListener('click', async () => {
+    await signOutUser();
+    toast('Signed out');
+  });
+}
+
+async function runSync(kind) {
+  if (!accountsEnabled || !currentUser()) return;
+  const r = await syncNow();
+  if (r.ok) {
+    els.acctStatus.textContent = fmtSyncTime();
+    if (kind === 'manual') toast('Synced across your devices ☁️');
+    refreshPlayerUI();
+  } else if (kind === 'manual') {
+    toast(r.error, 3500);
+  }
+}
+
 // ---------- share ----------
 
 async function shareScore() {
   const pn = puzzleNumberForToday();
   const player = getActivePlayer() || 'Someone';
-  let total, emojis, bonus, isPractice;
+  let total, bonus, isPractice, mainScores;
   if (session && session.results.length >= ROUNDS_PER_GAME) {
     total = session.totalScore;
     bonus = session.bonusScore;
-    emojis = session.results.filter((r) => !r.isBonus).map((r) => emojiForScore(r.score)).join('');
+    mainScores = session.results.filter((r) => !r.isBonus).map((r) => r.score);
     isPractice = session.isPractice;
   } else {
     const record = dailyAlreadyPlayed(pn);
     if (!record) return;
     total = record.total;
     bonus = (record.rounds || []).filter((r) => r.b).reduce((a, r) => a + (r.points || 0), 0);
-    emojis = (record.rounds || []).filter((r) => !r.b).map((r) => emojiForScore(r.score)).join('');
+    mainScores = (record.rounds || []).filter((r) => !r.b).map((r) => r.score);
     isPractice = false;
   }
+  // MapTap-style per-guess line: "100🎯 73🔥 62😄 28😑 92🏆"
+  const perRound = mainScores.map((s) => `${s}${emojiForScore(s)}`).join(' ');
+  const emojis = mainScores.map((s) => emojiForScore(s)).join('');
   let text;
   if (isPractice) {
-    text = `${player} scored ${total}/${MAX_GAME_SCORE} on an MTap practice game 🌍\n${emojis}`;
+    text = `${player} scored ${total}/${MAX_GAME_SCORE} on an MTap practice game 🌍\n${perRound}`;
   } else {
     // Result link doubles as a challenge + leaderboard merge for whoever opens it.
     const link = `${shareBaseUrl()}#mt=${encodePayload(buildResultPayload(player, pn, total, emojis, bonus))}`;
-    text = `${player} scored ${total}/${MAX_GAME_SCORE} on MTap #${pn} 🌍\n${emojis}` +
+    text = `${player} scored ${total}/${MAX_GAME_SCORE} on MTap #${pn} 🌍\n${perRound}` +
       (bonus ? `\n🏠 Family bonus +${bonus}` : '') +
       `\nThink you can beat it? ${link}`;
   }
@@ -892,6 +962,7 @@ async function boot() {
   els.btnSwitchPlayer.addEventListener('click', () => { hide(els.settingsModal); openNameModal(true); });
   els.nameSave.addEventListener('click', () => saveName(els.nameInput.value));
   els.nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(els.nameInput.value); });
+  initAccountUI();
 
   // If today's daily is already done, let the player know on Play.
   els.btnPlay.addEventListener('click', () => {

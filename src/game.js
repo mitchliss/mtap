@@ -85,9 +85,13 @@ export function scoreGuess(guessLat, guessLng, target) {
 
 export function emojiForScore(score) {
   if (score >= 100) return '🎯';
+  if (score >= 90) return '🏆';
+  if (score >= 80) return '⭐';
   if (score >= 70) return '🔥';
+  if (score >= 55) return '😄';
   if (score >= 40) return '👍';
-  if (score >= 15) return '🤏';
+  if (score >= 25) return '😑';
+  if (score >= 15) return '🥲';
   return '🌍';
 }
 
