@@ -160,7 +160,7 @@ export function saveJSON(key, value) {
 
 export function loadSettings() {
   return Object.assign(
-    { miles: false, doubleTap: true, sound: true, music: true, autoRotate: true },
+    { miles: false, doubleTap: true, sound: true, music: true, musicStyle: 'auto', autoRotate: true },
     loadJSON('settings', {})
   );
 }

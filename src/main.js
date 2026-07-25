@@ -12,7 +12,7 @@ import {
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
-import { startMusic, stopMusic, unlockIosAudio } from './music.js';
+import { startMusic, stopMusic, unlockIosAudio, duckMusic, MUSIC_STYLES } from './music.js';
 import { geocodePlace, reverseGeocode } from './geocode.js';
 import { extractPhotoLocation } from './exif.js';
 import {
@@ -66,7 +66,7 @@ const els = {
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
-  setMiles: $('set-miles'), setDoubleTap: $('set-doubletap'), setSound: $('set-sound'), setMusic: $('set-music'), setAutoRotate: $('set-autorotate'),
+  setMiles: $('set-miles'), setDoubleTap: $('set-doubletap'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'),
   toast: $('toast'),
 };
 
@@ -98,7 +98,9 @@ function blip(freq, durationMs = 90, type = 'sine', gainValue = 0.06) {
 function arrowSound() {
   if (!settings.sound) return;
   try {
+    duckMusic(500); // dip the music so the arrow is clearly audible over it
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     const t0 = audioCtx.currentTime;
     // whoosh: filtered noise, band sweeping 3200 -> 350 Hz
     const len = 0.28;
@@ -114,7 +116,7 @@ function arrowSound() {
     bp.frequency.exponentialRampToValueAtTime(350, t0 + len);
     const g = audioCtx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(0.16, t0 + 0.05);
+    g.gain.linearRampToValueAtTime(0.34, t0 + 0.05);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + len);
     src.connect(bp).connect(g).connect(audioCtx.destination);
     src.start(t0);
@@ -126,7 +128,7 @@ function arrowSound() {
     hit.frequency.exponentialRampToValueAtTime(70, tHit + 0.12);
     const hg = audioCtx.createGain();
     hg.gain.setValueAtTime(0.0001, tHit);
-    hg.gain.linearRampToValueAtTime(0.22, tHit + 0.008);
+    hg.gain.linearRampToValueAtTime(0.42, tHit + 0.008);
     hg.gain.exponentialRampToValueAtTime(0.0001, tHit + 0.22);
     hit.connect(hg).connect(audioCtx.destination);
     hit.start(tHit);
@@ -215,8 +217,14 @@ function startGame(isPractice) {
   globe.setAutoRotate(false);
   globe.setInteractive(true);
   setScoreDisplay(0);
-  if (settings.music) startMusic();
+  if (settings.music) startMusic(resolveMusicStyle(), puzzleNumberForToday());
   beginRound();
+}
+
+// 'auto' rotates the genre with the daily puzzle; a manual pick sticks.
+function resolveMusicStyle() {
+  if (settings.musicStyle && settings.musicStyle !== 'auto') return settings.musicStyle;
+  return MUSIC_STYLES[puzzleNumberForToday() % MUSIC_STYLES.length];
 }
 
 function beginRound() {
@@ -1029,6 +1037,7 @@ async function boot() {
   els.setDoubleTap.checked = settings.doubleTap;
   els.setSound.checked = settings.sound;
   els.setMusic.checked = settings.music;
+  els.setMusicStyle.value = settings.musicStyle || 'auto';
   els.setAutoRotate.checked = settings.autoRotate;
 
   // Globe
@@ -1057,14 +1066,16 @@ async function boot() {
 
   els.btnLeaderboard.addEventListener('click', openLeaderboard);
   els.btnEndLeaderboard.addEventListener('click', openLeaderboard);
-  els.btnAddPlace.addEventListener('click', () => {
+  const openPlaceModal = () => {
     els.placeName.value = '';
     els.placeFact.value = '';
     els.placeLoc.value = '';
     els.placeResults.innerHTML = '';
     show(els.placeModal);
     setTimeout(() => els.placeName.focus(), 150);
-  });
+  };
+  els.btnAddPlace.addEventListener('click', openPlaceModal);
+  $('btn-end-place').addEventListener('click', openPlaceModal);
   els.placeFind.addEventListener('click', findPlaceByText);
   els.placeLoc.addEventListener('keydown', (e) => { if (e.key === 'Enter') findPlaceByText(); });
   els.placePhoto.addEventListener('change', () => findPlaceByPhoto(els.placePhoto.files[0]));
@@ -1163,20 +1174,26 @@ async function boot() {
 
   // Settings changes
   const syncSettings = () => {
+    const prevStyle = settings.musicStyle;
     settings = {
       miles: els.setMiles.checked,
       doubleTap: els.setDoubleTap.checked,
       sound: els.setSound.checked,
       music: els.setMusic.checked,
+      musicStyle: els.setMusicStyle.value,
       autoRotate: els.setAutoRotate.checked,
     };
     saveSettings(settings);
     if (!session || session.isOver) globe.setAutoRotate(settings.autoRotate);
-    // Music toggle takes effect immediately, even mid-game.
-    if (!settings.music) stopMusic();
-    else if (session && !session.isOver) startMusic();
+    // Music toggle/style takes effect immediately, even mid-game.
+    if (!settings.music) {
+      stopMusic();
+    } else if (session && !session.isOver) {
+      if (settings.musicStyle !== prevStyle) stopMusic();
+      startMusic(resolveMusicStyle(), puzzleNumberForToday());
+    }
   };
-  [els.setMiles, els.setDoubleTap, els.setSound, els.setMusic, els.setAutoRotate].forEach((el) =>
+  [els.setMiles, els.setDoubleTap, els.setSound, els.setMusic, els.setMusicStyle, els.setAutoRotate].forEach((el) =>
     el.addEventListener('change', syncSettings)
   );
 

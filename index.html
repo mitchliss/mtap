@@ -134,6 +134,7 @@
         <div class="end-actions">
           <button id="btn-share" class="btn primary big">📣 Share & challenge the family</button>
           <button id="btn-explore" class="btn ghost">🌐 Explore the locations</button>
+          <button id="btn-end-place" class="btn ghost">📷 Add a place you've been (photo or city)</button>
           <button id="btn-end-leaderboard" class="btn ghost">🏆 Leaderboard</button>
           <button id="btn-play-practice" class="btn ghost">🎲 Play practice game</button>
         </div>
@@ -279,8 +280,17 @@
           <input type="checkbox" id="set-sound" checked />
         </label>
         <label class="setting-row">
-          <span>Music<small>Driving house beat while you play (synthesized, royalty-free)</small></span>
+          <span>Music<small>Original synthesized tracks with a daily remix — new key, patterns &amp; drop every day</small></span>
           <input type="checkbox" id="set-music" checked />
+        </label>
+        <label class="setting-row">
+          <span>Music style<small>Auto rotates the genre daily</small></span>
+          <select id="set-music-style" class="setting-select">
+            <option value="auto">Auto (daily)</option>
+            <option value="house">House</option>
+            <option value="rock">Rock</option>
+            <option value="metal">Metal</option>
+          </select>
         </label>
         <label class="setting-row">
           <span>Auto-rotate on menus<small>Globe slowly spins while idle</small></span>
@@ -308,7 +318,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v2.9.4 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v3.0 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>

@@ -331,6 +331,17 @@ html, body {
 }
 .setting-row input[type="checkbox"]:checked { background: var(--accent); }
 .setting-row input[type="checkbox"]:checked::after { left: 23px; }
+.setting-select {
+  background: rgba(8, 14, 32, 0.72);
+  border: 1.5px solid rgba(130, 168, 255, 0.4);
+  border-radius: 10px;
+  color: #f4f7ff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 8px 10px;
+  outline: none;
+  flex: 0 0 auto;
+}
 .settings-about { margin-top: 16px; font-size: 0.78rem; color: var(--text-dim); line-height: 1.5; }
 .settings-about a { color: var(--accent); }
 

@@ -557,22 +557,28 @@ export class Globe {
   // ---------- pin management ----------
 
   _spriteScaleForDistance() {
+    // Proportional to camera height above the surface with NO floor worth naming:
+    // zoomed close, the pin shrinks with the terrain instead of towering over it.
     const d = this.camera.position.length() - GLOBE_RADIUS;
-    return THREE.MathUtils.clamp(d * 0.075, 0.028, 0.16);
+    return THREE.MathUtils.clamp(d * 0.062, 0.006, 0.16);
   }
 
   _placePin(lat, lng) {
     this.pinLatLng = { lat, lng };
     const surface = latLngToVec3(lat, lng, GLOBE_RADIUS * 1.002);
     if (!this.pin) {
-      const mat = new THREE.SpriteMaterial({ map: this.pinTexGuess, depthTest: true, sizeAttenuation: true });
+      // depthTest OFF + high renderOrder: the guess pin must NEVER hide behind
+      // terrain/tile geometry, no matter how close the camera is.
+      const mat = new THREE.SpriteMaterial({ map: this.pinTexGuess, depthTest: false, sizeAttenuation: true });
       this.pin = new THREE.Sprite(mat);
       this.pin.center.set(0.5, 0.06); // anchor at the pin's tip
+      this.pin.renderOrder = 999;
       this.markerRoot.add(this.pin);
 
       const dotGeo = new THREE.CircleGeometry(0.006, 24);
-      const dotMat = new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.9 });
+      const dotMat = new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.9, depthTest: false });
       this.pinDot = new THREE.Mesh(dotGeo, dotMat);
+      this.pinDot.renderOrder = 998;
       this.markerRoot.add(this.pinDot);
     }
     this.pin.position.copy(surface);
@@ -626,9 +632,10 @@ export class Globe {
     this.overviewActive = true;
     items.forEach((item, i) => {
       const tex = makeBadgeTexture(i + 1, '#38d67a');
-      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: true, sizeAttenuation: true });
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: true });
       const badge = new THREE.Sprite(mat);
       badge.center.set(0.5, 0.06);
+      badge.renderOrder = 999;
       badge.position.copy(latLngToVec3(item.lat, item.lng, GLOBE_RADIUS * 1.002));
       const s0 = this._spriteScaleForDistance();
       badge.scale.set(s0, s0, 1);
@@ -695,9 +702,10 @@ export class Globe {
 
   showAnswer(guess, answer) {
     // Answer pin
-    const mat = new THREE.SpriteMaterial({ map: this.pinTexAnswer, depthTest: true, sizeAttenuation: true });
+    const mat = new THREE.SpriteMaterial({ map: this.pinTexAnswer, depthTest: false, sizeAttenuation: true });
     const answerPin = new THREE.Sprite(mat);
     answerPin.center.set(0.5, 0.06);
+    answerPin.renderOrder = 999;
     answerPin.position.copy(latLngToVec3(answer.lat, answer.lng, GLOBE_RADIUS * 1.002));
     const s = this._spriteScaleForDistance();
     answerPin.scale.set(s, s, 1);
