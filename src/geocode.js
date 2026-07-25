@@ -46,6 +46,47 @@ export async function geocodePlace(query) {
   return null;
 }
 
+// Population lookup for round results: query the city token from a location's
+// display name, then accept only a candidate that's actually near the target
+// (within 300 km) so "Paris" never returns Paris, Texas. Cached per name.
+import { distanceKm } from './geo.js';
+
+const popCache = new Map();
+
+export async function fetchPopulationNear(name, lat, lng) {
+  if (popCache.has(name)) return popCache.get(name);
+  let result = null;
+  const base = name.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  const tokens = [];
+  for (const part of base.split('—')) {
+    for (const sub of part.split(',')) {
+      const t = sub.trim();
+      if (t && !tokens.includes(t)) tokens.push(t);
+    }
+  }
+  for (const q of tokens.slice(0, 3)) {
+    try {
+      const r = await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=5&language=en&format=json`
+      );
+      if (!r.ok) continue;
+      const j = await r.json();
+      const hit = (j.results || []).find(
+        (x) => x.population > 0 && distanceKm(lat, lng, x.latitude, x.longitude) < 300
+      );
+      if (hit) { result = hit.population; break; }
+    } catch { break; /* offline */ }
+  }
+  popCache.set(name, result);
+  return result;
+}
+
+export function formatPopulation(n) {
+  if (!n) return null;
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + ' million';
+  return n.toLocaleString();
+}
+
 // Reverse geocoding: turn a photo's GPS coordinates into a friendly label
 // ("Wilmette, Cook County, Illinois"). Nominatim, zoomed to city level.
 export async function reverseGeocode(lat, lng) {

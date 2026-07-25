@@ -291,6 +291,45 @@ function makeBadgeTexture(number, color) {
   return tex;
 }
 
+// Floating info card for the post-game overview: a translucent panel with
+// colored text lines (name / score+distance / fact), rendered to a texture.
+function makeLabelTexture(lines) {
+  const pad = 16;
+  const lineH = 34;
+  const font = (bold) => `${bold ? 700 : 500} 26px "Segoe UI", system-ui, sans-serif`;
+  const measure = document.createElement('canvas').getContext('2d');
+  let w = 0;
+  for (const l of lines) {
+    measure.font = font(l.bold);
+    w = Math.max(w, measure.measureText(l.text).width);
+  }
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(w + pad * 2);
+  c.height = lines.length * lineH + pad * 2 - 6;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(6, 12, 28, 0.78)';
+  g.beginPath();
+  const r = 14;
+  g.moveTo(r, 0);
+  g.arcTo(c.width, 0, c.width, c.height, r);
+  g.arcTo(c.width, c.height, 0, c.height, r);
+  g.arcTo(0, c.height, 0, 0, r);
+  g.arcTo(0, 0, c.width, 0, r);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = 'rgba(120, 160, 255, 0.35)';
+  g.lineWidth = 2;
+  g.stroke();
+  lines.forEach((l, i) => {
+    g.font = font(l.bold);
+    g.fillStyle = l.color || '#e8eefc';
+    g.fillText(l.text, pad, pad + 22 + i * lineH);
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return { tex, aspect: c.width / c.height };
+}
+
 // ---------- main class ----------
 
 export class Globe {
@@ -380,6 +419,8 @@ export class Globe {
     this.pinLatLng = null;
     this.draggingPin = false;
     this.interactive = false;  // taps place pins only when true
+    this.guessMode = 'hold';   // 'hold' = press & ring locks in; 'tap' = tap + confirm button
+    this._hold = null;         // active hold-gesture state
 
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -436,7 +477,8 @@ export class Globe {
   }
 
   setAutoRotate(on) { this.controls.autoRotate = on; }
-  setInteractive(on) { this.interactive = on; }
+  setInteractive(on) { this.interactive = on; if (!on) this._cancelHold(false); }
+  setGuessMode(mode) { this.guessMode = mode === 'tap' ? 'tap' : 'hold'; this._cancelHold(false); }
 
   // Zoom-aware rotation feel: slow the drag speed as you zoom in.
   _tuneControls() {
@@ -453,12 +495,71 @@ export class Globe {
     this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
-  _globeHit(e) {
-    this._setPointerFromEvent(e);
+  _globeHitXY(clientX, clientY) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObject(this.sphere, false);
     if (!hits.length) return null;
     return vec3ToLatLng(hits[0].point);
+  }
+
+  _globeHit(e) { return this._globeHitXY(e.clientX, e.clientY); }
+
+  // ---------- hold-to-lock gesture (MapTap-style ring) ----------
+  // Press and keep your finger down: after a short arm delay a ring charges for
+  // HOLD_MS; when it closes, the guess locks in. Moving early rotates the globe
+  // instead; moving far while charging cancels. A quick tap just shows a hint.
+
+  _beginHold(e) {
+    this._cancelHold(false);
+    this._hold = {
+      id: e.pointerId,
+      x: e.clientX, y: e.clientY,
+      startX: e.clientX, startY: e.clientY,
+      charging: false,
+      raf: null,
+      chargeStart: 0,
+      armTimer: setTimeout(() => this._armHold(), 140),
+    };
+  }
+
+  _armHold() {
+    const h = this._hold;
+    if (!h || h.charging) return;
+    if (!this._globeHitXY(h.x, h.y)) { this._cancelHold(false); return; }
+    h.charging = true;
+    h.chargeStart = performance.now();
+    this.controls.enabled = false;
+    // Interval, not requestAnimationFrame: rAF can be throttled (background
+    // tabs, low-power mode) and the lock-in must complete on wall-clock time.
+    const HOLD_MS = 700;
+    h.timer = setInterval(() => {
+      const hh = this._hold;
+      if (!hh || !hh.charging) return;
+      const t = Math.min(1, (performance.now() - hh.chargeStart) / HOLD_MS);
+      const ll = this._globeHitXY(hh.x, hh.y);
+      if (!ll) { this._cancelHold(true); return; }
+      if (this.cb.onHoldProgress) this.cb.onHoldProgress(hh.x, hh.y, t);
+      if (t >= 1) {
+        clearInterval(hh.timer);
+        this._placePin(ll.lat, ll.lng);
+        this._hold = null;
+        this.controls.enabled = true;
+        if (this.cb.onHoldComplete) this.cb.onHoldComplete(ll.lat, ll.lng);
+      }
+    }, 30);
+  }
+
+  _cancelHold(notify) {
+    const h = this._hold;
+    if (!h) return;
+    clearTimeout(h.armTimer);
+    if (h.timer) clearInterval(h.timer);
+    if (h.charging) this.controls.enabled = true;
+    this._hold = null;
+    if (notify && this.cb.onHoldCancel) this.cb.onHoldCancel();
   }
 
   _pinHit(e) {
@@ -487,12 +588,25 @@ export class Globe {
         this.controls.enabled = false;
         this.container.classList.add('dragging-pin');
         el.setPointerCapture(e.pointerId);
+        return;
+      }
+      if (this.interactive && this.guessMode === 'hold' && e.isPrimary) {
+        this._beginHold(e);
       }
     });
 
     el.addEventListener('pointermove', (e) => {
       if (downPos && (Math.abs(e.clientX - downPos.x) > 6 || Math.abs(e.clientY - downPos.y) > 6)) {
         moved = true;
+      }
+      const h = this._hold;
+      if (h && e.pointerId === h.id) {
+        h.x = e.clientX; h.y = e.clientY;
+        const drift = Math.hypot(e.clientX - h.startX, e.clientY - h.startY);
+        // Early movement = the user wants to rotate, not guess.
+        if (!h.charging && drift > 12) this._cancelHold(false);
+        // Big movement mid-charge aborts the lock (finger slipped / changed mind).
+        else if (h.charging && drift > 36) this._cancelHold(true);
       }
       if (this.draggingPin) {
         const ll = this._globeHit(e);
@@ -515,6 +629,8 @@ export class Globe {
     };
 
     el.addEventListener('pointerup', (e) => {
+      const holdWasCharging = !!(this._hold && this._hold.charging);
+      this._cancelHold(holdWasCharging); // released before the ring closed
       const wasPinPress = endDrag(e);
       if (!downPos) return;
       // A pin-press that actually moved was a drag — done. A stationary pin-press
@@ -524,6 +640,12 @@ export class Globe {
       if (!moved && quick && this.overviewActive) {
         const idx = this._overviewHit(e);
         if (idx !== null && this.cb.onOverviewSelect) this.cb.onOverviewSelect(idx);
+        downPos = null;
+        return;
+      }
+      // Hold mode: a quick tap never guesses - coach the player to hold instead.
+      if (!moved && quick && this.interactive && this.guessMode === 'hold' && !wasPinPress) {
+        if (this.cb.onHoldHint) this.cb.onHoldHint();
         downPos = null;
         return;
       }
@@ -551,7 +673,7 @@ export class Globe {
       downPos = null;
     });
 
-    el.addEventListener('pointercancel', endDrag);
+    el.addEventListener('pointercancel', (e) => { this._cancelHold(true); endDrag(e); });
   }
 
   // ---------- pin management ----------
@@ -642,6 +764,20 @@ export class Globe {
       badge.userData.overviewIndex = i;
       this.markerRoot.add(badge);
       this._overviewMarkers.push(badge);
+
+      // Floating info card next to the badge (name / score+distance / fact),
+      // camera-facing so it stays readable while the globe spins.
+      if (item.lines && item.lines.length) {
+        const { tex: labelTex, aspect } = makeLabelTexture(item.lines);
+        const labelMat = new THREE.SpriteMaterial({ map: labelTex, depthTest: false, sizeAttenuation: true });
+        const label = new THREE.Sprite(labelMat);
+        label.center.set(0.5, 1.45); // hang below the badge point
+        label.position.copy(latLngToVec3(item.lat, item.lng, GLOBE_RADIUS * 1.004));
+        label.userData.isLabel = true;
+        label.userData.aspect = aspect;
+        this.markerRoot.add(label);
+        this._overviewMarkers.push(label);
+      }
 
       if (item.guess) {
         const arc = this._buildArc(item.guess, item);
@@ -876,6 +1012,9 @@ export class Globe {
       if (o.userData && o.userData.overviewIndex !== undefined) {
         const k = o.userData.selected ? s * 1.25 : s;
         o.scale.set(k, k, 1);
+      } else if (o.userData && o.userData.isLabel) {
+        const k = s * 1.05; // card height tracks the badge size
+        o.scale.set(k * o.userData.aspect, k, 1);
       }
     }
 

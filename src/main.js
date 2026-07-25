@@ -13,7 +13,7 @@ import {
 import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
 import { startMusic, stopMusic, unlockIosAudio, duckMusic, MUSIC_STYLES } from './music.js';
-import { geocodePlace, reverseGeocode } from './geocode.js';
+import { geocodePlace, reverseGeocode, fetchPopulationNear, formatPopulation } from './geocode.js';
 import { extractPhotoLocation } from './exif.js';
 import {
   accountsEnabled, onAuthChange, sendLoginLink, completeLoginLink, signOutUser,
@@ -66,7 +66,8 @@ const els = {
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
-  setMiles: $('set-miles'), setDoubleTap: $('set-doubletap'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'),
+  setMiles: $('set-miles'), setDoubleTap: $('set-doubletap'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'), setGuessMode: $('set-guess-mode'),
+  resultPop: $('result-pop'),
   toast: $('toast'),
 };
 
@@ -232,13 +233,16 @@ function beginRound() {
   els.promptPlace.textContent = loc.name;
   const mult = session.currentMultiplier;
   const labelEl = document.querySelector('#prompt-card .prompt-label');
+  const verb = settings.guessMode === 'hold' ? 'hold where this is until the ring closes' : 'tap where this is';
   if (loc.isFamily) {
-    labelEl.textContent = '🏠 Family round — tap where this is…';
+    labelEl.textContent = `🏠 Family round — ${verb}…`;
     els.promptCard.classList.add('family-round');
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
       (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
   } else {
-    labelEl.textContent = 'Tap where you think this is…';
+    labelEl.textContent = settings.guessMode === 'hold'
+      ? 'Hold where you think this is until the ring closes…'
+      : 'Tap where you think this is…';
     els.promptCard.classList.remove('family-round');
     els.promptSub.innerHTML = `Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
       (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '');
@@ -298,6 +302,16 @@ function confirmGuess(lat, lng) {
       : `+${result.points}`;
     els.resultVerdict.textContent = verdictForResult(result);
     els.resultFact.textContent = result.target.fact || '';
+    // Population line (async, MapTap-style): only shown when a confident
+    // near-target match comes back; the curated fact always shows regardless.
+    hide(els.resultPop);
+    const popRound = session.roundIndex;
+    fetchPopulationNear(result.target.name, result.target.lat, result.target.lng).then((pop) => {
+      if (pop && session && session.roundIndex === popRound) {
+        els.resultPop.textContent = `👥 Population: ${formatPopulation(pop)}`;
+        show(els.resultPop);
+      }
+    });
     els.btnNext.textContent = session.roundIndex + 1 >= ROUNDS_PER_GAME ? 'See results →' : 'Next →';
     show(els.resultPanel);
     renderRoundDots();
@@ -451,27 +465,42 @@ function showEndScreenForRecorded(record) {
 let overviewItems = null;
 let overviewIndex = 0;
 
+// Text lines for the floating 3D info card next to each overview badge.
+function overviewCardLines(item) {
+  const fact = (item.fact || '').length > 52 ? item.fact.slice(0, 49).trim() + '…' : item.fact;
+  const lines = [
+    { text: item.name, bold: true, color: '#ffffff' },
+    { text: `${item.score}% · ${formatDistance(item.distanceKm, settings.miles)} · +${item.points}`, color: '#fbbf24' },
+  ];
+  if (fact) lines.push({ text: fact, color: '#9fb2d8' });
+  return lines;
+}
+
 function buildOverviewItems() {
   // Prefer the live session; otherwise reconstruct today's daily from the stored
   // record + the deterministic daily pick (same seed -> same 5 locations).
+  let items = null;
   if (session && session.results.length === ROUNDS_PER_GAME) {
-    return session.results.map((r) => ({
+    items = session.results.map((r) => ({
       lat: r.target.lat, lng: r.target.lng, name: r.target.name, fact: r.target.fact || '',
       guess: r.guess, distanceKm: r.distanceKm,
       score: r.score, points: r.points, multiplier: r.multiplier,
     }));
+  } else {
+    const record = dailyAlreadyPlayed(puzzleNumberForToday());
+    if (!record) return null;
+    const locs = pickLocations(dailySeed());
+    // Only the 5 standard rounds reconstruct from the daily seed; a stored family
+    // bonus round has no seed-derived location, so it's skipped on revisit.
+    items = record.rounds.slice(0, locs.length).filter((r) => !r.b).map((r, i) => ({
+      lat: locs[i].lat, lng: locs[i].lng, name: r.name, fact: locs[i].fact || '',
+      guess: r.guess || null, distanceKm: r.distanceKm,
+      score: r.score, points: r.points != null ? r.points : r.score,
+      multiplier: r.multiplier || multiplierForRound(i),
+    }));
   }
-  const record = dailyAlreadyPlayed(puzzleNumberForToday());
-  if (!record) return null;
-  const locs = pickLocations(dailySeed());
-  // Only the 5 standard rounds reconstruct from the daily seed; a stored family
-  // bonus round has no seed-derived location, so it's skipped on revisit.
-  return record.rounds.slice(0, locs.length).filter((r) => !r.b).map((r, i) => ({
-    lat: locs[i].lat, lng: locs[i].lng, name: r.name, fact: locs[i].fact || '',
-    guess: r.guess || null, distanceKm: r.distanceKm,
-    score: r.score, points: r.points != null ? r.points : r.score,
-    multiplier: r.multiplier || multiplierForRound(i),
-  }));
+  for (const item of items) item.lines = overviewCardLines(item);
+  return items;
 }
 
 function enterOverview(startIndex = 0) {
@@ -806,6 +835,7 @@ function startPlacePinning() {
   hide(els.startScreen);
   globe.setAutoRotate(false);
   globe.setInteractive(true);
+  globe.setGuessMode('tap'); // manual pinning keeps the tap + confirm flow
   els.promptPlace.textContent = name;
   els.promptSub.textContent = 'Pin the exact spot, then confirm';
   document.querySelector('#prompt-card .prompt-label').textContent = '🏠 Tap the globe to place it';
@@ -836,6 +866,7 @@ function finalizePlace() {
   els.promptCard.classList.remove('family-round');
   globe.clearPin();
   globe.setInteractive(false);
+  globe.setGuessMode(settings.guessMode);
   savePlaceAt(name, fact, pin.lat, pin.lng);
   show(els.startScreen);
   globe.setAutoRotate(settings.autoRotate);
@@ -1038,14 +1069,37 @@ async function boot() {
   els.setSound.checked = settings.sound;
   els.setMusic.checked = settings.music;
   els.setMusicStyle.value = settings.musicStyle || 'auto';
+  els.setGuessMode.value = settings.guessMode || 'hold';
   els.setAutoRotate.checked = settings.autoRotate;
 
   // Globe
+  const holdRing = $('hold-ring');
+  const holdFg = holdRing.querySelector('.hr-fg');
+  let lastHoldHint = 0;
   globe = new Globe(document.getElementById('globe-container'), {
     onTap: onGlobeTap,
     onDoubleTap: onGlobeDoubleTap,
     onOverviewSelect: (i) => selectOverviewIndex(i),
+    onHoldProgress: (x, y, t) => {
+      holdRing.style.left = x + 'px';
+      holdRing.style.top = y + 'px';
+      holdFg.style.strokeDashoffset = String(201 * (1 - t));
+      show(holdRing);
+    },
+    onHoldComplete: (lat, lng) => {
+      hide(holdRing);
+      confirmGuess(lat, lng);
+    },
+    onHoldCancel: () => hide(holdRing),
+    onHoldHint: () => {
+      const now = Date.now();
+      if (now - lastHoldHint > 4000) {
+        lastHoldHint = now;
+        toast('Hold your finger down — the ring locks in your guess ⭕', 2600);
+      }
+    },
   });
+  globe.setGuessMode(settings.guessMode);
   globe.setAutoRotate(settings.autoRotate);
 
   const geojson = await loadCountries(`${import.meta.env.BASE_URL}data/countries-50m.geojson`);
@@ -1182,8 +1236,10 @@ async function boot() {
       music: els.setMusic.checked,
       musicStyle: els.setMusicStyle.value,
       autoRotate: els.setAutoRotate.checked,
+      guessMode: els.setGuessMode.value,
     };
     saveSettings(settings);
+    if (!placingPlace) globe.setGuessMode(settings.guessMode);
     if (!session || session.isOver) globe.setAutoRotate(settings.autoRotate);
     // Music toggle/style takes effect immediately, even mid-game.
     if (!settings.music) {

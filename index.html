@@ -72,6 +72,7 @@
         </div>
       </div>
       <div class="result-verdict" id="result-verdict"></div>
+      <div class="result-pop hidden" id="result-pop"></div>
       <div class="result-fact" id="result-fact"></div>
       <button id="btn-next" class="btn primary big">Next →</button>
     </div>
@@ -272,7 +273,14 @@
           <input type="checkbox" id="set-miles" />
         </label>
         <label class="setting-row">
-          <span>Double-tap confirms<small>Double-tap locks the guess in one go</small></span>
+          <span>Guess method<small>Hold &amp; ring: press until the circle closes to lock in</small></span>
+          <select id="set-guess-mode" class="setting-select">
+            <option value="hold">Hold &amp; ring (new)</option>
+            <option value="tap">Tap + confirm button</option>
+          </select>
+        </label>
+        <label class="setting-row">
+          <span>Double-tap confirms<small>Tap mode only: double-tap locks the guess in one go</small></span>
           <input type="checkbox" id="set-doubletap" checked />
         </label>
         <label class="setting-row">
@@ -318,9 +326,18 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v3.0 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v3.1 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
+    </div>
+
+    <!-- hold-to-lock ring (follows the finger while a guess charges) -->
+    <div id="hold-ring" class="hold-ring hidden">
+      <svg viewBox="0 0 80 80">
+        <circle class="hr-bg" cx="40" cy="40" r="32" />
+        <circle class="hr-fg" cx="40" cy="40" r="32" />
+      </svg>
+      <div class="hr-dot"></div>
     </div>
 
     <!-- toast -->
