@@ -275,6 +275,28 @@ export const LOCATIONS = [
   { name: 'Cairns — reef gateway', lat: -16.9186, lng: 145.7781, country: 'Australia', continent: 'Oceania', diff: 3, fact: 'The launch point for the Great Barrier Reef and the world\'s oldest rainforest.' },
   { name: 'Wellington, New Zealand', lat: -41.2866, lng: 174.7756, country: 'New Zealand', continent: 'Oceania', diff: 2, fact: 'The world\'s windiest city by average wind speed — and its southernmost capital.' },
   { name: 'Christchurch, New Zealand', lat: -43.5321, lng: 172.6362, country: 'New Zealand', continent: 'Oceania', diff: 3, fact: 'The gateway city for nearly every Antarctic expedition since Scott and Shackleton.' },
+
+  // ================= ISRAEL & JEWISH HERITAGE PACK (v3.1.1, +20) =================
+  { name: 'Tel Aviv, Israel', lat: 32.0853, lng: 34.7818, country: 'Israel', continent: 'Asia', diff: 1, fact: 'The first modern Hebrew-speaking city, founded on sand dunes in 1909 — its Bauhaus "White City" is a UNESCO site.' },
+  { name: 'Western Wall, Jerusalem', lat: 31.7767, lng: 35.2345, country: 'Israel', continent: 'Asia', diff: 1, fact: 'The surviving retaining wall of the Second Temple — visitors tuck millions of written prayers into its cracks each year.' },
+  { name: 'Masada', lat: 31.3156, lng: 35.3536, country: 'Israel', continent: 'Asia', diff: 2, fact: 'Herod\'s clifftop fortress above the Dead Sea — Israeli soldiers are sworn in here with the vow "Masada shall not fall again."' },
+  { name: 'Haifa, Israel', lat: 32.7940, lng: 34.9896, country: 'Israel', continent: 'Asia', diff: 2, fact: 'Israel\'s port city climbs Mount Carmel in terraces — its gardens cascade down 19 landscaped levels.' },
+  { name: 'Sea of Galilee — Tiberias', lat: 32.7922, lng: 35.5312, country: 'Israel', continent: 'Asia', diff: 2, fact: 'The lowest freshwater lake on Earth, ringed by one of Judaism\'s Four Holy Cities.' },
+  { name: 'Safed (Tzfat), Israel', lat: 32.9646, lng: 35.4960, country: 'Israel', continent: 'Asia', diff: 3, fact: 'The mountain-top home of Kabbalah, where 16th-century mystics wrote — its old lanes are painted sky blue.' },
+  { name: 'Eilat, Israel', lat: 29.5581, lng: 34.9482, country: 'Israel', continent: 'Asia', diff: 2, fact: 'Israel\'s Red Sea resort — coral reefs at the desert\'s edge, four countries visible from the beach.' },
+  { name: 'Caesarea, Israel', lat: 32.5000, lng: 34.8917, country: 'Israel', continent: 'Asia', diff: 3, fact: 'Herod built a Roman harbor city here in 12 years — its aqueduct still marches along the beach.' },
+  { name: 'Akko (Acre), Israel', lat: 32.9234, lng: 35.0713, country: 'Israel', continent: 'Asia', diff: 3, fact: 'One of the oldest continuously inhabited ports on Earth, with a Crusader city hidden underground.' },
+  { name: 'Beersheba, Israel', lat: 31.2530, lng: 34.7915, country: 'Israel', continent: 'Asia', diff: 3, fact: 'The "capital of the Negev" — tradition places Abraham\'s wells here, and it\'s now a desert tech hub.' },
+  { name: 'Jaffa (Yafo)', lat: 32.0554, lng: 34.7522, country: 'Israel', continent: 'Asia', diff: 2, fact: 'An ancient port said to be 4,000 years old — oranges shipped from here made "Jaffa" famous worldwide.' },
+  { name: 'Nazareth, Israel', lat: 32.7021, lng: 35.2978, country: 'Israel', continent: 'Asia', diff: 2, fact: 'The Galilee\'s largest city, built over springs that have watered it since antiquity.' },
+  { name: 'Anne Frank House, Amsterdam', lat: 52.3752, lng: 4.8840, country: 'Netherlands', continent: 'Europe', diff: 2, fact: 'The canal-side annex where Anne wrote her diary in hiding — the bookcase that hid the doorway still stands.' },
+  { name: 'Auschwitz-Birkenau Memorial, Poland', lat: 50.0359, lng: 19.1783, country: 'Poland', continent: 'Europe', diff: 2, fact: 'The memorial preserves the largest Nazi camp as testimony — over a million visitors walk its grounds in remembrance each year.' },
+  { name: 'Prague — Old-New Synagogue', lat: 50.0900, lng: 14.4189, country: 'Czechia', continent: 'Europe', diff: 3, fact: 'Europe\'s oldest active synagogue, in use since 1270 — legend says the Golem rests in its attic.' },
+  { name: 'Kraków — Kazimierz', lat: 50.0489, lng: 19.9446, country: 'Poland', continent: 'Europe', diff: 3, fact: 'For 500 years a center of Jewish life — seven historic synagogues still stand in this quarter.' },
+  { name: 'Venice Ghetto', lat: 45.4453, lng: 12.3267, country: 'Italy', continent: 'Europe', diff: 3, fact: 'The world\'s first "ghetto" (1516) — the word itself comes from this island\'s old foundry.' },
+  { name: 'New York — Lower East Side', lat: 40.7180, lng: -73.9866, country: 'United States of America', continent: 'North America', diff: 2, fact: 'The gateway neighborhood where two million Jewish immigrants started their American story — the delis remain legendary.' },
+  { name: 'Toledo, Spain', lat: 39.8628, lng: -4.0273, country: 'Spain', continent: 'Europe', diff: 3, fact: 'The "city of three cultures" — its El Tránsito synagogue survives from Sephardic Spain\'s golden age.' },
+  { name: 'Córdoba, Spain', lat: 37.8882, lng: -4.7794, country: 'Spain', continent: 'Europe', diff: 3, fact: 'Birthplace of Maimonides — a statue of the great philosopher sits in the old Jewish quarter.' },
 ];
 
 // Basic sanity: names must be unique (helps avoid duplicate rounds).
