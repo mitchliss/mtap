@@ -16,7 +16,7 @@ import { startMusic, stopMusic, unlockIosAudio } from './music.js';
 import { geocodePlace, reverseGeocode } from './geocode.js';
 import { extractPhotoLocation } from './exif.js';
 import {
-  accountsEnabled, onAuthChange, signUp, signIn, signOutUser, resetPassword,
+  accountsEnabled, onAuthChange, sendLoginLink, completeLoginLink, signOutUser,
   currentUser, syncNow, lastSyncTime,
 } from './account.js';
 import {
@@ -60,8 +60,7 @@ const els = {
   btnCrew: $('btn-crew'), lbFilter: $('lb-filter'), lbFilterAll: $('lb-filter-all'), lbFilterCrew: $('lb-filter-crew'), lbCrewName: $('lb-crew-name'),
   nextCountdown: $('next-countdown'),
   acctDisabled: $('acct-disabled'), acctSignedOut: $('acct-signedout'), acctSignedIn: $('acct-signedin'),
-  acctEmail: $('acct-email'), acctPass: $('acct-pass'),
-  acctSignInBtn: $('acct-signin'), acctSignUpBtn: $('acct-signup'), acctForgot: $('acct-forgot'),
+  acctEmail: $('acct-email'), acctSendLink: $('acct-sendlink'),
   acctEmailLabel: $('acct-email-label'), acctSync: $('acct-sync'), acctSignOut: $('acct-signout'), acctStatus: $('acct-status'),
   startPlayer: $('start-player'), setPlayerName: $('set-player-name'), btnSwitchPlayer: $('btn-switch-player'),
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
@@ -936,21 +935,27 @@ function initAccountUI() {
     refreshPlayerUI();
   });
 
-  els.acctSignInBtn.addEventListener('click', async () => {
-    const r = await signIn(els.acctEmail.value.trim(), els.acctPass.value);
-    if (!r.ok) toast(r.error, 3500); else toast('Signed in! Syncing… ☁️');
-  });
-  els.acctSignUpBtn.addEventListener('click', async () => {
-    const r = await signUp(els.acctEmail.value.trim(), els.acctPass.value);
-    if (!r.ok) toast(r.error, 3500); else toast('Account created! ☁️');
-  });
-  els.acctForgot.addEventListener('click', async () => {
+  els.acctSendLink.addEventListener('click', async () => {
     const email = els.acctEmail.value.trim();
-    if (!email) { toast('Type your email first'); return; }
-    const r = await resetPassword(email);
-    toast(r.ok ? 'Reset email sent 📧' : r.error, 3500);
+    if (!email) { toast('Type your email first 📧'); return; }
+    els.acctSendLink.disabled = true;
+    const r = await sendLoginLink(email);
+    els.acctSendLink.disabled = false;
+    if (r.ok) {
+      toast('Check your email — tap the link to sign in ✉️', 4500);
+      els.acctEmail.value = '';
+    } else {
+      toast(r.error, 3500);
+    }
   });
+  els.acctEmail.addEventListener('keydown', (e) => { if (e.key === 'Enter') els.acctSendLink.click(); });
   els.acctSync.addEventListener('click', () => runSync('manual'));
+
+  // If this page load came from a sign-in link, finish the login now.
+  completeLoginLink().then((r) => {
+    if (r.ok) toast('Signed in! Syncing your game ☁️', 3500);
+    else if (r.error && !r.silent) toast(r.error, 3500);
+  });
   els.acctSignOut.addEventListener('click', async () => {
     await signOutUser();
     toast('Signed out');

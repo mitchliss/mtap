@@ -1,9 +1,16 @@
-// MTap accounts - optional email/password sign-in with cross-device sync.
-// Entirely gated on FIREBASE_CONFIG (src/firebase-config.js): when it's null,
-// none of this loads and the game stays 100% serverless. When configured, the
-// Firebase SDK is loaded on demand from Google's CDN and each user's game data
-// (profiles, results, family places, crew, history) syncs to their own private
-// Firestore document, merged both ways so no device ever loses data.
+// MTap accounts - PASSWORDLESS email-link sign-in with cross-device sync.
+// No passwords exist anywhere in this system: you type your email, Firebase
+// emails you a one-tap sign-in link, done. Entirely gated on FIREBASE_CONFIG
+// (src/firebase-config.js): when it's null, none of this loads and the game
+// stays 100% serverless. When configured, the Firebase SDK is loaded on demand
+// from Google's CDN and each user's game data (profiles, results, family
+// places, crew, history) syncs to their own private Firestore document,
+// merged both ways so no device ever loses data.
+//
+// Where emails live: only inside Firebase Authentication (Google infrastructure,
+// encrypted in transit and at rest). We never write emails to Firestore, the
+// repo, or share links; the one temporary localStorage copy (needed to complete
+// the link on return) is deleted the moment sign-in finishes.
 
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { loadJSON, saveJSON } from './game.js';
@@ -47,28 +54,49 @@ export function onAuthChange(cb) {
 function friendlyAuthError(e) {
   const code = (e && e.code) || '';
   if (code.includes('invalid-email')) return 'That email doesn\'t look right.';
-  if (code.includes('email-already-in-use')) return 'That email already has an account — try Sign in.';
-  if (code.includes('weak-password')) return 'Password needs at least 6 characters.';
-  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
-    return 'Email or password doesn\'t match.';
+  if (code.includes('invalid-action-code') || code.includes('expired-action-code')) {
+    return 'That sign-in link expired or was already used — send a fresh one.';
   }
   if (code.includes('too-many-requests')) return 'Too many tries — wait a minute and try again.';
   if (code.includes('network')) return 'Network problem — are you online?';
   return 'Something went wrong: ' + (e && e.message ? e.message : 'unknown error');
 }
 
-export async function signUp(email, password) {
+// The email is remembered only until the link is tapped, then deleted.
+const PENDING_EMAIL_KEY = 'marctap.account.pendingEmail';
+
+export async function sendLoginLink(email) {
   await ensureFirebase();
   try {
-    await authMod.createUserWithEmailAndPassword(auth, email, password);
+    await authMod.sendSignInLinkToEmail(auth, email, {
+      url: window.location.origin + window.location.pathname,
+      handleCodeInApp: true,
+    });
+    try { localStorage.setItem(PENDING_EMAIL_KEY, email); } catch { /* private mode */ }
     return { ok: true };
   } catch (e) { return { ok: false, error: friendlyAuthError(e) }; }
 }
 
-export async function signIn(email, password) {
-  await ensureFirebase();
+// Called on boot: if the page was opened from a sign-in link, finish the login.
+export async function completeLoginLink() {
+  if (!accountsEnabled) return { ok: false, silent: true };
+  if (!window.location.href.includes('oobCode=')) return { ok: false, silent: true };
+  const ok = await ensureFirebase();
+  if (!ok || !authMod.isSignInWithEmailLink(auth, window.location.href)) {
+    return { ok: false, silent: true };
+  }
+  let email = null;
+  try { email = localStorage.getItem(PENDING_EMAIL_KEY); } catch { /* ok */ }
+  if (!email) {
+    // Link opened on a different device/browser than the one that requested it.
+    email = window.prompt('Confirm your email to finish signing in:');
+    if (!email) return { ok: false, error: 'Sign-in cancelled.' };
+  }
   try {
-    await authMod.signInWithEmailAndPassword(auth, email, password);
+    await authMod.signInWithEmailLink(auth, email.trim(), window.location.href);
+    try { localStorage.removeItem(PENDING_EMAIL_KEY); } catch { /* ok */ }
+    // Scrub the one-time code from the URL/history.
+    try { history.replaceState(null, '', window.location.origin + window.location.pathname); } catch { /* ok */ }
     return { ok: true };
   } catch (e) { return { ok: false, error: friendlyAuthError(e) }; }
 }
@@ -76,14 +104,6 @@ export async function signIn(email, password) {
 export async function signOutUser() {
   await ensureFirebase();
   await authMod.signOut(auth);
-}
-
-export async function resetPassword(email) {
-  await ensureFirebase();
-  try {
-    await authMod.sendPasswordResetEmail(auth, email);
-    return { ok: true };
-  } catch (e) { return { ok: false, error: friendlyAuthError(e) }; }
 }
 
 export function currentUser() { return auth ? auth.currentUser : null; }

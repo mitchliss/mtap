@@ -292,13 +292,11 @@
             Sign-in is ready to switch on — it needs a one-time free Firebase setup (see the README). Until then, everything saves on this device and share links keep the family in sync.
           </div>
           <div id="acct-signedout" class="hidden">
-            <input id="acct-email" type="email" placeholder="Email" autocomplete="email" />
-            <input id="acct-pass" type="password" placeholder="Password (6+ characters)" autocomplete="current-password" />
+            <input id="acct-email" type="email" placeholder="Your email" autocomplete="email" />
             <div class="acct-btn-row">
-              <button id="acct-signin" class="btn primary small">Sign in</button>
-              <button id="acct-signup" class="btn ghost small">Create account</button>
+              <button id="acct-sendlink" class="btn primary small">✉️ Email me a sign-in link</button>
             </div>
-            <a id="acct-forgot" class="acct-forgot">Forgot password?</a>
+            <div class="settings-about">No password — ever. We email you a one-tap link instead. Your email lives only in Google's encrypted sign-in system, never in the game's data or shared links.</div>
           </div>
           <div id="acct-signedin" class="hidden">
             <div id="acct-email-label" class="settings-about"></div>
