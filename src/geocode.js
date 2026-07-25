@@ -45,3 +45,21 @@ export async function geocodePlace(query) {
 
   return null;
 }
+
+// Reverse geocoding: turn a photo's GPS coordinates into a friendly label
+// ("Wilmette, Cook County, Illinois"). Nominatim, zoomed to city level.
+export async function reverseGeocode(lat, lng) {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=12&accept-language=en`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (r.ok) {
+      const j = await r.json();
+      if (j.display_name) {
+        return j.display_name.split(',').slice(0, 3).map((s) => s.trim()).join(', ');
+      }
+    }
+  } catch { /* offline */ }
+  return null;
+}

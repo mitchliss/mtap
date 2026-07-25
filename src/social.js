@@ -204,11 +204,20 @@ export function importPlacePayload(p) {
   return addFamilyPlace({ name: p.n, lat: p.la, lng: p.lo, fact: p.f, by: p.by });
 }
 
-// Deterministic family-round pick: same place for everyone on a given day
-// (as long as their packs match - links keep packs in sync).
-export function familyPlaceForPuzzle(puzzleNumber) {
+// Deterministic family-round pick: same rotation for everyone on a given day
+// (as long as their packs match - links keep packs in sync). The author of a
+// place NEVER gets their own question (they'd know the answer!) - they get the
+// next place in the rotation instead, or no bonus round if every place is theirs.
+export function familyPlaceForPuzzle(puzzleNumber, excludeAuthor = null) {
   const places = getFamilyPlaces();
   if (!places.length) return null;
   const sorted = places.slice().sort((a, b) => a.name.localeCompare(b.name));
-  return sorted[puzzleNumber % sorted.length];
+  for (let i = 0; i < sorted.length; i++) {
+    const candidate = sorted[(puzzleNumber + i) % sorted.length];
+    if (!excludeAuthor || !candidate.by ||
+        candidate.by.toLowerCase() !== excludeAuthor.toLowerCase()) {
+      return candidate;
+    }
+  }
+  return null;
 }

@@ -208,6 +208,10 @@
           <div class="place-loc-hint">Type a city + state or country and we'll find it and drop the pin for you.</div>
         </div>
         <button id="place-find" class="btn primary big">🔎 Find this place</button>
+        <div class="place-or"><span>or</span></div>
+        <label for="place-photo" class="btn ghost big place-photo-btn">📷 Use a photo taken there</label>
+        <input id="place-photo" type="file" accept="image/*" class="visually-hidden-file" />
+        <div class="place-loc-hint" style="text-align:center;">We read the location saved inside the photo — the photo itself stays on your device.</div>
         <div id="place-results" class="place-results"></div>
         <a id="place-pin-manual" class="place-alt" href="#">Prefer to drop the pin yourself? Pin it on the globe →</a>
       </div>
@@ -306,7 +310,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v2.9.2 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v2.9.4 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>

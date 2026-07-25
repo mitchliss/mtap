@@ -8,11 +8,13 @@ import {
   dailySeed, practiceSeed, dailyAlreadyPlayed, recordDailyResult,
   emojiForScore, verdictForResult, buildShareText, computeStreak,
   loadSettings, saveSettings, pickLocations, multiplierForRound,
+  practiceExcludeSet, noteLocationsSeen,
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
 import { startMusic, stopMusic, unlockIosAudio } from './music.js';
-import { geocodePlace } from './geocode.js';
+import { geocodePlace, reverseGeocode } from './geocode.js';
+import { extractPhotoLocation } from './exif.js';
 import {
   accountsEnabled, onAuthChange, signUp, signIn, signOutUser, resetPassword,
   currentUser, syncNow, lastSyncTime,
@@ -49,6 +51,7 @@ const els = {
   btnLeaderboard: $('btn-leaderboard'), btnEndLeaderboard: $('btn-end-leaderboard'),
   placeModal: $('place-modal'), placeName: $('place-name'), placeFact: $('place-fact'),
   placeLoc: $('place-loc'), placeFind: $('place-find'), placeResults: $('place-results'), placePinManual: $('place-pin-manual'),
+  placePhoto: $('place-photo'),
   placeShareModal: $('place-share-modal'), placeShareSummary: $('place-share-summary'), placeShareCopy: $('place-share-copy'),
   btnAddPlace: $('btn-add-place'),
   challengeBanner: $('challenge-banner'),
@@ -195,11 +198,13 @@ function flyPoints(text) {
 
 function startGame(isPractice) {
   const seed = isPractice ? practiceSeed() : dailySeed();
-  session = new GameSession(seed, isPractice);
+  session = new GameSession(seed, isPractice, isPractice ? practiceExcludeSet() : null);
   if (!isPractice) {
-    const familyPlace = familyPlaceForPuzzle(puzzleNumberForToday());
+    // Never deal a player the family place they authored - they know the answer.
+    const familyPlace = familyPlaceForPuzzle(puzzleNumberForToday(), getActivePlayer());
     if (familyPlace) session.appendFamilyRound(familyPlace);
   }
+  noteLocationsSeen(session.locations.filter((l) => !l.isFamily).map((l) => l.name));
   awaitingConfirm = false;
   roundLocked = false;
   hide(els.startScreen);
@@ -844,16 +849,41 @@ async function findPlaceByText() {
     return;
   }
   results.forEach((r) => {
-    const btn = document.createElement('button');
-    btn.className = 'place-result';
-    btn.innerHTML = `📍 <span class="pr-label"></span><small>Tap to use this location</small>`;
-    btn.querySelector('.pr-label').textContent = r.label;
-    btn.addEventListener('click', () => {
-      hide(els.placeModal);
-      savePlaceAt(name, els.placeFact.value.trim(), r.lat, r.lng);
-    });
-    els.placeResults.appendChild(btn);
+    els.placeResults.appendChild(placeResultChip(name, r));
   });
+}
+
+function placeResultChip(name, r) {
+  const btn = document.createElement('button');
+  btn.className = 'place-result';
+  btn.innerHTML = `📍 <span class="pr-label"></span><small>Tap to use this location</small>`;
+  btn.querySelector('.pr-label').textContent = r.label;
+  btn.addEventListener('click', () => {
+    hide(els.placeModal);
+    savePlaceAt(name, els.placeFact.value.trim(), r.lat, r.lng);
+  });
+  return btn;
+}
+
+// Photo entry: read the GPS embedded in a photo's EXIF (in the browser - the
+// photo never leaves the device), reverse-geocode a friendly label, offer it.
+async function findPlaceByPhoto(file) {
+  const name = els.placeName.value.trim();
+  if (!name) { toast('Give the place a name first 🙂'); els.placePhoto.value = ''; return; }
+  if (!file) return;
+  els.placeResults.innerHTML = '<div class="place-searching">Reading the photo\'s location…</div>';
+  const loc = await extractPhotoLocation(file);
+  if (!loc) {
+    els.placeResults.innerHTML =
+      '<div class="place-searching">No location saved in that photo. (Photos sent through Messages/WhatsApp usually have it stripped — try picking the original from your photo library, or type the city above.)</div>';
+    els.placePhoto.value = '';
+    return;
+  }
+  const label = (await reverseGeocode(loc.lat, loc.lng)) ||
+    `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
+  els.placeResults.innerHTML = '';
+  els.placeResults.appendChild(placeResultChip(name, { label: `Photo location: ${label}`, lat: loc.lat, lng: loc.lng }));
+  els.placePhoto.value = '';
 }
 
 // --- incoming share links ---
@@ -967,8 +997,10 @@ async function shareScore() {
   } else {
     // Result link doubles as a challenge + leaderboard merge for whoever opens it.
     const link = `${shareBaseUrl()}#mt=${encodePayload(buildResultPayload(player, pn, total, emojis, bonus))}`;
+    // The family bonus is deliberately OUTSIDE the /1000 total: friends without
+    // the family pack compete on the same scale, and the bonus is just bragging.
     text = `${player} scored ${total}/${MAX_GAME_SCORE} on MTap #${pn} 🌍\n${perRound}` +
-      (bonus ? `\n🏠 Family bonus +${bonus}` : '') +
+      (bonus ? `\n🏠 +${bonus} homefield points (family round — doesn't count in the ${MAX_GAME_SCORE})` : '') +
       `\nThink you can beat it? ${link}`;
   }
   await shareOrCopy(text, 'Copied! Paste it in the family chat 📣');
@@ -1030,6 +1062,7 @@ async function boot() {
   });
   els.placeFind.addEventListener('click', findPlaceByText);
   els.placeLoc.addEventListener('keydown', (e) => { if (e.key === 'Enter') findPlaceByText(); });
+  els.placePhoto.addEventListener('change', () => findPlaceByPhoto(els.placePhoto.files[0]));
   els.placePinManual.addEventListener('click', (e) => { e.preventDefault(); startPlacePinning(); });
   els.btnCrew.addEventListener('click', () => { hide(els.lbModal); renderCrewModal(); show(els.crewModal); });
   els.crewShare.addEventListener('click', shareCrewLink);

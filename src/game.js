@@ -19,10 +19,25 @@ export const MAX_GAME_SCORE = ROUND_MULTIPLIERS.reduce((a, m) => a + m * MAX_ROU
 export const DAILY_GENERATION = 2;
 
 // Deterministic daily pick: 5 locations, easy -> hard, no repeated country,
-// at least 3 different continents.
-export function pickLocations(seed) {
+// at least 3 different continents. NEVER pass excludeNames for a daily pick -
+// dailies must stay identical for every player; exclusion is a practice-only
+// feature (avoids repeating recent games and spoiling upcoming dailies).
+// Pool-expansion guard: growing the database changes every seeded deal, which
+// would RE-DEAL the current day mid-day (non-comparable scores). Puzzles up to
+// the cutoff keep drawing from the original pool; new locations join the daily
+// rotation starting with the next puzzle. Bump BOTH constants on any future
+// expansion (cutoff = today's puzzle number, size = pool length before adding).
+const POOL_EXPANSION_CUTOFF_PUZZLE = 4; // Jul 25, 2026
+const LEGACY_POOL_SIZE = 205;
+
+export function pickLocations(seed, excludeNames = null) {
   const rng = mulberry32((seed + DAILY_GENERATION * 1000003) * 7919 + 13);
-  const shuffled = seededShuffle(LOCATIONS, rng);
+  let pool = seed <= POOL_EXPANSION_CUTOFF_PUZZLE ? LOCATIONS.slice(0, LEGACY_POOL_SIZE) : LOCATIONS;
+  if (excludeNames && excludeNames.size) {
+    const filtered = pool.filter((l) => !excludeNames.has(l.name));
+    if (filtered.length >= 40) pool = filtered; // never over-constrain the pick
+  }
+  const shuffled = seededShuffle(pool, rng);
   const wantDiff = [1, 1, 2, 3, 3]; // ramp difficulty to match the x1/x1/x2/x3/x3 multipliers
   const picked = [];
   const usedCountries = new Set();
@@ -44,6 +59,26 @@ export function dailySeed() { return puzzleNumberForToday(); }
 
 export function practiceSeed() {
   return (Date.now() % 2147483647) ^ Math.floor(Math.random() * 1e9);
+}
+
+// Locations practice games must avoid: today's + the next two dailies
+// (deterministic, so practice can never spoil an upcoming real game), plus
+// anything this device has seen recently in any mode.
+export function practiceExcludeSet() {
+  const exclude = new Set();
+  const today = puzzleNumberForToday();
+  for (let n = today; n <= today + 2; n++) {
+    for (const loc of pickLocations(n)) exclude.add(loc.name);
+  }
+  for (const name of loadJSON('recentLocations', [])) exclude.add(name);
+  return exclude;
+}
+
+// Remember what's been dealt on this device (any mode), most recent first.
+export function noteLocationsSeen(names) {
+  const recent = loadJSON('recentLocations', []);
+  const merged = [...new Set([...names, ...recent])].slice(0, 60);
+  saveJSON('recentLocations', merged);
 }
 
 // ---------- scoring ----------
@@ -179,10 +214,11 @@ export function multiplierForRound(i) { return ROUND_MULTIPLIERS[i] || 1; }
 export const FAMILY_ROUND_MULTIPLIER = 2;
 
 export class GameSession {
-  constructor(seed, isPractice) {
+  constructor(seed, isPractice, excludeNames = null) {
     this.seed = seed;
     this.isPractice = isPractice;
-    this.locations = pickLocations(seed);
+    // Exclusion is practice-only; dailies are always the full deterministic pick.
+    this.locations = pickLocations(seed, isPractice ? excludeNames : null);
     this.roundIndex = 0;
     this.results = [];
   }

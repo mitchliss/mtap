@@ -638,6 +638,15 @@ html, body {
 .place-alt { display: block; text-align: center; margin-top: 12px; font-size: 0.78rem; color: var(--text-dim); text-decoration: none; }
 .place-alt:hover { color: var(--accent); }
 
+.place-or {
+  display: flex; align-items: center; gap: 10px;
+  margin: 10px 0;
+  color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 2px;
+}
+.place-or::before, .place-or::after { content: ''; flex: 1; height: 1px; background: rgba(147, 163, 196, 0.2); }
+.place-photo-btn { display: block; width: 100%; text-align: center; cursor: pointer; margin-bottom: 6px; }
+.visually-hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
+
 .end-bonus {
   background: rgba(251, 191, 36, 0.1);
   border: 1px solid rgba(251, 191, 36, 0.35);
