@@ -52,6 +52,9 @@ const els = {
   placeModal: $('place-modal'), placeName: $('place-name'), placeFact: $('place-fact'),
   placeLoc: $('place-loc'), placeFind: $('place-find'), placeResults: $('place-results'), placePinManual: $('place-pin-manual'),
   placePhoto: $('place-photo'), placeHint: $('place-hint'), promptPhoto: $('prompt-photo'),
+  phaseChoice: $('place-phase-choice'), phasePhoto: $('place-phase-photo'), phaseManual: $('place-phase-manual'),
+  ppThumb: $('pp-thumb'), ppLocLine: $('pp-loc-line'), ppName: $('pp-name'), ppSig: $('pp-sig'), ppHint: $('pp-hint'),
+  ppSave: $('pp-save'), ppWrongLoc: $('pp-wrong-loc'), pmThumb: $('pm-thumb'), placeManualBtn: $('place-manual-btn'),
   placeShareModal: $('place-share-modal'), placeShareSummary: $('place-share-summary'), placeShareCopy: $('place-share-copy'),
   btnAddPlace: $('btn-add-place'),
   challengeBanner: $('challenge-banner'),
@@ -870,8 +873,8 @@ function startPlacePinning() {
 // A pending photo turns the place into a PHOTO CHALLENGE: the compressed copy
 // uploads to the shared cloud store (when signed in) so family members' games
 // can show the actual picture.
-async function savePlaceAt(name, fact, lat, lng) {
-  const hint = els.placeHint.value.trim();
+async function savePlaceAt(name, fact, lat, lng, hintOverride) {
+  const hint = (hintOverride != null ? hintOverride : els.placeHint.value).trim();
   const photo = pendingPhoto ? pendingPhoto.dataUrl : null;
   const date = pendingPhoto ? pendingPhoto.date : null;
   pendingPhoto = null;
@@ -967,28 +970,59 @@ async function compressPhoto(file, maxDim = 640) {
   }
 }
 
-async function findPlaceByPhoto(file) {
-  const name = els.placeName.value.trim();
-  if (!name) { toast('Give the place a name first 🙂'); els.placePhoto.value = ''; return; }
+let pendingPhotoLoc = null; // { lat, lng } read from the chosen photo's GPS
+
+function placePhase(which) {
+  hide(els.phaseChoice); hide(els.phasePhoto); hide(els.phaseManual);
+  show(which === 'choice' ? els.phaseChoice : which === 'photo' ? els.phasePhoto : els.phaseManual);
+}
+
+// Photo-first entry: the moment a photo is picked we show its thumbnail, read
+// GPS + date, pre-fill the location underneath, and ask for the significance.
+async function onPlacePhotoChosen(file) {
   if (!file) return;
-  els.placeResults.innerHTML = '<div class="place-searching">Reading the photo\'s location…</div>';
+  els.placePhoto.value = '';
+  const dataUrl = await compressPhoto(file);
+  if (!dataUrl) { toast('Could not read that image — try another one 🙂'); return; }
   const meta = await extractPhotoMeta(file);
+  pendingPhoto = { dataUrl, date: meta && meta.date ? meta.date : null };
+
   if (!meta || meta.lat == null) {
-    els.placeResults.innerHTML =
-      '<div class="place-searching">No location saved in that photo. (Photos sent through Messages/WhatsApp usually have it stripped — try picking the original from your photo library, or type the city above.)</div>';
-    els.placePhoto.value = '';
+    // No GPS in the photo: keep it for the challenge, but ask for the location.
+    pendingPhotoLoc = null;
+    els.pmThumb.src = dataUrl;
+    show(els.pmThumb);
+    placePhase('manual');
+    toast('No location in that photo (often stripped by messaging apps) — type where it was taken 📍', 4200);
     return;
   }
-  const dataUrl = await compressPhoto(file);
-  pendingPhoto = dataUrl ? { dataUrl, date: meta.date || null } : null;
-  const label = (await reverseGeocode(meta.lat, meta.lng)) ||
-    `${meta.lat.toFixed(4)}, ${meta.lng.toFixed(4)}`;
-  els.placeResults.innerHTML = '';
-  els.placeResults.appendChild(placeResultChip(name, {
-    label: `Photo location: ${label}${meta.date ? ` · 📅 ${meta.date}` : ''}`,
-    lat: meta.lat, lng: meta.lng,
-  }));
-  els.placePhoto.value = '';
+
+  pendingPhotoLoc = { lat: meta.lat, lng: meta.lng };
+  els.ppThumb.src = dataUrl;
+  els.ppName.value = '';
+  els.ppSig.value = '';
+  els.ppHint.value = '';
+  els.ppLocLine.innerHTML = '📍 Reading the photo\'s location…';
+  placePhase('photo');
+
+  const label = await reverseGeocode(meta.lat, meta.lng);
+  const shown = label || `${meta.lat.toFixed(3)}, ${meta.lng.toFixed(3)}`;
+  els.ppLocLine.innerHTML = '';
+  els.ppLocLine.append('📍 ' + shown);
+  const sub = document.createElement('small');
+  sub.textContent = (pendingPhoto.date ? `Taken ${pendingPhoto.date} · ` : '') + 'location read from the photo';
+  els.ppLocLine.appendChild(sub);
+  if (label && !els.ppName.value) els.ppName.value = label.split(',')[0].trim();
+}
+
+async function savePhotoPlace() {
+  if (!pendingPhotoLoc || !pendingPhoto) { toast('Photo location missing — try manual entry'); return; }
+  const name = els.ppName.value.trim();
+  if (!name) { toast('Give the place a name 🙂'); els.ppName.focus(); return; }
+  els.ppSave.disabled = true;
+  const saved = await savePlaceAt(name, els.ppSig.value.trim(), pendingPhotoLoc.lat, pendingPhotoLoc.lng, els.ppHint.value);
+  els.ppSave.disabled = false;
+  if (saved) hide(els.placeModal);
 }
 
 // --- incoming share links ---
@@ -1199,15 +1233,29 @@ async function boot() {
     els.placeHint.value = '';
     els.placeLoc.value = '';
     els.placeResults.innerHTML = '';
+    hide(els.pmThumb);
     pendingPhoto = null;
+    pendingPhotoLoc = null;
+    placePhase('choice');
     show(els.placeModal);
-    setTimeout(() => els.placeName.focus(), 150);
   };
   els.btnAddPlace.addEventListener('click', openPlaceModal);
   $('btn-end-place').addEventListener('click', openPlaceModal);
   els.placeFind.addEventListener('click', findPlaceByText);
   els.placeLoc.addEventListener('keydown', (e) => { if (e.key === 'Enter') findPlaceByText(); });
-  els.placePhoto.addEventListener('change', () => findPlaceByPhoto(els.placePhoto.files[0]));
+  els.placePhoto.addEventListener('change', () => onPlacePhotoChosen(els.placePhoto.files[0]));
+  els.placeManualBtn.addEventListener('click', () => { pendingPhoto = null; hide(els.pmThumb); placePhase('manual'); });
+  els.ppSave.addEventListener('click', savePhotoPlace);
+  els.ppWrongLoc.addEventListener('click', (e) => {
+    // Keep the photo, carry what they typed, switch to manual location entry.
+    e.preventDefault();
+    pendingPhotoLoc = null;
+    els.placeName.value = els.ppName.value;
+    els.placeFact.value = els.ppSig.value;
+    els.placeHint.value = els.ppHint.value;
+    if (pendingPhoto) { els.pmThumb.src = pendingPhoto.dataUrl; show(els.pmThumb); }
+    placePhase('manual');
+  });
   els.placePinManual.addEventListener('click', (e) => { e.preventDefault(); startPlacePinning(); });
   els.btnCrew.addEventListener('click', () => { hide(els.lbModal); renderCrewModal(); show(els.crewModal); });
   els.crewShare.addEventListener('click', shareCrewLink);

@@ -665,6 +665,26 @@ html, body {
 }
 .place-or::before, .place-or::after { content: ''; flex: 1; height: 1px; background: rgba(147, 163, 196, 0.2); }
 .place-photo-btn { display: block; width: 100%; text-align: center; cursor: pointer; margin-bottom: 6px; }
+
+.pp-thumb {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  margin: 0 auto 10px;
+  border-radius: 14px;
+  border: 1px solid var(--panel-border);
+  object-fit: cover;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+.pp-loc-line {
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #7ee7a2;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+.pp-loc-line small { display: block; color: var(--text-dim); font-weight: 400; font-size: 0.74rem; }
 .visually-hidden-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); }
 
 .end-bonus {

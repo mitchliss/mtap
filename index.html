@@ -191,36 +191,66 @@
       </div>
     </div>
 
-    <!-- ======= Add a family place ======= -->
+    <!-- ======= Add a family place (photo-first flow) ======= -->
     <div id="place-modal" class="modal hidden">
       <div class="modal-card">
         <button class="modal-close" data-close="place-modal">×</button>
         <h2>🏠 Add a family place</h2>
-        <p class="name-sub">Add somewhere meaningful — where someone was born, a favorite trip, the old neighborhood. It becomes a ×2 bonus round in everyone's daily game.</p>
-        <div class="place-field">
-          <label class="place-label" for="place-name"><span class="step-num">1</span> Name it — this is the clue everyone sees</label>
-          <input id="place-name" type="text" maxlength="60" placeholder="Where Grandma &amp; Grandpa met" autocomplete="off" />
+
+        <!-- Phase 1: photo or manual -->
+        <div id="place-phase-choice">
+          <p class="name-sub">Got a photo of the place in your album? That's the best way — we'll read where and when it was taken and turn it into a photo challenge for the family.</p>
+          <label for="place-photo" class="btn primary big place-photo-btn">📷 Upload a photo of the place</label>
+          <input id="place-photo" type="file" accept="image/*" class="visually-hidden-file" />
+          <div class="place-loc-hint" style="text-align:center;">The full photo stays on your device — only a small challenge copy is kept.</div>
+          <div class="place-or"><span>or</span></div>
+          <button id="place-manual-btn" class="btn ghost big" style="width:100%;">✏️ Add it manually</button>
         </div>
-        <div class="place-field">
-          <label class="place-label" for="place-fact"><span class="step-num">2</span> The story <span class="label-opt">(optional, shown after guessing)</span></label>
-          <input id="place-fact" type="text" maxlength="200" placeholder="A dance hall on a Tuesday in 1962" autocomplete="off" />
+
+        <!-- Phase 2a: photo review -->
+        <div id="place-phase-photo" class="hidden">
+          <img id="pp-thumb" class="pp-thumb" alt="Your photo" />
+          <div id="pp-loc-line" class="pp-loc-line">📍 Reading the photo's location…</div>
+          <div class="place-field">
+            <label class="place-label" for="pp-name">Name this place <span class="label-opt">(revealed after the family guesses)</span></label>
+            <input id="pp-name" type="text" maxlength="60" autocomplete="off" />
+          </div>
+          <div class="place-field">
+            <label class="place-label" for="pp-sig">Why is this place special to your family?</label>
+            <input id="pp-sig" type="text" maxlength="200" placeholder="Where we spent every August with Grandpa" autocomplete="off" />
+          </div>
+          <div class="place-field">
+            <label class="place-label" for="pp-hint">Hint during the challenge <span class="label-opt">(optional — don't give it away!)</span></label>
+            <input id="pp-hint" type="text" maxlength="120" placeholder="Our summer trip, 2019…" autocomplete="off" />
+          </div>
+          <button id="pp-save" class="btn primary big" style="width:100%;">✓ Save family place</button>
+          <a id="pp-wrong-loc" class="place-alt" href="#">Location wrong or missing? Enter it manually →</a>
         </div>
-        <div class="place-field">
-          <label class="place-label" for="place-hint"><span class="step-num">💡</span> Hint <span class="label-opt">(shown with a photo challenge — don't give it away!)</span></label>
-          <input id="place-hint" type="text" maxlength="120" placeholder="Our summer trip, 2019…" autocomplete="off" />
+
+        <!-- Phase 2b: manual entry -->
+        <div id="place-phase-manual" class="hidden">
+          <img id="pm-thumb" class="pp-thumb hidden" alt="Your photo" />
+          <div class="place-field">
+            <label class="place-label" for="place-name"><span class="step-num">1</span> Name it — this is the clue everyone sees</label>
+            <input id="place-name" type="text" maxlength="60" placeholder="Where Grandma &amp; Grandpa met" autocomplete="off" />
+          </div>
+          <div class="place-field">
+            <label class="place-label" for="place-fact"><span class="step-num">2</span> Why it's special <span class="label-opt">(shown after guessing)</span></label>
+            <input id="place-fact" type="text" maxlength="200" placeholder="A dance hall on a Tuesday in 1962" autocomplete="off" />
+          </div>
+          <div class="place-field">
+            <label class="place-label" for="place-hint"><span class="step-num">💡</span> Hint <span class="label-opt">(shown with a photo challenge)</span></label>
+            <input id="place-hint" type="text" maxlength="120" placeholder="Our summer trip, 2019…" autocomplete="off" />
+          </div>
+          <div class="place-field">
+            <label class="place-label" for="place-loc"><span class="step-num">3</span> Where is it?</label>
+            <input id="place-loc" type="text" maxlength="80" placeholder="City, State — e.g. Wilmette, Illinois" autocomplete="off" />
+            <div class="place-loc-hint">Type a city + state or country and we'll find it and drop the pin for you.</div>
+          </div>
+          <button id="place-find" class="btn primary big" style="width:100%;">🔎 Find this place</button>
+          <div id="place-results" class="place-results"></div>
+          <a id="place-pin-manual" class="place-alt" href="#">Prefer to drop the pin yourself? Pin it on the globe →</a>
         </div>
-        <div class="place-field">
-          <label class="place-label" for="place-loc"><span class="step-num">3</span> Where is it?</label>
-          <input id="place-loc" type="text" maxlength="80" placeholder="City, State — e.g. Wilmette, Illinois" autocomplete="off" />
-          <div class="place-loc-hint">Type a city + state or country and we'll find it and drop the pin for you.</div>
-        </div>
-        <button id="place-find" class="btn primary big">🔎 Find this place</button>
-        <div class="place-or"><span>or</span></div>
-        <label for="place-photo" class="btn ghost big place-photo-btn">📷 Use a photo taken there</label>
-        <input id="place-photo" type="file" accept="image/*" class="visually-hidden-file" />
-        <div class="place-loc-hint" style="text-align:center;">We read the location saved inside the photo — the photo itself stays on your device.</div>
-        <div id="place-results" class="place-results"></div>
-        <a id="place-pin-manual" class="place-alt" href="#">Prefer to drop the pin yourself? Pin it on the globe →</a>
       </div>
     </div>
 
@@ -331,7 +361,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v3.2 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v3.3 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>
