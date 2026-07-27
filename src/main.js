@@ -69,7 +69,7 @@ const els = {
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
-  setMiles: $('set-miles'), setDoubleTap: $('set-doubletap'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'), setGuessMode: $('set-guess-mode'),
+  setMiles: $('set-miles'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'),
   resultPop: $('result-pop'),
   toast: $('toast'),
 };
@@ -232,11 +232,12 @@ function resolveMusicStyle() {
 }
 
 function beginRound() {
+  clearTimeout(resultPanelTimer); // a stale reveal timer must never fire mid-round
   const loc = session.currentLocation;
   els.promptPlace.textContent = loc.name;
   const mult = session.currentMultiplier;
   const labelEl = document.querySelector('#prompt-card .prompt-label');
-  const verb = settings.guessMode === 'hold' ? 'hold where this is until the ring closes' : 'tap where this is';
+  const verb = 'tap where this is';
   hide(els.promptPhoto);
   if (loc.isFamily && (loc.photo || loc.photoId)) {
     // PHOTO CHALLENGE: show the picture + hint + date - never the place name.
@@ -265,9 +266,7 @@ function beginRound() {
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
       (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
   } else {
-    labelEl.textContent = settings.guessMode === 'hold'
-      ? 'Hold where you think this is until the ring closes…'
-      : 'Tap where you think this is…';
+    labelEl.textContent = 'Tap where you think this is…';
     els.promptCard.classList.remove('family-round');
     els.promptSub.innerHTML = `Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
       (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '');
@@ -292,14 +291,23 @@ function onGlobeTap() {
   }
 }
 
-function onGlobeDoubleTap(lat, lng) {
+// Double-tap ON the pin = fast confirm (the taught gesture).
+function onPinDoubleTap(lat, lng) {
   if (roundLocked) return;
-  if (settings.doubleTap) {
-    confirmGuess(lat, lng);
-  } else {
-    onGlobeTap();
+  confirmGuess(lat, lng);
+}
+
+// Double-tap on the bare map = zoom (the globe already restored the pin
+// snapshot and started the flight) - just re-sync the confirm bar state.
+function onDoubleTapZoom() {
+  if (roundLocked) return;
+  if (!globe.getPin()) {
+    awaitingConfirm = false;
+    hide(els.confirmBar);
   }
 }
+
+let resultPanelTimer = null;
 
 function confirmGuess(lat, lng) {
   if (placingPlace) { finalizePlace(); return; }
@@ -316,10 +324,20 @@ function confirmGuess(lat, lng) {
   const prevTotal = session.totalScore;
   const result = session.submitGuess(g.lat, g.lng);
 
-  globe.showAnswer(result.guess, { lat: result.target.lat, lng: result.target.lng });
+  // Neon label floating in the 3D scene at the answer (MapTap-style).
+  const labelLines = [
+    { text: result.target.name, bold: true, color: '#ffffff' },
+    {
+      text: `Score: ${result.score}${result.multiplier > 1 ? ` × ${result.multiplier}` : ''} · ${formatDistance(result.distanceKm, settings.miles)}`,
+      color: '#7dffb5',
+    },
+  ];
+  globe.clearPin();
+  globe.showAnswer(result.guess, { lat: result.target.lat, lng: result.target.lng }, labelLines);
 
-  // Reveal panel after the camera settles a beat.
-  setTimeout(() => {
+  // DOM panel enters after the 3D show (beams + comet ≈ 950ms + label fade).
+  clearTimeout(resultPanelTimer);
+  resultPanelTimer = setTimeout(() => {
     els.resultPlace.textContent = result.target.name;
     els.resultDistance.textContent = result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
     els.resultPoints.textContent = result.multiplier > 1
@@ -344,7 +362,7 @@ function confirmGuess(lat, lng) {
     setScoreDisplay(prevTotal + result.points, prevTotal);
     if (result.bullseye) burstConfetti(60);
     if (result.score >= 70) sounds.good(); else if (result.score < 15) sounds.bad(); else sounds.tap();
-  }, 900);
+  }, 1450);
 }
 
 function nextRound() {
@@ -860,7 +878,6 @@ function startPlacePinning() {
   hide(els.startScreen);
   globe.setAutoRotate(false);
   globe.setInteractive(true);
-  globe.setGuessMode('tap'); // manual pinning keeps the tap + confirm flow
   els.promptPlace.textContent = name;
   els.promptSub.textContent = 'Pin the exact spot, then confirm';
   document.querySelector('#prompt-card .prompt-label').textContent = '🏠 Tap the globe to place it';
@@ -906,7 +923,6 @@ function finalizePlace() {
   els.promptCard.classList.remove('family-round');
   globe.clearPin();
   globe.setInteractive(false);
-  globe.setGuessMode(settings.guessMode);
   savePlaceAt(name, fact, pin.lat, pin.lng);
   show(els.startScreen);
   globe.setAutoRotate(settings.autoRotate);
@@ -1172,41 +1188,18 @@ async function boot() {
 
   // Settings UI
   els.setMiles.checked = settings.miles;
-  els.setDoubleTap.checked = settings.doubleTap;
   els.setSound.checked = settings.sound;
   els.setMusic.checked = settings.music;
   els.setMusicStyle.value = settings.musicStyle || 'auto';
-  els.setGuessMode.value = settings.guessMode || 'hold';
   els.setAutoRotate.checked = settings.autoRotate;
 
   // Globe
-  const holdRing = $('hold-ring');
-  const holdFg = holdRing.querySelector('.hr-fg');
-  let lastHoldHint = 0;
   globe = new Globe(document.getElementById('globe-container'), {
     onTap: onGlobeTap,
-    onDoubleTap: onGlobeDoubleTap,
+    onPinDoubleTap,
+    onDoubleTapZoom,
     onOverviewSelect: (i) => selectOverviewIndex(i),
-    onHoldProgress: (x, y, t) => {
-      holdRing.style.left = x + 'px';
-      holdRing.style.top = y + 'px';
-      holdFg.style.strokeDashoffset = String(201 * (1 - t));
-      show(holdRing);
-    },
-    onHoldComplete: (lat, lng) => {
-      hide(holdRing);
-      confirmGuess(lat, lng);
-    },
-    onHoldCancel: () => hide(holdRing),
-    onHoldHint: () => {
-      const now = Date.now();
-      if (now - lastHoldHint > 4000) {
-        lastHoldHint = now;
-        toast('Hold your finger down — the ring locks in your guess ⭕', 2600);
-      }
-    },
   });
-  globe.setGuessMode(settings.guessMode);
   globe.setAutoRotate(settings.autoRotate);
 
   const geojson = await loadCountries(`${import.meta.env.BASE_URL}data/countries-50m.geojson`);
@@ -1349,20 +1342,20 @@ async function boot() {
     m.addEventListener('click', (e) => { if (e.target === m) hide(m); });
   });
 
-  // Settings changes
+  // Settings changes — ONE shared list drives both boot population and listener
+  // wiring, so a control can never again be saved-but-not-listened (or vice versa).
+  const settingInputs = [els.setMiles, els.setSound, els.setMusic, els.setMusicStyle, els.setAutoRotate];
   const syncSettings = () => {
     const prevStyle = settings.musicStyle;
     settings = {
       miles: els.setMiles.checked,
-      doubleTap: els.setDoubleTap.checked,
       sound: els.setSound.checked,
       music: els.setMusic.checked,
       musicStyle: els.setMusicStyle.value,
       autoRotate: els.setAutoRotate.checked,
-      guessMode: els.setGuessMode.value,
+      v: 2,
     };
     saveSettings(settings);
-    if (!placingPlace) globe.setGuessMode(settings.guessMode);
     if (!session || session.isOver) globe.setAutoRotate(settings.autoRotate);
     // Music toggle/style takes effect immediately, even mid-game.
     if (!settings.music) {
@@ -1372,9 +1365,7 @@ async function boot() {
       startMusic(resolveMusicStyle(), puzzleNumberForToday());
     }
   };
-  [els.setMiles, els.setDoubleTap, els.setSound, els.setMusic, els.setMusicStyle, els.setAutoRotate].forEach((el) =>
-    el.addEventListener('change', syncSettings)
-  );
+  settingInputs.forEach((el) => el.addEventListener('change', syncSettings));
 
   // First-visit help
   if (!localStorage.getItem('marctap.seenHelp')) {
@@ -1395,4 +1386,46 @@ window.__marctap = {
   tapAt: (lat, lng) => { globe.movePin(lat, lng); onGlobeTap(); },
   confirmAt: (lat, lng) => { globe.movePin(lat, lng); confirmGuess(lat, lng); },
   next: () => nextRound(),
+  // Zoom test harness: drives OrbitControls with synthetic events, rAF-free.
+  zoom: {
+    d: () => globe.camera.position.length(),
+    target: () => globe.controls.target.length(),
+    camLL: () => globe.cameraLatLng(),
+    hitLL: (x, y) => globe._globeHitXY(x, y),
+    setD: (d) => {
+      const dir = globe.camera.position.clone().normalize();
+      globe.camera.position.copy(dir.multiplyScalar(d));
+      globe.camera.lookAt(0, 0, 0);
+      globe._lastTickD = d;
+    },
+    step: (n = 1) => { for (let i = 0; i < n; i++) globe._tick(); },
+    stubCapture: () => {
+      // OrbitControls calls setPointerCapture uncaught; synthetic pointerIds throw.
+      Element.prototype.setPointerCapture = function () {};
+      Element.prototype.releasePointerCapture = function () {};
+    },
+    wheel: (dy, x, y) => {
+      globe.renderer.domElement.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true, cancelable: true, deltaY: dy, clientX: x, clientY: y,
+      }));
+    },
+    pinch: (g0, g1, steps, cx, cy) => {
+      const el = globe.renderer.domElement;
+      const mk = (type, id, x, y) => new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId: id, pointerType: 'touch',
+        isPrimary: id === 501, clientX: x, clientY: y, button: 0, buttons: 1,
+      });
+      el.dispatchEvent(mk('pointerdown', 501, cx - g0 / 2, cy));
+      el.dispatchEvent(mk('pointerdown', 502, cx + g0 / 2, cy));
+      for (let i = 1; i <= steps; i++) {
+        const g = g0 + (g1 - g0) * (i / steps);
+        el.dispatchEvent(mk('pointermove', 501, cx - g / 2, cy));
+        el.dispatchEvent(mk('pointermove', 502, cx + g / 2, cy));
+        globe._tick();
+      }
+      el.dispatchEvent(mk('pointerup', 501, cx - g1 / 2, cy));
+      el.dispatchEvent(mk('pointerup', 502, cx + g1 / 2, cy));
+      for (let i = 0; i < 30; i++) globe._tick();
+    },
+  },
 };

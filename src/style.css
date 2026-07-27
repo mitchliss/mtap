@@ -724,38 +724,6 @@ html, body {
   pointer-events: none;
 }
 
-/* ============ Hold-to-lock ring ============ */
-.hold-ring {
-  position: fixed;
-  width: 110px; height: 110px;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 45;
-}
-.hold-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.hr-bg {
-  fill: none;
-  stroke: rgba(160, 200, 255, 0.25);
-  stroke-width: 5;
-}
-.hr-fg {
-  fill: none;
-  stroke: #35e0ff;
-  stroke-width: 6;
-  stroke-linecap: round;
-  stroke-dasharray: 201;
-  stroke-dashoffset: 201;
-  filter: drop-shadow(0 0 6px rgba(53, 224, 255, 0.8));
-}
-.hr-dot {
-  position: absolute; left: 50%; top: 50%;
-  width: 10px; height: 10px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: #35e0ff;
-  box-shadow: 0 0 8px rgba(53, 224, 255, 0.9);
-}
-
 .result-pop {
   font-size: 0.85rem;
   color: #7ee7a2;

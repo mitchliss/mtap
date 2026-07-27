@@ -44,7 +44,7 @@
 
     <!-- ======= Pin adjust / confirm bar (the MarcTap improvement) ======= -->
     <div id="confirm-bar" class="confirm-bar hidden">
-      <div class="confirm-hint">Drag the pin or nudge it, then confirm. <span class="kbd-hint">Double-tap confirms instantly.</span></div>
+      <div class="confirm-hint">Drag the pin or nudge it, then confirm. <span class="kbd-hint">Double-tap the map to zoom in.</span></div>
       <div class="confirm-controls">
         <div class="nudge-pad" aria-label="Nudge pin">
           <button class="nudge n-up" data-nudge="up" title="Nudge north">▲</button>
@@ -273,7 +273,8 @@
         <ol class="help-list">
           <li>🌍 Each day you get <b>5 places</b> to find — spin and zoom the globe.</li>
           <li>📍 <b>Tap</b> the globe to drop a pin. It's not final yet!</li>
-          <li>🎯 <b>Drag the pin</b>, use the nudge arrows for precision, then press <b>Confirm</b> — or <b>double-tap</b> to lock a guess instantly.</li>
+          <li>🎯 <b>Drag the pin</b>, use the nudge arrows for precision, then press <b>Confirm</b> — or <b>double-tap your pin</b> to lock it in fast.</li>
+          <li>🔍 <b>Double-tap the map</b> to zoom in toward that spot; pinch to zoom anytime.</li>
           <li>📏 The closer you are, the more points you score — up to <b>100</b> per round.</li>
         </ol>
         <div class="help-scoring">
@@ -306,17 +307,6 @@
         <label class="setting-row">
           <span>Use miles<small>Show distances in miles instead of km</small></span>
           <input type="checkbox" id="set-miles" />
-        </label>
-        <label class="setting-row">
-          <span>Guess method<small>Hold &amp; ring: press until the circle closes to lock in</small></span>
-          <select id="set-guess-mode" class="setting-select">
-            <option value="hold">Hold &amp; ring (new)</option>
-            <option value="tap">Tap + confirm button</option>
-          </select>
-        </label>
-        <label class="setting-row">
-          <span>Double-tap confirms<small>Tap mode only: double-tap locks the guess in one go</small></span>
-          <input type="checkbox" id="set-doubletap" checked />
         </label>
         <label class="setting-row">
           <span>Sound effects<small>Little blips on tap and score</small></span>
@@ -361,18 +351,9 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v3.3 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v3.4 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
-    </div>
-
-    <!-- hold-to-lock ring (follows the finger while a guess charges) -->
-    <div id="hold-ring" class="hold-ring hidden">
-      <svg viewBox="0 0 80 80">
-        <circle class="hr-bg" cx="40" cy="40" r="32" />
-        <circle class="hr-fg" cx="40" cy="40" r="32" />
-      </svg>
-      <div class="hr-dot"></div>
     </div>
 
     <!-- toast -->

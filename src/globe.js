@@ -293,7 +293,7 @@ function makeBadgeTexture(number, color) {
 
 // Floating info card for the post-game overview: a translucent panel with
 // colored text lines (name / score+distance / fact), rendered to a texture.
-function makeLabelTexture(lines) {
+function makeLabelTexture(lines, opts = {}) {
   const pad = 16;
   const lineH = 34;
   const font = (bold) => `${bold ? 700 : 500} 26px "Segoe UI", system-ui, sans-serif`;
@@ -307,7 +307,7 @@ function makeLabelTexture(lines) {
   c.width = Math.ceil(w + pad * 2);
   c.height = lines.length * lineH + pad * 2 - 6;
   const g = c.getContext('2d');
-  g.fillStyle = 'rgba(6, 12, 28, 0.78)';
+  g.fillStyle = opts.neon ? 'rgba(4, 16, 10, 0.82)' : 'rgba(6, 12, 28, 0.78)';
   g.beginPath();
   const r = 14;
   g.moveTo(r, 0);
@@ -317,9 +317,19 @@ function makeLabelTexture(lines) {
   g.arcTo(0, 0, c.width, 0, r);
   g.closePath();
   g.fill();
-  g.strokeStyle = 'rgba(120, 160, 255, 0.35)';
-  g.lineWidth = 2;
-  g.stroke();
+  if (opts.neon) {
+    g.save();
+    g.strokeStyle = 'rgba(125, 255, 181, 0.85)';
+    g.lineWidth = 2.5;
+    g.shadowColor = '#38d67a';
+    g.shadowBlur = 14;
+    g.stroke();
+    g.restore();
+  } else {
+    g.strokeStyle = 'rgba(120, 160, 255, 0.35)';
+    g.lineWidth = 2;
+    g.stroke();
+  }
   lines.forEach((l, i) => {
     g.font = font(l.bold);
     g.fillStyle = l.color || '#e8eefc';
@@ -404,7 +414,7 @@ export class Globe {
     this.controls.enablePan = false;
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 1.06; // tile streaming keeps close zoom sharp
+    this.controls.minDistance = 1.04; // ~255 km altitude; tile streaming keeps it sharp
     // Starts loose so the intro can begin in deep space; cinematicIntro()
     // tightens it to the play range (4.2) when the swoop lands.
     this.controls.maxDistance = 9;
@@ -419,8 +429,9 @@ export class Globe {
     this.pinLatLng = null;
     this.draggingPin = false;
     this.interactive = false;  // taps place pins only when true
-    this.guessMode = 'hold';   // 'hold' = press & ring locks in; 'tap' = tap + confirm button
-    this._hold = null;         // active hold-gesture state
+    this._activePointers = new Map(); // pointerId -> {x, y} (pinch-midpoint tracking)
+    this._zoomAim = null;      // { x, y, t } screen point the user is zooming toward
+    this._prevPinSnapshot = undefined; // pin state before the last single tap (double-tap restore)
 
     this.raycaster = new THREE.Raycaster();
     this.pointer = new THREE.Vector2();
@@ -477,14 +488,19 @@ export class Globe {
   }
 
   setAutoRotate(on) { this.controls.autoRotate = on; }
-  setInteractive(on) { this.interactive = on; if (!on) this._cancelHold(false); }
-  setGuessMode(mode) { this.guessMode = mode === 'tap' ? 'tap' : 'hold'; this._cancelHold(false); }
+  setInteractive(on) { this.interactive = on; }
 
-  // Zoom-aware rotation feel: slow the drag speed as you zoom in.
+  // Zoom-aware feel, retuned every frame:
+  // - rotateSpeed slows as you zoom in (fine control near the surface)
+  // - zoomSpeed scales with ALTITUDE so each pinch consumes a roughly constant
+  //   fraction of your height above the surface (the MapTap/Mapbox feel) instead
+  //   of a fraction of distance-to-center, which slams into the floor up close.
   _tuneControls() {
     const d = this.camera.position.length();
     const t = THREE.MathUtils.clamp((d - this.controls.minDistance) / (this.controls.maxDistance - this.controls.minDistance), 0, 1);
     this.controls.rotateSpeed = 0.06 + t * 0.6;
+    const alt = Math.max(d - GLOBE_RADIUS, 0.02); // floor the altitude, not the output
+    this.controls.zoomSpeed = THREE.MathUtils.clamp(1.6 * alt / d, 0.06, 1.35);
   }
 
   // ---------- picking ----------
@@ -507,59 +523,16 @@ export class Globe {
 
   _globeHit(e) { return this._globeHitXY(e.clientX, e.clientY); }
 
-  // ---------- hold-to-lock gesture (MapTap-style ring) ----------
-  // Press and keep your finger down: after a short arm delay a ring charges for
-  // HOLD_MS; when it closes, the guess locks in. Moving early rotates the globe
-  // instead; moving far while charging cancels. A quick tap just shows a hint.
-
-  _beginHold(e) {
-    this._cancelHold(false);
-    this._hold = {
-      id: e.pointerId,
-      x: e.clientX, y: e.clientY,
-      startX: e.clientX, startY: e.clientY,
-      charging: false,
-      raf: null,
-      chargeStart: 0,
-      armTimer: setTimeout(() => this._armHold(), 140),
-    };
-  }
-
-  _armHold() {
-    const h = this._hold;
-    if (!h || h.charging) return;
-    if (!this._globeHitXY(h.x, h.y)) { this._cancelHold(false); return; }
-    h.charging = true;
-    h.chargeStart = performance.now();
-    this.controls.enabled = false;
-    // Interval, not requestAnimationFrame: rAF can be throttled (background
-    // tabs, low-power mode) and the lock-in must complete on wall-clock time.
-    const HOLD_MS = 700;
-    h.timer = setInterval(() => {
-      const hh = this._hold;
-      if (!hh || !hh.charging) return;
-      const t = Math.min(1, (performance.now() - hh.chargeStart) / HOLD_MS);
-      const ll = this._globeHitXY(hh.x, hh.y);
-      if (!ll) { this._cancelHold(true); return; }
-      if (this.cb.onHoldProgress) this.cb.onHoldProgress(hh.x, hh.y, t);
-      if (t >= 1) {
-        clearInterval(hh.timer);
-        this._placePin(ll.lat, ll.lng);
-        this._hold = null;
-        this.controls.enabled = true;
-        if (this.cb.onHoldComplete) this.cb.onHoldComplete(ll.lat, ll.lng);
-      }
-    }, 30);
-  }
-
-  _cancelHold(notify) {
-    const h = this._hold;
-    if (!h) return;
-    clearTimeout(h.armTimer);
-    if (h.timer) clearInterval(h.timer);
-    if (h.charging) this.controls.enabled = true;
-    this._hold = null;
-    if (notify && this.cb.onHoldCancel) this.cb.onHoldCancel();
+  // Fly partway toward a tapped surface point (double-tap zoom). Altitude-based:
+  // never a bare distance multiplier, which could put the camera inside the globe.
+  flyToward(lat, lng, factor = 0.55, ms = 480) {
+    const d = this.camera.position.length();
+    const newD = Math.max(this.controls.minDistance, 1 + (d - 1) * factor);
+    const camDir = this.camera.position.clone().normalize();
+    const tapDir = latLngToVec3(lat, lng, 1).normalize();
+    const dir = camDir.lerp(tapDir, 0.7).normalize();
+    const ll = vec3ToLatLng(dir);
+    this.flyTo(ll.lat, ll.lng, newD, ms);
   }
 
   _pinHit(e) {
@@ -578,7 +551,17 @@ export class Globe {
     let lastTapTime = 0;
     let lastTapPos = null;
 
+    // Pinch-midpoint / cursor tracking feeds the zoom aim assist in _tick.
+    const noteAim = () => {
+      if (this._activePointers.size === 2) {
+        const [a, b] = [...this._activePointers.values()];
+        this._zoomAim = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, t: performance.now() };
+      }
+    };
+
     el.addEventListener('pointerdown', (e) => {
+      this._activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      noteAim();
       downPos = { x: e.clientX, y: e.clientY };
       downTime = performance.now();
       moved = false;
@@ -588,25 +571,16 @@ export class Globe {
         this.controls.enabled = false;
         this.container.classList.add('dragging-pin');
         el.setPointerCapture(e.pointerId);
-        return;
-      }
-      if (this.interactive && this.guessMode === 'hold' && e.isPrimary) {
-        this._beginHold(e);
       }
     });
 
     el.addEventListener('pointermove', (e) => {
+      if (this._activePointers.has(e.pointerId)) {
+        this._activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        noteAim();
+      }
       if (downPos && (Math.abs(e.clientX - downPos.x) > 6 || Math.abs(e.clientY - downPos.y) > 6)) {
         moved = true;
-      }
-      const h = this._hold;
-      if (h && e.pointerId === h.id) {
-        h.x = e.clientX; h.y = e.clientY;
-        const drift = Math.hypot(e.clientX - h.startX, e.clientY - h.startY);
-        // Early movement = the user wants to rotate, not guess.
-        if (!h.charging && drift > 12) this._cancelHold(false);
-        // Big movement mid-charge aborts the lock (finger slipped / changed mind).
-        else if (h.charging && drift > 36) this._cancelHold(true);
       }
       if (this.draggingPin) {
         const ll = this._globeHit(e);
@@ -616,6 +590,11 @@ export class Globe {
         }
       }
     });
+
+    // Wheel zooms aim at the cursor too (OrbitControls handles the dolly itself).
+    el.addEventListener('wheel', (e) => {
+      if (e.deltaY < 0) this._zoomAim = { x: e.clientX, y: e.clientY, t: performance.now() };
+    }, { passive: true });
 
     const endDrag = (e) => {
       if (this.draggingPin) {
@@ -629,8 +608,7 @@ export class Globe {
     };
 
     el.addEventListener('pointerup', (e) => {
-      const holdWasCharging = !!(this._hold && this._hold.charging);
-      this._cancelHold(holdWasCharging); // released before the ring closed
+      this._activePointers.delete(e.pointerId);
       const wasPinPress = endDrag(e);
       if (!downPos) return;
       // A pin-press that actually moved was a drag — done. A stationary pin-press
@@ -643,13 +621,9 @@ export class Globe {
         downPos = null;
         return;
       }
-      // Hold mode: a quick tap never guesses - coach the player to hold instead.
-      if (!moved && quick && this.interactive && this.guessMode === 'hold' && !wasPinPress) {
-        if (this.cb.onHoldHint) this.cb.onHoldHint();
-        downPos = null;
-        return;
-      }
-      if (!moved && quick && this.interactive) {
+      // Double-tap on the bare map = zoom toward the point (not a guess). When
+      // not in a round, double-tap still zooms (overview/menu browsing).
+      if (!moved && quick) {
         const ll = this._globeHit(e);
         if (ll) {
           const now = performance.now();
@@ -660,20 +634,39 @@ export class Globe {
             Math.abs(e.clientY - lastTapPos.y) < 34;
           if (isDouble) {
             lastTapTime = 0;
-            this._placePin(ll.lat, ll.lng);
-            if (this.cb.onDoubleTap) this.cb.onDoubleTap(ll.lat, ll.lng);
+            if (this.interactive && wasPinPress) {
+              // Double-tap ON the pin = fast confirm (the taught gesture).
+              this._placePin(ll.lat, ll.lng);
+              if (this.cb.onPinDoubleTap) this.cb.onPinDoubleTap(ll.lat, ll.lng);
+            } else {
+              // Map navigation: undo the pin move that tap 1 caused, then zoom.
+              if (this.interactive && this._prevPinSnapshot !== undefined) {
+                if (this._prevPinSnapshot) this._placePin(this._prevPinSnapshot.lat, this._prevPinSnapshot.lng);
+                else this.clearPin();
+              }
+              this.flyToward(ll.lat, ll.lng);
+              if (this.cb.onDoubleTapZoom) this.cb.onDoubleTapZoom();
+            }
+            this._prevPinSnapshot = undefined;
           } else {
             lastTapTime = now;
             lastTapPos = { x: e.clientX, y: e.clientY };
-            this._placePin(ll.lat, ll.lng);
-            if (this.cb.onTap) this.cb.onTap(ll.lat, ll.lng);
+            if (this.interactive) {
+              // Snapshot the pin before moving it, so a double-tap can restore.
+              this._prevPinSnapshot = this.pinLatLng ? { ...this.pinLatLng } : null;
+              this._placePin(ll.lat, ll.lng);
+              if (this.cb.onTap) this.cb.onTap(ll.lat, ll.lng);
+            }
           }
         }
       }
       downPos = null;
     });
 
-    el.addEventListener('pointercancel', (e) => { this._cancelHold(true); endDrag(e); });
+    el.addEventListener('pointercancel', (e) => {
+      this._activePointers.delete(e.pointerId);
+      endDrag(e);
+    });
   }
 
   // ---------- pin management ----------
@@ -682,7 +675,7 @@ export class Globe {
     // Proportional to camera height above the surface with NO floor worth naming:
     // zoomed close, the pin shrinks with the terrain instead of towering over it.
     const d = this.camera.position.length() - GLOBE_RADIUS;
-    return THREE.MathUtils.clamp(d * 0.062, 0.006, 0.16);
+    return THREE.MathUtils.clamp(d * 0.062, 0.003, 0.16);
   }
 
   _placePin(lat, lng) {
@@ -836,20 +829,113 @@ export class Globe {
 
   // ---------- result display ----------
 
-  showAnswer(guess, answer) {
-    // Answer pin
-    const mat = new THREE.SpriteMaterial({ map: this.pinTexAnswer, depthTest: false, sizeAttenuation: true });
-    const answerPin = new THREE.Sprite(mat);
-    answerPin.center.set(0.5, 0.06);
-    answerPin.renderOrder = 999;
-    answerPin.position.copy(latLngToVec3(answer.lat, answer.lng, GLOBE_RADIUS * 1.002));
-    const s = this._spriteScaleForDistance();
-    answerPin.scale.set(s, s, 1);
-    this.markerRoot.add(answerPin);
-    this._resultObjects.push(answerPin);
-    this._answerPin = answerPin;
+  // A glowing "light saber" beam planted in the globe (guess = silver, answer =
+  // green) - readable at any zoom, visibly 3D as the globe spins.
+  _makeBeam(coreColor, glowColor, lat, lng) {
+    const group = new THREE.Group();
+    const coreGeo = new THREE.CapsuleGeometry(0.0055, 0.10, 6, 20);
+    coreGeo.translate(0, 0.0555, 0); // base sits at local y=0
+    const core = new THREE.Mesh(coreGeo, new THREE.MeshBasicMaterial({ color: coreColor, toneMapped: false }));
+    core.renderOrder = 4;
+    group.add(core);
+    const glowGeo = new THREE.CapsuleGeometry(0.011, 0.104, 6, 20);
+    glowGeo.translate(0, 0.0575, 0);
+    const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({
+      color: glowColor, transparent: true, opacity: 0.32,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    }));
+    glow.renderOrder = 5;
+    group.add(glow);
+    const surface = latLngToVec3(lat, lng, GLOBE_RADIUS * 0.9965); // embed the seam
+    group.position.copy(surface);
+    group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), surface.clone().normalize());
+    return group;
+  }
 
-    // Pulsing ring at the answer
+  _makeCometHead() {
+    const S = 64;
+    const c = document.createElement('canvas');
+    c.width = S; c.height = S;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.35, 'rgba(255,220,140,0.6)');
+    grad.addColorStop(1, 'rgba(255,220,140,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, S, S);
+    const tex = new THREE.CanvasTexture(c);
+    const mat = new THREE.SpriteMaterial({
+      map: tex, blending: THREE.AdditiveBlending, depthTest: false, transparent: true,
+    });
+    const sprite = new THREE.Sprite(mat);
+    sprite.renderOrder = 6;
+    return sprite;
+  }
+
+  // The graded reveal, MapTap-style: guess beam pops, a comet streaks the arc,
+  // the answer beam + pulse + neon label land where the truth is.
+  showAnswer(guess, answer, labelLines = null) {
+    const now = performance.now();
+    this._reveal = { start: now, answerShown: false, answer, labelLines };
+
+    // Guess beam (immediately)
+    if (guess) {
+      const gb = this._makeBeam(0xf3f6ff, 0xaab8d8, guess.lat, guess.lng);
+      gb.userData.beamBorn = now;
+      this.markerRoot.add(gb);
+      this._resultObjects.push(gb);
+      this._beams = [gb];
+    } else {
+      this._beams = [];
+    }
+
+    // Comet arc (launches at +250ms inside _tick)
+    if (guess) {
+      const arc = this._buildArc(guess, answer);
+      this.markerRoot.add(arc.line);
+      this._resultObjects.push(arc.line);
+      // Additive trail: same points, per-vertex colors; black = invisible under
+      // additive blending, so ramping colors behind the head is per-vertex alpha
+      // without a shader.
+      const trailGeo = new THREE.BufferGeometry().setFromPoints(arc.points);
+      const colors = new Float32Array((arc.segments + 1) * 3);
+      trailGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      trailGeo.setDrawRange(0, 0);
+      const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({
+        vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      trail.renderOrder = 5;
+      this.markerRoot.add(trail);
+      this._resultObjects.push(trail);
+      const head = this._makeCometHead();
+      head.visible = false;
+      this.markerRoot.add(head);
+      this._resultObjects.push(head);
+      this._arcAnim = { ...arc, trail, trailGeo, head, launched: false };
+    } else {
+      this._arcAnim = null;
+      this._revealAnswer(); // no guess (shouldn't happen in play) - show at once
+    }
+
+    // Fly the camera to frame both points, close enough for tile detail.
+    const mid = this._midpointOnSphere(guess || answer, answer);
+    const dist = guess ? this._angularDistance(guess, answer) : 0;
+    const camDist = THREE.MathUtils.clamp(1.18 + dist * 1.7, 1.28, 3.6);
+    this.flyTo(mid.lat, mid.lng, camDist);
+  }
+
+  // Second act of the reveal: answer beam + pulsing ring + neon label.
+  _revealAnswer() {
+    if (!this._reveal || this._reveal.answerShown) return;
+    this._reveal.answerShown = true;
+    const { answer, labelLines } = this._reveal;
+
+    const ab = this._makeBeam(0x7dffb5, 0x38d67a, answer.lat, answer.lng);
+    ab.userData.beamBorn = performance.now();
+    this.markerRoot.add(ab);
+    this._resultObjects.push(ab);
+    this._beams.push(ab);
+
     const ringGeo = new THREE.RingGeometry(0.012, 0.016, 40);
     const ringMat = new THREE.MeshBasicMaterial({ color: 0x38d67a, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
     const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -860,19 +946,20 @@ export class Globe {
     this._resultObjects.push(ring);
     this._pulses.push({ mesh: ring, t: 0 });
 
-    // Great-circle arc between guess and answer, animated.
-    if (guess) {
-      const arc = this._buildArc(guess, answer);
-      this.markerRoot.add(arc.line);
-      this._resultObjects.push(arc.line);
-      this._arcAnim = arc;
+    if (labelLines && labelLines.length) {
+      const { tex, aspect } = makeLabelTexture(labelLines, { neon: true });
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: true, transparent: true, opacity: 0 });
+      const label = new THREE.Sprite(mat);
+      label.center.set(0.5, -0.55); // float above the beam tip
+      label.position.copy(latLngToVec3(answer.lat, answer.lng, GLOBE_RADIUS * 1.004));
+      label.userData.isLabel = true;
+      label.userData.aspect = aspect;
+      label.userData.fadeBorn = performance.now();
+      label.renderOrder = 7;
+      this.markerRoot.add(label);
+      this._resultObjects.push(label);
+      this._resultLabel = label;
     }
-
-    // Fly the camera to frame both points.
-    const mid = this._midpointOnSphere(guess || answer, answer);
-    const dist = guess ? this._angularDistance(guess, answer) : 0;
-    const camDist = THREE.MathUtils.clamp(1.35 + dist * 1.9, 1.5, 4.0);
-    this.flyTo(mid.lat, mid.lng, camDist);
   }
 
   _buildArc(a, b) {
@@ -890,10 +977,10 @@ export class Globe {
       points.push(v.multiplyScalar(altitude));
     }
     const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.95, linewidth: 2 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.35 });
     const line = new THREE.Line(geo, mat);
     geo.setDrawRange(0, 0);
-    return { line, geo, segments, progress: 0 };
+    return { line, geo, segments, points, progress: 0 };
   }
 
   _midpointOnSphere(a, b) {
@@ -914,13 +1001,21 @@ export class Globe {
   clearResults() {
     for (const obj of this._resultObjects) {
       this.markerRoot.remove(obj);
-      if (obj.geometry) obj.geometry.dispose();
-      if (obj.material) obj.material.dispose();
+      obj.traverse((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (child.material.map) child.material.map.dispose();
+          child.material.dispose();
+        }
+      });
     }
     this._resultObjects = [];
     this._pulses = [];
     this._arcAnim = null;
     this._answerPin = null;
+    this._beams = [];
+    this._reveal = null;
+    this._resultLabel = null;
   }
 
   // Boot cinematic: swoop from deep space down to play distance with a decaying
@@ -995,8 +1090,44 @@ export class Globe {
 
   _tick() {
     const dt = this._clock.getDelta();
+    // Self-healing: if anything ever corrupts the camera (NaN), snap back to a
+    // sane view instead of freezing the globe forever.
+    if (!isFinite(this.camera.position.x) || !isFinite(this.camera.position.y) || !isFinite(this.camera.position.z)) {
+      this.camera.position.set(0, 0.5, 2.9);
+      this.camera.lookAt(0, 0, 0);
+      this._lastTickD = 2.9;
+    }
     this._tuneControls();
     this.controls.update();
+
+    // Zoom aim assist: as the user zooms IN, drift the point under their
+    // fingers/cursor toward screen center by the same fraction of altitude they
+    // consumed this frame. Target stays (0,0,0); OrbitControls re-derives its
+    // spherical from camera.position each update, so this composes cleanly.
+    {
+      const d = this.camera.position.length();
+      const prev = this._lastTickD !== undefined ? this._lastTickD : d;
+      this._lastTickD = d;
+      if (
+        d < prev - 1e-7 && prev > 1 &&
+        this._zoomAim && performance.now() - this._zoomAim.t < 250 &&
+        !this._flights.length && !this.draggingPin
+      ) {
+        const ll = this._globeHitXY(this._zoomAim.x, this._zoomAim.y);
+        if (ll) { // limb miss -> skip the frame
+          const targetDir = latLngToVec3(ll.lat, ll.lng, 1);
+          const camDir = this.camera.position.clone().normalize();
+          const angle = camDir.angleTo(targetDir);
+          const f = THREE.MathUtils.clamp(1 - (d - 1) / (prev - 1), 0, 0.5);
+          const step = Math.min(angle * f * 1.5, 0.15);
+          if (angle > 1e-4 && step > 1e-5) {
+            const axis = new THREE.Vector3().crossVectors(camDir, targetDir).normalize();
+            this.camera.position.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, step));
+            this.camera.lookAt(0, 0, 0);
+          }
+        }
+      }
+    }
 
     // Camera flights override nothing else; they just move the camera.
     if (this._flights.length) {
@@ -1018,11 +1149,60 @@ export class Globe {
       }
     }
 
-    // Arc draw animation.
-    if (this._arcAnim) {
-      this._arcAnim.progress = Math.min(1, this._arcAnim.progress + dt * 1.4);
-      const n = Math.floor(this._arcAnim.progress * this._arcAnim.segments) + 1;
-      this._arcAnim.geo.setDrawRange(0, n);
+    // Reveal choreography: beam pops, comet flight, label fade.
+    const nowMs = performance.now();
+    if (this._beams && this._beams.length) {
+      // Beams keep a legible size while zooming and pop in with easeOutBack.
+      const kBase = THREE.MathUtils.clamp((this.camera.position.length() - 1) / 1.6, 0.16, 1);
+      for (const beam of this._beams) {
+        const age = (nowMs - beam.userData.beamBorn) / 350;
+        const tt = Math.min(1, age);
+        const c1 = 1.70158, c3 = c1 + 1;
+        const pop = 1 + c3 * Math.pow(tt - 1, 3) + c1 * Math.pow(tt - 1, 2); // easeOutBack
+        beam.scale.set(kBase, kBase * Math.max(0.001, pop), kBase);
+      }
+    }
+    if (this._arcAnim && this._reveal) {
+      const elapsed = nowMs - this._reveal.start;
+      if (!this._arcAnim.launched && elapsed >= 250) {
+        this._arcAnim.launched = true;
+        this._arcAnim.head.visible = true;
+      }
+      if (this._arcAnim.launched) {
+        const t = Math.min(1, (elapsed - 250) / 700);
+        const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+        const headIdx = Math.floor(e * this._arcAnim.segments);
+        this._arcAnim.geo.setDrawRange(0, headIdx + 1);
+        // Trail: additive colors ramp black -> gold -> white toward the head.
+        const TRAIL = 22;
+        const colors = this._arcAnim.trailGeo.getAttribute('color');
+        for (let i = 0; i <= this._arcAnim.segments; i++) {
+          const back = headIdx - i;
+          let r = 0, g = 0, b = 0;
+          if (back >= 0 && back <= TRAIL) {
+            const w = 1 - back / TRAIL;
+            r = 0.25 + 0.75 * w; g = 0.2 + 0.66 * w; b = 0.55 * w * w;
+          }
+          colors.setXYZ(i, r, g, b);
+        }
+        colors.needsUpdate = true;
+        this._arcAnim.trailGeo.setDrawRange(Math.max(0, headIdx - TRAIL), Math.min(TRAIL, headIdx) + 1);
+        // Head position + pulse
+        const p = this._arcAnim.points[Math.min(headIdx, this._arcAnim.segments)];
+        this._arcAnim.head.position.copy(p);
+        const hk = s * 0.5 * (1 + 0.15 * Math.sin(nowMs / 60));
+        this._arcAnim.head.scale.set(hk, hk, 1);
+        if (t >= 1) {
+          this._arcAnim.head.visible = false;
+          this._revealAnswer(); // landing: answer beam + ring + label
+        }
+      }
+    }
+    if (this._resultLabel) {
+      const fade = Math.min(1, (nowMs - this._resultLabel.userData.fadeBorn) / 250);
+      this._resultLabel.material.opacity = fade;
+      const k = s * 1.1;
+      this._resultLabel.scale.set(k * this._resultLabel.userData.aspect, k, 1);
     }
 
     // Zoom-detail tile streaming.

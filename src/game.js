@@ -177,9 +177,19 @@ export function saveJSON(key, value) {
 }
 
 export function loadSettings() {
+  const stored = loadJSON('settings', {});
+  // v2 migration (2026-07-27): hold-to-place and double-tap-confirm were retired
+  // in favor of tap+confirm with double-tap-to-zoom. Old keys are dropped so a
+  // stale 'hold' preference can never resurrect a removed mode.
+  if (!stored.v || stored.v < 2) {
+    delete stored.guessMode;
+    delete stored.doubleTap;
+    stored.v = 2;
+    saveJSON('settings', stored);
+  }
   return Object.assign(
-    { miles: false, doubleTap: true, sound: true, music: true, musicStyle: 'auto', autoRotate: true, guessMode: 'hold' },
-    loadJSON('settings', {})
+    { miles: false, sound: true, music: true, musicStyle: 'auto', autoRotate: true, v: 2 },
+    stored
   );
 }
 export function saveSettings(s) { saveJSON('settings', s); }
