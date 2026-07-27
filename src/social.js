@@ -176,7 +176,9 @@ export function importCrewPayload(p) {
 export function getFamilyPlaces() { return loadJSON('social.places', []); }
 
 export function addFamilyPlace(place) {
-  // { name, lat, lng, fact, by } -> stored with country/continent resolved locally
+  // { name, lat, lng, fact, by, hint?, photo?, photoId?, date? }
+  // -> stored with country/continent resolved locally. photo is a small
+  // compressed dataURL (local cache); photoId points at the shared cloud copy.
   const places = getFamilyPlaces();
   const key = place.name.trim().toLowerCase();
   const existingIdx = places.findIndex((p) => p.name.trim().toLowerCase() === key);
@@ -187,6 +189,10 @@ export function addFamilyPlace(place) {
     lng: +place.lng,
     fact: String(place.fact || '').slice(0, 200),
     by: String(place.by || '').slice(0, 24),
+    hint: String(place.hint || '').slice(0, 120),
+    photo: typeof place.photo === 'string' && place.photo.startsWith('data:image') ? place.photo : null,
+    photoId: place.photoId ? String(place.photoId).slice(0, 40) : null,
+    date: place.date ? String(place.date).slice(0, 10) : null,
     country: country ? country.name : null,
     continent: country ? country.continent : null,
   };
@@ -196,12 +202,27 @@ export function addFamilyPlace(place) {
 }
 
 export function buildPlacePayload(place) {
-  return { t: 'l', n: place.name, la: place.lat, lo: place.lng, f: place.fact, by: place.by };
+  // The photo itself never rides in the link (too big for SMS) - photoId lets
+  // recipients pull the shared cloud copy.
+  return {
+    t: 'l', n: place.name, la: place.lat, lo: place.lng, f: place.fact, by: place.by,
+    h: place.hint || undefined, d: place.date || undefined, pid: place.photoId || undefined,
+  };
 }
 
 export function importPlacePayload(p) {
   if (!p || p.t !== 'l' || !p.n || typeof p.la !== 'number' || typeof p.lo !== 'number') return null;
-  return addFamilyPlace({ name: p.n, lat: p.la, lng: p.lo, fact: p.f, by: p.by });
+  return addFamilyPlace({
+    name: p.n, lat: p.la, lng: p.lo, fact: p.f, by: p.by,
+    hint: p.h, date: p.d, photoId: p.pid,
+  });
+}
+
+// Attach a lazily-fetched photo to an existing place (by name), cached locally.
+export function attachPhotoToPlace(name, dataUrl) {
+  const places = getFamilyPlaces();
+  const p = places.find((x) => x.name.toLowerCase() === String(name).toLowerCase());
+  if (p) { p.photo = dataUrl; saveJSON('social.places', places); }
 }
 
 // Deterministic family-round pick: same rotation for everyone on a given day

@@ -125,6 +125,15 @@ html, body {
 .round-dot.done-bad { background: var(--danger); }
 
 .prompt-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-dim); }
+.prompt-photo {
+  display: block;
+  max-width: min(78vw, 300px);
+  max-height: 24vh;
+  margin: 8px auto 4px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-border);
+  object-fit: cover;
+}
 .prompt-place { font-size: clamp(1.15rem, 4vw, 1.6rem); font-weight: 800; margin-top: 2px; text-wrap: balance; }
 .prompt-sub { font-size: 0.85rem; color: var(--text-dim); margin-top: 2px; }
 

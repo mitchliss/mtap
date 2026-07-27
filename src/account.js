@@ -106,6 +106,39 @@ export async function signOutUser() {
   await authMod.signOut(auth);
 }
 
+// ---------- shared photo places ----------
+// A photo place uploads once to sharedPlaces/{randomId} (creator must be signed
+// in; the compressed photo is a small dataURL). Anyone with the id - it travels
+// in the share link - can read it. Docs are immutable once written.
+
+export async function createSharedPlace(data) {
+  const ok = await ensureFirebase();
+  if (!ok) return { ok: false, error: 'Accounts not configured.' };
+  if (!auth.currentUser) return { ok: false, error: 'Sign in (Settings) to share photo challenges.' };
+  try {
+    const ref = await fsMod.addDoc(fsMod.collection(db, 'sharedPlaces'), {
+      name: data.name, hint: data.hint || '', fact: data.fact || '',
+      by: data.by || '', lat: data.lat, lng: data.lng,
+      photo: data.photo || '', date: data.date || '',
+      created: Date.now(),
+    });
+    return { ok: true, id: ref.id };
+  } catch (e) {
+    return { ok: false, error: 'Photo upload failed: ' + (e && e.message ? e.message : 'unknown') };
+  }
+}
+
+export async function fetchSharedPlace(id) {
+  const ok = await ensureFirebase();
+  if (!ok) return null;
+  try {
+    const snap = await fsMod.getDoc(fsMod.doc(db, 'sharedPlaces', id));
+    return snap.exists() ? snap.data() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function currentUser() { return auth ? auth.currentUser : null; }
 
 // ---------- two-way merge sync ----------
@@ -159,9 +192,15 @@ export async function syncNow() {
     const ref = fsMod.doc(db, 'users', auth.currentUser.uid);
     const snap = await fsMod.getDoc(ref);
     if (snap.exists()) mergeRemoteIntoLocal(snap.data());
+    // Strip cached photo dataURLs from the sync payload: they'd blow Firestore's
+    // 1MB doc limit. photoId survives, so other devices re-fetch on demand.
+    const placesForSync = loadJSON('social.places', []).map((p) => {
+      const { photo, ...rest } = p;
+      return rest;
+    });
     await fsMod.setDoc(ref, {
       players: loadJSON('social.players', {}),
-      places: loadJSON('social.places', []),
+      places: placesForSync,
       crew: loadJSON('social.crew', { name: '', members: [] }),
       history: loadJSON('history', {}),
       active: loadJSON('social.active', null),

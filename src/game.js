@@ -130,14 +130,32 @@ export function emojiForScore(score) {
   return '🌍';
 }
 
-export function verdictForResult(r) {
-  if (r.bullseye) return '🎯 Bullseye! Incredible.';
-  if (r.score >= 70) return '🔥 So close — great geography!';
-  if (r.countryMatch) return '🗺️ Right country! Nice.';
-  if (r.score >= 40) return '👍 Solid guess.';
-  if (r.continentMatch) return '🌎 Right continent, at least!';
-  if (r.score >= 15) return '🤏 In the neighborhood… sort of.';
-  return '🌍 The world is a big place!';
+// Always encouraging, always informative: names the country the pin actually
+// landed in and how far off it was, so every miss teaches some geography.
+export function verdictForResult(r, distText) {
+  const pinned = r.guessCountry ? r.guessCountry.name : null;
+  const d = distText || 'a stretch';
+  if (r.bullseye) {
+    return pinned ? `🎯 Dead on — right there in ${pinned}!` : '🎯 Dead on!';
+  }
+  if (r.score >= 85) {
+    return pinned
+      ? `🔥 So close! Your pin landed in ${pinned}, just ${d} from the spot.`
+      : `🔥 So close — just ${d} from the spot!`;
+  }
+  if (r.countryMatch) {
+    return `🗺️ Right country! Your pin was in ${pinned}, ${d} from the exact spot — nice.`;
+  }
+  if (r.continentMatch) {
+    return `🌎 Getting warmer — you pinned ${pinned}, same continent, ${d} away.`;
+  }
+  if (!pinned) {
+    return `⚓ Your pin landed in open water, ${d} from the answer — bold call, sailor!`;
+  }
+  if (r.score >= 40) {
+    return `👍 Good instincts — ${pinned} is ${d} from the answer. You're circling it!`;
+  }
+  return `🌍 You pinned ${pinned}, ${d} away — now you'll never forget where this one is!`;
 }
 
 // ---------- persistence ----------
@@ -236,6 +254,10 @@ export class GameSession {
       continent: place.continent,
       fact: place.fact || '',
       by: place.by || '',
+      hint: place.hint || '',
+      photo: place.photo || null,
+      photoId: place.photoId || null,
+      date: place.date || null,
       isFamily: true,
     });
   }

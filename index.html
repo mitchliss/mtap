@@ -37,6 +37,7 @@
     <div id="prompt-card" class="prompt-card hidden">
       <div class="prompt-progress" id="round-dots"></div>
       <div class="prompt-label">Tap where you think this is…</div>
+      <img id="prompt-photo" class="prompt-photo hidden" alt="Family photo challenge" />
       <div class="prompt-place" id="prompt-place">Eiffel Tower</div>
       <div class="prompt-sub" id="prompt-sub"></div>
     </div>
@@ -205,6 +206,10 @@
           <input id="place-fact" type="text" maxlength="200" placeholder="A dance hall on a Tuesday in 1962" autocomplete="off" />
         </div>
         <div class="place-field">
+          <label class="place-label" for="place-hint"><span class="step-num">💡</span> Hint <span class="label-opt">(shown with a photo challenge — don't give it away!)</span></label>
+          <input id="place-hint" type="text" maxlength="120" placeholder="Our summer trip, 2019…" autocomplete="off" />
+        </div>
+        <div class="place-field">
           <label class="place-label" for="place-loc"><span class="step-num">3</span> Where is it?</label>
           <input id="place-loc" type="text" maxlength="80" placeholder="City, State — e.g. Wilmette, Illinois" autocomplete="off" />
           <div class="place-loc-hint">Type a city + state or country and we'll find it and drop the pin for you.</div>
@@ -326,7 +331,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v3.1 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v3.2 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>

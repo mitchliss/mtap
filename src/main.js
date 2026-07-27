@@ -14,17 +14,17 @@ import { puzzleNumberForToday, todayDateText } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
 import { startMusic, stopMusic, unlockIosAudio, duckMusic, MUSIC_STYLES } from './music.js';
 import { geocodePlace, reverseGeocode, fetchPopulationNear, formatPopulation } from './geocode.js';
-import { extractPhotoLocation } from './exif.js';
+import { extractPhotoMeta } from './exif.js';
 import {
   accountsEnabled, onAuthChange, sendLoginLink, completeLoginLink, signOutUser,
-  currentUser, syncNow, lastSyncTime,
+  currentUser, syncNow, lastSyncTime, createSharedPlace, fetchSharedPlace,
 } from './account.js';
 import {
   readHashPayload, encodePayload, shareBaseUrl,
   getActivePlayer, setActivePlayer, getPlayers,
   recordPlayerResult, importResultPayload, buildResultPayload, leaderboardRows,
   setChallenge, getChallenge,
-  getFamilyPlaces, addFamilyPlace, buildPlacePayload, importPlacePayload, familyPlaceForPuzzle,
+  getFamilyPlaces, addFamilyPlace, buildPlacePayload, importPlacePayload, familyPlaceForPuzzle, attachPhotoToPlace,
   getCrew, saveCrew, toggleCrewMember, isCrewMember, buildCrewPayload, importCrewPayload,
 } from './social.js';
 
@@ -51,7 +51,7 @@ const els = {
   btnLeaderboard: $('btn-leaderboard'), btnEndLeaderboard: $('btn-end-leaderboard'),
   placeModal: $('place-modal'), placeName: $('place-name'), placeFact: $('place-fact'),
   placeLoc: $('place-loc'), placeFind: $('place-find'), placeResults: $('place-results'), placePinManual: $('place-pin-manual'),
-  placePhoto: $('place-photo'),
+  placePhoto: $('place-photo'), placeHint: $('place-hint'), promptPhoto: $('prompt-photo'),
   placeShareModal: $('place-share-modal'), placeShareSummary: $('place-share-summary'), placeShareCopy: $('place-share-copy'),
   btnAddPlace: $('btn-add-place'),
   challengeBanner: $('challenge-banner'),
@@ -234,7 +234,29 @@ function beginRound() {
   const mult = session.currentMultiplier;
   const labelEl = document.querySelector('#prompt-card .prompt-label');
   const verb = settings.guessMode === 'hold' ? 'hold where this is until the ring closes' : 'tap where this is';
-  if (loc.isFamily) {
+  hide(els.promptPhoto);
+  if (loc.isFamily && (loc.photo || loc.photoId)) {
+    // PHOTO CHALLENGE: show the picture + hint + date - never the place name.
+    labelEl.textContent = `📷 Photo challenge — ${verb}…`;
+    els.promptCard.classList.add('family-round');
+    els.promptPlace.textContent = loc.hint || 'Where was this photo taken?';
+    els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
+      (loc.date ? ` · 📅 ${loc.date.replace(/[<>&]/g, '')}` : '') +
+      (loc.by ? ` · from ${loc.by.replace(/[<>&]/g, '')}` : '');
+    if (loc.photo) {
+      els.promptPhoto.src = loc.photo;
+      show(els.promptPhoto);
+    } else if (loc.photoId) {
+      fetchSharedPlace(loc.photoId).then((d) => {
+        if (d && d.photo && session && session.currentLocation === loc) {
+          loc.photo = d.photo;
+          attachPhotoToPlace(loc.name, d.photo);
+          els.promptPhoto.src = d.photo;
+          show(els.promptPhoto);
+        }
+      });
+    }
+  } else if (loc.isFamily) {
     labelEl.textContent = `🏠 Family round — ${verb}…`;
     els.promptCard.classList.add('family-round');
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
@@ -300,7 +322,7 @@ function confirmGuess(lat, lng) {
     els.resultPoints.textContent = result.multiplier > 1
       ? `+${result.points} (${result.score}×${result.multiplier})`
       : `+${result.points}`;
-    els.resultVerdict.textContent = verdictForResult(result);
+    els.resultVerdict.textContent = verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
     els.resultFact.textContent = result.target.fact || '';
     // Population line (async, MapTap-style): only shown when a confident
     // near-target match comes back; the curated fact always shows regardless.
@@ -845,12 +867,27 @@ function startPlacePinning() {
 }
 
 // Shared save path for both entry modes (geocoded and hand-pinned).
-function savePlaceAt(name, fact, lat, lng) {
-  const saved = addFamilyPlace({ name, lat, lng, fact, by: getActivePlayer() || '' });
+// A pending photo turns the place into a PHOTO CHALLENGE: the compressed copy
+// uploads to the shared cloud store (when signed in) so family members' games
+// can show the actual picture.
+async function savePlaceAt(name, fact, lat, lng) {
+  const hint = els.placeHint.value.trim();
+  const photo = pendingPhoto ? pendingPhoto.dataUrl : null;
+  const date = pendingPhoto ? pendingPhoto.date : null;
+  pendingPhoto = null;
+  let photoId = null;
+  if (photo && accountsEnabled) {
+    const up = await createSharedPlace({ name, hint, fact, by: getActivePlayer() || '', lat, lng, photo, date });
+    if (up.ok) photoId = up.id;
+    else toast(up.error + ' (The challenge still works on this device.)', 4200);
+  }
+  const saved = addFamilyPlace({ name, lat, lng, fact, by: getActivePlayer() || '', hint, photo, photoId, date });
   const link = `${shareBaseUrl()}#mt=${encodePayload(buildPlacePayload(saved))}`;
-  els.placeShareSummary.textContent = `"${saved.name}" is now a ×2 bonus round in your daily games${saved.by ? ` (added by ${saved.by})` : ''}.`;
+  const what = photo ? 'photo challenge' : 'place';
+  els.placeShareSummary.textContent = `"${saved.name}" is now a ×2 bonus ${what} in your daily games${saved.by ? ` (added by ${saved.by})` : ''}.` +
+    (photo && !photoId ? ' Sign in (Settings) before sharing so the family gets the photo too.' : '');
   els.placeShareCopy.onclick = () =>
-    shareOrCopy(`🏠 I added "${saved.name}" to our MTap family map! Open to get it in your game: ${link}`, 'Link copied! 📋');
+    shareOrCopy(`${photo ? '📷' : '🏠'} I added a ${what} to our MTap family map! Open to get it in your game: ${link}`, 'Link copied! 📋');
   show(els.placeShareModal);
   globe.flyTo(lat, lng, 2.0);
   return saved;
@@ -903,24 +940,54 @@ function placeResultChip(name, r) {
   return btn;
 }
 
-// Photo entry: read the GPS embedded in a photo's EXIF (in the browser - the
-// photo never leaves the device), reverse-geocode a friendly label, offer it.
+// Photo entry: read the GPS + date embedded in a photo's EXIF, compress a small
+// copy for the challenge card, reverse-geocode a friendly label, offer it.
+// The full-size photo never leaves the device - only the ~60KB challenge copy
+// is shared (and only when the uploader is signed in).
+let pendingPhoto = null; // { dataUrl, date } for the place being created
+
+async function compressPhoto(file, maxDim = 640) {
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    c.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    return c.toDataURL('image/jpeg', 0.72);
+  } catch {
+    return null;
+  }
+}
+
 async function findPlaceByPhoto(file) {
   const name = els.placeName.value.trim();
   if (!name) { toast('Give the place a name first 🙂'); els.placePhoto.value = ''; return; }
   if (!file) return;
   els.placeResults.innerHTML = '<div class="place-searching">Reading the photo\'s location…</div>';
-  const loc = await extractPhotoLocation(file);
-  if (!loc) {
+  const meta = await extractPhotoMeta(file);
+  if (!meta || meta.lat == null) {
     els.placeResults.innerHTML =
       '<div class="place-searching">No location saved in that photo. (Photos sent through Messages/WhatsApp usually have it stripped — try picking the original from your photo library, or type the city above.)</div>';
     els.placePhoto.value = '';
     return;
   }
-  const label = (await reverseGeocode(loc.lat, loc.lng)) ||
-    `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
+  const dataUrl = await compressPhoto(file);
+  pendingPhoto = dataUrl ? { dataUrl, date: meta.date || null } : null;
+  const label = (await reverseGeocode(meta.lat, meta.lng)) ||
+    `${meta.lat.toFixed(4)}, ${meta.lng.toFixed(4)}`;
   els.placeResults.innerHTML = '';
-  els.placeResults.appendChild(placeResultChip(name, { label: `Photo location: ${label}`, lat: loc.lat, lng: loc.lng }));
+  els.placeResults.appendChild(placeResultChip(name, {
+    label: `Photo location: ${label}${meta.date ? ` · 📅 ${meta.date}` : ''}`,
+    lat: meta.lat, lng: meta.lng,
+  }));
   els.placePhoto.value = '';
 }
 
@@ -938,7 +1005,13 @@ function processIncomingPayload() {
   } else if (p.t === 'l') {
     const place = importPlacePayload(p);
     if (place) {
-      toast(`🏠 "${place.name}" added to your family map!`, 3200);
+      toast(`${place.photoId ? '📷' : '🏠'} "${place.name}" added to your family map!`, 3200);
+      // Pull the shared photo now so the challenge is ready even offline later.
+      if (place.photoId && !place.photo) {
+        fetchSharedPlace(place.photoId).then((d) => {
+          if (d && d.photo) attachPhotoToPlace(place.name, d.photo);
+        });
+      }
     }
   } else if (p.t === 'c') {
     const crew = importCrewPayload(p);
@@ -1123,8 +1196,10 @@ async function boot() {
   const openPlaceModal = () => {
     els.placeName.value = '';
     els.placeFact.value = '';
+    els.placeHint.value = '';
     els.placeLoc.value = '';
     els.placeResults.innerHTML = '';
+    pendingPhoto = null;
     show(els.placeModal);
     setTimeout(() => els.placeName.focus(), 150);
   };
