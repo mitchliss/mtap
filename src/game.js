@@ -23,16 +23,25 @@ export const DAILY_GENERATION = 2;
 // dailies must stay identical for every player; exclusion is a practice-only
 // feature (avoids repeating recent games and spoiling upcoming dailies).
 // Pool-expansion guard: growing the database changes every seeded deal, which
-// would RE-DEAL the current day mid-day (non-comparable scores). Puzzles up to
-// the cutoff keep drawing from the original pool; new locations join the daily
-// rotation starting with the next puzzle. Bump BOTH constants on any future
-// expansion (cutoff = today's puzzle number, size = pool length before adding).
-const POOL_EXPANSION_CUTOFF_PUZZLE = 4; // Jul 25, 2026
-const LEGACY_POOL_SIZE = 205;
+// would RE-DEAL the current day mid-day (non-comparable scores). Each tier pins
+// the pool size that was live through that puzzle number; new locations join
+// the rotation with the NEXT puzzle. Add a tier on every future expansion
+// (upToPuzzle = today's puzzle number, size = pool length before adding).
+const POOL_TIERS = [
+  { upToPuzzle: 4, size: 205 }, // through Jul 25, 2026
+  { upToPuzzle: 6, size: 276 }, // through Jul 27, 2026
+];
+
+function poolForPuzzle(seed) {
+  for (const tier of POOL_TIERS) {
+    if (seed <= tier.upToPuzzle) return LOCATIONS.slice(0, tier.size);
+  }
+  return LOCATIONS;
+}
 
 export function pickLocations(seed, excludeNames = null) {
   const rng = mulberry32((seed + DAILY_GENERATION * 1000003) * 7919 + 13);
-  let pool = seed <= POOL_EXPANSION_CUTOFF_PUZZLE ? LOCATIONS.slice(0, LEGACY_POOL_SIZE) : LOCATIONS;
+  let pool = poolForPuzzle(seed);
   if (excludeNames && excludeNames.size) {
     const filtered = pool.filter((l) => !excludeNames.has(l.name));
     if (filtered.length >= 40) pool = filtered; // never over-constrain the pick
@@ -57,6 +66,41 @@ export function pickLocations(seed, excludeNames = null) {
 
 export function dailySeed() { return puzzleNumberForToday(); }
 
+// ---------- daily picks with a rolling 30-day no-repeat window ----------
+// From NO_REPEAT_START onward, each daily excludes every location dealt in the
+// previous 29 days. The chain is computed iteratively from the regime start, so
+// it is fully deterministic - every player derives the identical sequence.
+const NO_REPEAT_WINDOW = 30;      // days in the rolling window (incl. today)
+const NO_REPEAT_START = 7;        // puzzle #7 = Jul 28, 2026 (earlier days stay as dealt)
+const dailyPickCache = new Map(); // puzzle number -> picks (avoids re-walking the chain)
+
+export function dailyPicksFor(n) {
+  if (n < NO_REPEAT_START) return pickLocations(n);
+  if (dailyPickCache.has(n)) return dailyPickCache.get(n);
+
+  // Seed the window with the fixed pre-regime days that fall inside it.
+  const window = [];
+  for (let k = Math.max(1, NO_REPEAT_START - (NO_REPEAT_WINDOW - 1)); k < NO_REPEAT_START; k++) {
+    window.push({ n: k, names: pickLocations(k).map((l) => l.name) });
+  }
+  let picks = null;
+  for (let k = NO_REPEAT_START; k <= n; k++) {
+    if (dailyPickCache.has(k)) {
+      picks = dailyPickCache.get(k);
+    } else {
+      const exclude = new Set();
+      for (const w of window) {
+        if (w.n >= k - (NO_REPEAT_WINDOW - 1)) for (const nm of w.names) exclude.add(nm);
+      }
+      picks = pickLocations(k, exclude);
+      dailyPickCache.set(k, picks);
+    }
+    window.push({ n: k, names: picks.map((l) => l.name) });
+    if (window.length > NO_REPEAT_WINDOW) window.shift();
+  }
+  return picks;
+}
+
 export function practiceSeed() {
   return (Date.now() % 2147483647) ^ Math.floor(Math.random() * 1e9);
 }
@@ -68,7 +112,7 @@ export function practiceExcludeSet() {
   const exclude = new Set();
   const today = puzzleNumberForToday();
   for (let n = today; n <= today + 2; n++) {
-    for (const loc of pickLocations(n)) exclude.add(loc.name);
+    for (const loc of dailyPicksFor(n)) exclude.add(loc.name);
   }
   for (const name of loadJSON('recentLocations', [])) exclude.add(name);
   return exclude;
@@ -245,8 +289,9 @@ export class GameSession {
   constructor(seed, isPractice, excludeNames = null) {
     this.seed = seed;
     this.isPractice = isPractice;
-    // Exclusion is practice-only; dailies are always the full deterministic pick.
-    this.locations = pickLocations(seed, isPractice ? excludeNames : null);
+    // Dailies use the deterministic 30-day no-repeat chain; practice uses the
+    // raw pick with the caller's local exclusions.
+    this.locations = isPractice ? pickLocations(seed, excludeNames) : dailyPicksFor(seed);
     this.roundIndex = 0;
     this.results = [];
   }

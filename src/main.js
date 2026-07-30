@@ -7,7 +7,7 @@ import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
   dailySeed, practiceSeed, dailyAlreadyPlayed, recordDailyResult,
   emojiForScore, verdictForResult, buildShareText, computeStreak,
-  loadSettings, saveSettings, pickLocations, multiplierForRound,
+  loadSettings, saveSettings, pickLocations, dailyPicksFor, multiplierForRound,
   practiceExcludeSet, noteLocationsSeen,
 } from './game.js';
 import { puzzleNumberForToday, todayDateText } from './rng.js';
@@ -532,7 +532,7 @@ function buildOverviewItems() {
   } else {
     const record = dailyAlreadyPlayed(puzzleNumberForToday());
     if (!record) return null;
-    const locs = pickLocations(dailySeed());
+    const locs = dailyPicksFor(dailySeed());
     // Only the 5 standard rounds reconstruct from the daily seed; a stored family
     // bonus round has no seed-derived location, so it's skipped on revisit.
     items = record.rounds.slice(0, locs.length).filter((r) => !r.b).map((r, i) => ({
