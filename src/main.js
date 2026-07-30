@@ -24,7 +24,7 @@ import {
   getActivePlayer, setActivePlayer, getPlayers,
   recordPlayerResult, importResultPayload, buildResultPayload, leaderboardRows,
   setChallenge, getChallenge,
-  getFamilyPlaces, addFamilyPlace, buildPlacePayload, importPlacePayload, familyPlaceForPuzzle, attachPhotoToPlace,
+  getFamilyPlaces, addFamilyPlace, buildPlacePayload, importPlacePayload, familyPlaceForPuzzle, attachPhotoToPlace, notePlayedFamilyPlace,
   getCrew, saveCrew, toggleCrewMember, isCrewMember, buildCrewPayload, importCrewPayload,
 } from './social.js';
 
@@ -52,6 +52,7 @@ const els = {
   placeModal: $('place-modal'), placeName: $('place-name'), placeFact: $('place-fact'),
   placeLoc: $('place-loc'), placeFind: $('place-find'), placeResults: $('place-results'), placePinManual: $('place-pin-manual'),
   placePhoto: $('place-photo'), placeHint: $('place-hint'), promptPhoto: $('prompt-photo'),
+  familyActions: $('family-actions'), btnFamilyHint: $('btn-family-hint'), btnFamilySkip: $('btn-family-skip'), familyHintText: $('family-hint-text'),
   phaseChoice: $('place-phase-choice'), phasePhoto: $('place-phase-photo'), phaseManual: $('place-phase-manual'),
   ppThumb: $('pp-thumb'), ppLocLine: $('pp-loc-line'), ppName: $('pp-name'), ppSig: $('pp-sig'), ppHint: $('pp-hint'),
   ppSave: $('pp-save'), ppWrongLoc: $('pp-wrong-loc'), pmThumb: $('pm-thumb'), placeManualBtn: $('place-manual-btn'),
@@ -231,9 +232,14 @@ function resolveMusicStyle() {
   return MUSIC_STYLES[puzzleNumberForToday() % MUSIC_STYLES.length];
 }
 
+let familyHintUsed = false;
+
 function beginRound() {
   clearTimeout(resultPanelTimer); // a stale reveal timer must never fire mid-round
+  familyHintUsed = false;
+  hide(els.familyHintText);
   const loc = session.currentLocation;
+  if (loc.isFamily) show(els.familyActions); else hide(els.familyActions);
   els.promptPlace.textContent = loc.name;
   const mult = session.currentMultiplier;
   const labelEl = document.querySelector('#prompt-card .prompt-label');
@@ -323,6 +329,14 @@ function confirmGuess(lat, lng) {
 
   const prevTotal = session.totalScore;
   const result = session.submitGuess(g.lat, g.lng);
+  if (result.isBonus) {
+    // This family place has now been seen - rotate to a different one next time.
+    notePlayedFamilyPlace(result.target.name, puzzleNumberForToday());
+    if (familyHintUsed) {
+      result.points = Math.floor(result.points / 2);
+      result.hintUsed = true;
+    }
+  }
 
   // Neon label floating in the 3D scene at the answer (MapTap-style).
   const labelLines = [
@@ -340,9 +354,11 @@ function confirmGuess(lat, lng) {
   resultPanelTimer = setTimeout(() => {
     els.resultPlace.textContent = result.target.name;
     els.resultDistance.textContent = result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
-    els.resultPoints.textContent = result.multiplier > 1
-      ? `+${result.points} (${result.score}×${result.multiplier})`
-      : `+${result.points}`;
+    els.resultPoints.textContent = result.hintUsed
+      ? `+${result.points} (½ — hint used)`
+      : result.multiplier > 1
+        ? `+${result.points} (${result.score}×${result.multiplier})`
+        : `+${result.points}`;
     els.resultVerdict.textContent = verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
     els.resultFact.textContent = result.target.fact || '';
     // Population line (async, MapTap-style): only shown when a confident
@@ -1291,6 +1307,32 @@ async function boot() {
     hide(els.confirmBar);
   });
   els.btnNext.addEventListener('click', nextRound);
+
+  // Family-round controls: hint (half points) and skip.
+  els.btnFamilyHint.addEventListener('click', () => {
+    const loc = session && session.currentLocation;
+    if (!loc || !loc.isFamily || roundLocked || familyHintUsed) return;
+    familyHintUsed = true;
+    // The hint reveals the location in words - the pin still has to be placed.
+    const where = [loc.name, loc.country].filter(Boolean).join(', ');
+    els.familyHintText.textContent = `💡 ${where} — now find it on the map! (½ points)`;
+    show(els.familyHintText);
+    els.btnFamilyHint.disabled = true;
+    setTimeout(() => { els.btnFamilyHint.disabled = false; }, 400);
+  });
+  els.btnFamilySkip.addEventListener('click', () => {
+    const loc = session && session.currentLocation;
+    if (!loc || !loc.isFamily || roundLocked) return;
+    // Skipping still rotates the pack so tomorrow brings a different place.
+    notePlayedFamilyPlace(loc.name, puzzleNumberForToday());
+    toast('Family round skipped — see you tomorrow 🏠', 2200);
+    hide(els.familyActions);
+    hide(els.familyHintText);
+    hide(els.confirmBar);
+    awaitingConfirm = false;
+    globe.clearPin();
+    nextRound(); // bonus round is last, so this lands on the results screen
+  });
   els.btnShare.addEventListener('click', shareScore);
 
   // Nudge pad (click + press-and-hold repeat)

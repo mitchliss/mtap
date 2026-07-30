@@ -225,20 +225,36 @@ export function attachPhotoToPlace(name, dataUrl) {
   if (p) { p.photo = dataUrl; saveJSON('social.places', places); }
 }
 
-// Deterministic family-round pick: same rotation for everyone on a given day
-// (as long as their packs match - links keep packs in sync). The author of a
-// place NEVER gets their own question (they'd know the answer!) - they get the
-// next place in the rotation instead, or no bonus round if every place is theirs.
+// ---------- family-round rotation with per-device memory ----------
+// The old pick was puzzleNumber % packSize with no memory: a small pack served
+// the SAME place every day. Now each device remembers when it last played each
+// place and always deals the least-recently-played one (never-played first),
+// preferring photo challenges on ties so uploaded photos actually get used.
+// The author of a place still never gets their own question.
+
+export function notePlayedFamilyPlace(name, puzzleNumber) {
+  const played = loadJSON('social.placesPlayed', {});
+  played[String(name).toLowerCase()] = puzzleNumber;
+  saveJSON('social.placesPlayed', played);
+}
+
 export function familyPlaceForPuzzle(puzzleNumber, excludeAuthor = null) {
   const places = getFamilyPlaces();
   if (!places.length) return null;
-  const sorted = places.slice().sort((a, b) => a.name.localeCompare(b.name));
-  for (let i = 0; i < sorted.length; i++) {
-    const candidate = sorted[(puzzleNumber + i) % sorted.length];
-    if (!excludeAuthor || !candidate.by ||
-        candidate.by.toLowerCase() !== excludeAuthor.toLowerCase()) {
-      return candidate;
-    }
-  }
-  return null;
+  const played = loadJSON('social.placesPlayed', {});
+  const eligible = places.filter((p) =>
+    !excludeAuthor || !p.by || p.by.toLowerCase() !== excludeAuthor.toLowerCase()
+  );
+  if (!eligible.length) return null;
+  const lastPlayed = (p) => {
+    const v = played[p.name.toLowerCase()];
+    return typeof v === 'number' ? v : -1; // never played sorts first
+  };
+  const hasPhoto = (p) => (p.photo || p.photoId) ? 0 : 1;
+  const sorted = eligible.slice().sort((a, b) =>
+    lastPlayed(a) - lastPlayed(b) ||          // least recently played first
+    hasPhoto(a) - hasPhoto(b) ||              // photo challenges preferred
+    a.name.localeCompare(b.name)              // stable
+  );
+  return sorted[0];
 }
