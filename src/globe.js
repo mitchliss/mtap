@@ -371,8 +371,9 @@ export class Globe {
     fill.position.set(-3, -1, -2);
     this.scene.add(fill);
 
-    // Star field
+    // Star field + deep-space scenery (moon, planets, sun glare, Milky Way)
     this.scene.add(this._makeStars());
+    this._makeSpaceScenery(sun.position);
 
     // Globe sphere (texture applied after geojson loads)
     this.sphere = new THREE.Mesh(
@@ -1038,7 +1039,7 @@ export class Globe {
         const d = startDist + (endDistance - startDist) * e;
         this.camera.position.copy(dir.multiplyScalar(d));
         this.camera.lookAt(0, 0, 0);
-        if (t >= 1) this.controls.maxDistance = 4.2; // back to normal play range
+        if (t >= 1) this.controls.maxDistance = 8.5; // play range incl. deep-space view
         return t >= 1;
       },
     }];
@@ -1065,6 +1066,160 @@ export class Globe {
   }
 
   // ---------- background ----------
+
+  // Deep-space scenery, visible when fully zoomed out: the Moon at (roughly)
+  // its real current position with sun-lit phases, bright planet sprites along
+  // the ecliptic, a sun glare, and a Milky Way band. All painted procedurally.
+  _makeSpaceScenery(sunPos) {
+    const space = new THREE.Group();
+    this.scene.add(space);
+
+    // --- Milky Way: a dense band of faint stars on a tilted plane ---
+    {
+      const rng = mulberry32(777);
+      const count = 3200;
+      const positions = new Float32Array(count * 3);
+      const tilt = 1.05; // radians - band crosses the sky diagonally
+      for (let i = 0; i < count; i++) {
+        const theta = rng() * Math.PI * 2;
+        const spread = (rng() + rng() + rng() - 1.5) * 0.16; // gaussian-ish thin band
+        const r = 55 + rng() * 25;
+        const x = r * Math.cos(theta);
+        const z = r * Math.sin(theta);
+        const y = r * spread;
+        // tilt the band
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y * Math.cos(tilt) - z * Math.sin(tilt) * 0.35;
+        positions[i * 3 + 2] = z * Math.cos(tilt) + y * Math.sin(tilt);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      space.add(new THREE.Points(geo, new THREE.PointsMaterial({
+        color: 0xd8e4ff, size: 0.09, sizeAttenuation: true, transparent: true, opacity: 0.5,
+      })));
+    }
+
+    // --- Sun glare in the light's direction ---
+    {
+      const S = 128;
+      const c = document.createElement('canvas');
+      c.width = S; c.height = S;
+      const g = c.getContext('2d');
+      const grad = g.createRadialGradient(S/2, S/2, 0, S/2, S/2, S/2);
+      grad.addColorStop(0, 'rgba(255,252,240,1)');
+      grad.addColorStop(0.18, 'rgba(255,244,200,0.9)');
+      grad.addColorStop(0.5, 'rgba(255,225,150,0.25)');
+      grad.addColorStop(1, 'rgba(255,225,150,0)');
+      g.fillStyle = grad;
+      g.fillRect(0, 0, S, S);
+      const mat = new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(c), blending: THREE.AdditiveBlending,
+        depthWrite: false, transparent: true,
+      });
+      const sunSprite = new THREE.Sprite(mat);
+      sunSprite.position.copy(sunPos.clone().normalize().multiplyScalar(70));
+      sunSprite.scale.set(14, 14, 1);
+      space.add(sunSprite);
+    }
+
+    // --- Planets: bright tinted dots along the ecliptic (Saturn gets a ring) ---
+    {
+      const planets = [
+        { name: 'Venus', color: '#fff3d6', lonDeg: 55, size: 0.55, dist: 46 },
+        { name: 'Mars', color: '#ff9d7a', lonDeg: 130, size: 0.4, dist: 50 },
+        { name: 'Jupiter', color: '#ffd9a8', lonDeg: 235, size: 0.7, dist: 54 },
+        { name: 'Saturn', color: '#f2e0b8', lonDeg: 310, size: 0.55, dist: 58 },
+      ];
+      const dot = (color) => {
+        const S = 64;
+        const c = document.createElement('canvas');
+        c.width = S; c.height = S;
+        const g = c.getContext('2d');
+        const grad = g.createRadialGradient(S/2, S/2, 0, S/2, S/2, S/2);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.3, color);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = grad;
+        g.fillRect(0, 0, S, S);
+        return new THREE.CanvasTexture(c);
+      };
+      for (const p of planets) {
+        const mat = new THREE.SpriteMaterial({
+          map: dot(p.color), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
+        });
+        const s = new THREE.Sprite(mat);
+        const lon = (p.lonDeg * Math.PI) / 180;
+        s.position.set(p.dist * Math.cos(lon), p.dist * 0.08 * Math.sin(lon * 2), p.dist * Math.sin(lon));
+        s.scale.set(p.size, p.size, 1);
+        space.add(s);
+        if (p.name === 'Saturn') {
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(0.5, 0.85, 32),
+            new THREE.MeshBasicMaterial({ color: 0xd8c9a0, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+          );
+          ring.position.copy(s.position);
+          ring.lookAt(0, 0, 0);
+          ring.rotateX(0.5);
+          space.add(ring);
+        }
+      }
+    }
+
+    // --- The Moon: real size ratio, painted craters, positioned by today's
+    //     mean orbital longitude, lit by the same sun so phases are right ---
+    {
+      const moonTex = this._paintMoonTexture();
+      const moon = new THREE.Mesh(
+        new THREE.SphereGeometry(0.273, 48, 32), // true Moon/Earth size ratio
+        new THREE.MeshPhongMaterial({ map: moonTex, shininess: 2 })
+      );
+      // Mean ecliptic longitude of the Moon (low-precision, plenty for scenery):
+      // L = 218.316° + 13.176396°/day since J2000.
+      const daysSinceJ2000 = (Date.now() - Date.UTC(2000, 0, 1, 12)) / 86400000;
+      const lonDeg = ((218.316 + 13.176396 * daysSinceJ2000) % 360 + 360) % 360;
+      const lon = (lonDeg * Math.PI) / 180;
+      const MOON_DIST = 7; // stylized (true 60 earth-radii won't fit the scene)
+      const incl = 0.18; // slight tilt so it doesn't sit exactly on the equator
+      moon.position.set(
+        MOON_DIST * Math.cos(lon),
+        MOON_DIST * Math.sin(lon) * Math.sin(incl),
+        MOON_DIST * Math.sin(lon) * Math.cos(incl)
+      );
+      moon.lookAt(0, 0, 0); // tidally locked - same face toward Earth
+      space.add(moon);
+      this._moon = moon;
+      this._moonLon = lon;
+    }
+  }
+
+  // Paints an original moon texture: grey base, darker maria blobs, craters.
+  _paintMoonTexture() {
+    const W = 512, H = 256;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const rng = mulberry32(4242);
+    g.fillStyle = '#b9b7ae';
+    g.fillRect(0, 0, W, H);
+    // maria (dark plains)
+    for (let i = 0; i < 14; i++) {
+      g.fillStyle = `rgba(110, 110, 108, ${0.25 + rng() * 0.3})`;
+      g.beginPath();
+      g.ellipse(rng() * W, H * 0.2 + rng() * H * 0.6, 20 + rng() * 55, 14 + rng() * 34, rng() * Math.PI, 0, Math.PI * 2);
+      g.fill();
+    }
+    // craters
+    for (let i = 0; i < 160; i++) {
+      const x = rng() * W, y = rng() * H, r = 1 + rng() * 6;
+      g.fillStyle = `rgba(90, 90, 88, ${0.25 + rng() * 0.35})`;
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = `rgba(215, 214, 205, ${0.2 + rng() * 0.3})`;
+      g.beginPath(); g.arc(x - r * 0.25, y - r * 0.25, r * 0.55, 0, Math.PI * 2); g.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
 
   _makeStars() {
     const rng = mulberry32(99);
@@ -1207,6 +1362,19 @@ export class Globe {
 
     // Zoom-detail tile streaming.
     if (this.tileDetail) this.tileDetail.update(dt);
+
+    // The Moon creeps along its orbit in real time (13.18°/day - correct, and
+    // just barely perceptible across a long session).
+    if (this._moon) {
+      this._moonLon += dt * (13.176396 / 86400) * (Math.PI / 180);
+      const MOON_DIST = 7, incl = 0.18;
+      this._moon.position.set(
+        MOON_DIST * Math.cos(this._moonLon),
+        MOON_DIST * Math.sin(this._moonLon) * Math.sin(incl),
+        MOON_DIST * Math.sin(this._moonLon) * Math.cos(incl)
+      );
+      this._moon.lookAt(0, 0, 0);
+    }
 
     // Pulsing rings.
     for (const p of this._pulses) {
