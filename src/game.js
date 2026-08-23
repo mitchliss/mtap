@@ -3,6 +3,7 @@
 import { LOCATIONS } from './locations.js';
 import { distanceKm, countryAt } from './geo.js';
 import { mulberry32, seededShuffle, puzzleNumberForToday, todayKey } from './rng.js';
+import { themeForPuzzle, tagsFor } from './themes.js';
 
 export const ROUNDS_PER_GAME = 5;
 export const MAX_ROUND_SCORE = 100;
@@ -31,6 +32,7 @@ const POOL_TIERS = [
   { upToPuzzle: 4, size: 205 }, // through Jul 25, 2026
   { upToPuzzle: 6, size: 276 }, // through Jul 27, 2026
   { upToPuzzle: 33, size: 332 }, // through Aug 23, 2026 (waterways pack lands on #34)
+  // (the v3.8 waterways and v3.9 Jewish packs both shipped on #33 — one tier covers both)
 ];
 
 function poolForPuzzle(seed) {
@@ -40,7 +42,10 @@ function poolForPuzzle(seed) {
   return LOCATIONS;
 }
 
-export function pickLocations(seed, excludeNames = null) {
+// opts.preferTag: on a themed day, fill slots from that tag first (same
+// difficulty ladder and no-same-country rule); untagged places fill whatever
+// the tag pool cannot, so a thin tag never breaks the deal.
+export function pickLocations(seed, excludeNames = null, opts = {}) {
   const rng = mulberry32((seed + DAILY_GENERATION * 1000003) * 7919 + 13);
   let pool = poolForPuzzle(seed);
   if (excludeNames && excludeNames.size) {
@@ -51,18 +56,35 @@ export function pickLocations(seed, excludeNames = null) {
   const wantDiff = [1, 1, 2, 3, 3]; // ramp difficulty to match the x1/x1/x2/x3/x3 multipliers
   const picked = [];
   const usedCountries = new Set();
+  const tag = opts.preferTag || null;
+  const hasTag = (l) => tag && tagsFor(l).has(tag);
+  // Themed days may take up to THEME_MAX_PER_COUNTRY tagged places from one
+  // country (most Jewish-heritage sites are in Israel); mixed days keep the
+  // strict one-per-country rule.
+  const countryCount = new Map();
+  const countOf = (l) => countryCount.get(l.country || l.name) || 0;
+  const okMixed = (l, d) => !picked.includes(l) && (d === null || l.diff === d) && countOf(l) === 0;
+  const okTag = (l, d) => !picked.includes(l) && (d === null || l.diff === d) && hasTag(l) && countOf(l) < THEME_MAX_PER_COUNTRY;
 
   for (const targetDiff of wantDiff) {
     let choice =
-      shuffled.find(
-        (l) => !picked.includes(l) && l.diff === targetDiff && !usedCountries.has(l.country || l.name)
-      ) ||
-      shuffled.find((l) => !picked.includes(l) && !usedCountries.has(l.country || l.name)) ||
+      (tag && (shuffled.find((l) => okTag(l, targetDiff)) || shuffled.find((l) => okTag(l, null)))) ||
+      shuffled.find((l) => okMixed(l, targetDiff)) ||
+      shuffled.find((l) => okMixed(l, null)) ||
       shuffled.find((l) => !picked.includes(l));
     picked.push(choice);
-    usedCountries.add(choice.country || choice.name);
+    countryCount.set(choice.country || choice.name, countOf(choice) + 1);
   }
   return picked;
+}
+const THEME_MAX_PER_COUNTRY = 3;
+const THEME_MIN_POOL = 10; // a thin tag (after the no-repeat exclusions) means a mixed day instead
+
+const dailyThemeCache = new Map();
+// The theme a daily ACTUALLY used (null = mixed). Computed by dailyPicksFor.
+export function dailyThemeFor(n) {
+  if (!dailyThemeCache.has(n)) dailyPicksFor(n);
+  return dailyThemeCache.get(n) || null;
 }
 
 export function dailySeed() { return puzzleNumberForToday(); }
@@ -109,8 +131,14 @@ export function dailyPicksFor(n) {
       if (k >= PROXIMITY_START) {
         for (const l of poolForPuzzle(k)) if (!exclude.has(l.name) && nearAny(l, recent)) exclude.add(l.name);
       }
-      picks = pickLocations(k, exclude);
+      let theme = themeForPuzzle(k);
+      if (theme) {
+        const avail = poolForPuzzle(k).filter((l) => !exclude.has(l.name) && tagsFor(l).has(theme.key)).length;
+        if (avail < THEME_MIN_POOL) theme = null;
+      }
+      picks = pickLocations(k, exclude, theme ? { preferTag: theme.key } : {});
       dailyPickCache.set(k, picks);
+      dailyThemeCache.set(k, theme);
     }
     window.push({ n: k, picks });
     if (window.length > NO_REPEAT_WINDOW) window.shift();
@@ -303,12 +331,17 @@ export function multiplierForRound(i) { return ROUND_MULTIPLIERS[i] || 1; }
 export const FAMILY_ROUND_MULTIPLIER = 2;
 
 export class GameSession {
-  constructor(seed, isPractice, excludeNames = null) {
+  // opts.locations: an explicit deal (a replayed prior day, or the five places
+  // carried in a head-to-head link). opts.replayOf / opts.challenge are labels
+  // the UI reads; a session with either is always isPractice (never recorded).
+  constructor(seed, isPractice, excludeNames = null, opts = {}) {
     this.seed = seed;
     this.isPractice = isPractice;
+    this.replayOf = opts.replayOf || null;
+    this.challenge = opts.challenge || null;
     // Dailies use the deterministic 30-day no-repeat chain; practice uses the
     // raw pick with the caller's local exclusions.
-    this.locations = isPractice ? pickLocations(seed, excludeNames) : dailyPicksFor(seed);
+    this.locations = opts.locations ? opts.locations.slice() : (isPractice ? pickLocations(seed, excludeNames) : dailyPicksFor(seed));
     this.roundIndex = 0;
     this.results = [];
   }

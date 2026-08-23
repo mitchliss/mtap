@@ -115,12 +115,17 @@
         <div class="start-meta">
           <span id="start-puzzle-label">MTap #1 · Jul 22, 2026</span>
         </div>
+        <div id="start-theme" class="start-theme hidden"></div>
         <div id="challenge-banner" class="challenge-banner hidden"></div>
         <button id="btn-play" class="btn primary huge">▶ Play today's game</button>
         <button id="btn-practice" class="btn ghost">🎲 Practice round</button>
         <div class="start-social-row">
           <button id="btn-leaderboard" class="btn ghost small">🏆 Leaderboard</button>
           <button id="btn-add-place" class="btn ghost small">🏠 Add a family place</button>
+        </div>
+        <div class="start-social-row">
+          <button id="btn-archive" class="btn ghost small">📅 Prior days</button>
+          <button id="btn-globe" class="btn ghost small">🌍 My globe</button>
         </div>
         <div id="start-streak" class="start-streak"></div>
         <div id="start-player" class="start-player"></div>
@@ -144,6 +149,7 @@
           <button id="btn-end-place" class="btn ghost">📷 Add a place you've been (photo or city)</button>
           <button id="btn-end-leaderboard" class="btn ghost">🏆 Leaderboard</button>
           <button id="btn-play-practice" class="btn ghost">🎲 Play practice game</button>
+          <button id="btn-end-archive" class="btn ghost">📅 Replay a prior day</button>
         </div>
         <div id="end-stats" class="end-stats"></div>
         <div id="next-countdown" class="next-countdown hidden">Next MTap in <b>--:--:--</b></div>
@@ -153,6 +159,25 @@
           <div class="wiki-credit">via <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia</a></div>
         </div>
       </div>
+    </div>
+
+    <!-- ======= Prior days archive ======= -->
+    <div id="archive-modal" class="modal hidden">
+      <div class="modal-card">
+        <button class="modal-close" data-close="archive-modal">×</button>
+        <h2>📅 Prior days</h2>
+        <p class="name-sub">Replay any past MTap. Replays don't count toward your streak or the leaderboard.</p>
+        <div id="archive-list" class="archive-list"></div>
+      </div>
+    </div>
+
+    <!-- ======= Visited globe ======= -->
+    <div id="visited-panel" class="overview-panel hidden">
+      <div class="ov-round">🌍 My globe</div>
+      <div id="visited-stats" class="visited-stats"></div>
+      <div class="visited-legend"><span style="color:#38d67a">●</span> 90+ <span style="color:#ffd166">●</span> 70+ <span style="color:#ff9f43">●</span> 40+ <span style="color:#ff4d6d">●</span> under 40</div>
+      <div class="ov-hint">Spin the globe — every place you've ever pinned lights up</div>
+      <button id="visited-back" class="btn ghost">← Back</button>
     </div>
 
     <!-- ======= Who's playing? ======= -->
@@ -356,7 +381,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v3.8 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v3.9 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>

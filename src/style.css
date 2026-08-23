@@ -818,3 +818,21 @@ html, body {
   .n-up { left: 21px; } .n-down { left: 21px; }
   .n-left { top: 21px; } .n-right { top: 21px; }
 }
+
+/* ---- v3.9: themes, archive, visited globe ---- */
+.start-theme { margin: -16px 0 20px; color: var(--text-dim); font-size: 0.92rem; }
+.start-theme b { color: var(--gold); }
+.theme-chip { display: inline-block; background: rgba(255, 209, 102, 0.16); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: 0.78rem; font-weight: 700; margin-left: 6px; }
+.archive-list { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.archive-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); cursor: pointer; text-align: left; }
+.archive-row:hover { background: rgba(77, 163, 255, 0.16); }
+.archive-row .ar-n { font-weight: 800; min-width: 44px; }
+.archive-row .ar-date { color: var(--text-dim); min-width: 56px; font-size: 0.86rem; }
+.archive-row .ar-theme { flex: 1; font-size: 0.84rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.archive-row .ar-score { font-weight: 800; color: var(--gold); white-space: nowrap; }
+.archive-row .ar-score.unplayed { color: var(--text-dim); font-weight: 500; }
+.visited-stats { font-size: 1rem; margin: 8px 0 4px; }
+.visited-stats b { color: var(--gold); }
+.visited-legend { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 8px; }
+.end-vs { margin: 8px 0 12px; font-size: 0.95rem; }
+.end-vs b { color: var(--gold); }

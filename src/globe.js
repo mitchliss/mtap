@@ -865,6 +865,21 @@ export class Globe {
   }
 
   // Emphasize the selected badge and fly the camera to it.
+  // Visited globe: one small dot per place ever played, tinted by best score.
+  // Reuses the overview marker list so clearOverview() removes them.
+  showVisited(dots) {
+    this.clearOverview();
+    const geo = new THREE.CircleGeometry(0.0085, 16);
+    for (const d of dots) {
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(d.color || '#38d67a'), transparent: true, opacity: 0.9, depthTest: true });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.copy(latLngToVec3(d.lat, d.lng, GLOBE_RADIUS * 1.004));
+      m.lookAt(m.position.clone().multiplyScalar(2));
+      this.markerRoot.add(m);
+      this._overviewMarkers.push(m);
+    }
+  }
+
   selectOverview(i, flyDistance = 2.2) {
     this._selectedOverview = i;
     const badges = this._overviewMarkers.filter((o) => o.userData && o.userData.overviewIndex !== undefined);
