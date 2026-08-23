@@ -30,6 +30,7 @@ export const DAILY_GENERATION = 2;
 const POOL_TIERS = [
   { upToPuzzle: 4, size: 205 }, // through Jul 25, 2026
   { upToPuzzle: 6, size: 276 }, // through Jul 27, 2026
+  { upToPuzzle: 33, size: 332 }, // through Aug 23, 2026 (waterways pack lands on #34)
 ];
 
 function poolForPuzzle(seed) {
@@ -74,6 +75,18 @@ const NO_REPEAT_WINDOW = 30;      // days in the rolling window (incl. today)
 const NO_REPEAT_START = 7;        // puzzle #7 = Jul 28, 2026 (earlier days stay as dealt)
 const dailyPickCache = new Map(); // puzzle number -> picks (avoids re-walking the chain)
 
+// From puzzle #34 the window also excludes anything within NEAR_KM of a recent
+// pick: "Bosporus Strait" and "Istanbul" are different names for the same spot
+// on the globe, and a player experiences that as a repeat. Gated by puzzle
+// number so no already-dealt day changes.
+const PROXIMITY_START = 34;
+const NEAR_KM = 100;
+
+function nearAny(loc, picks) {
+  for (const q of picks) if (distanceKm(loc.lat, loc.lng, q.lat, q.lng) < NEAR_KM) return true;
+  return false;
+}
+
 export function dailyPicksFor(n) {
   if (n < NO_REPEAT_START) return pickLocations(n);
   if (dailyPickCache.has(n)) return dailyPickCache.get(n);
@@ -81,7 +94,7 @@ export function dailyPicksFor(n) {
   // Seed the window with the fixed pre-regime days that fall inside it.
   const window = [];
   for (let k = Math.max(1, NO_REPEAT_START - (NO_REPEAT_WINDOW - 1)); k < NO_REPEAT_START; k++) {
-    window.push({ n: k, names: pickLocations(k).map((l) => l.name) });
+    window.push({ n: k, picks: pickLocations(k) });
   }
   let picks = null;
   for (let k = NO_REPEAT_START; k <= n; k++) {
@@ -89,13 +102,17 @@ export function dailyPicksFor(n) {
       picks = dailyPickCache.get(k);
     } else {
       const exclude = new Set();
+      const recent = [];
       for (const w of window) {
-        if (w.n >= k - (NO_REPEAT_WINDOW - 1)) for (const nm of w.names) exclude.add(nm);
+        if (w.n >= k - (NO_REPEAT_WINDOW - 1)) for (const l of w.picks) { exclude.add(l.name); recent.push(l); }
+      }
+      if (k >= PROXIMITY_START) {
+        for (const l of poolForPuzzle(k)) if (!exclude.has(l.name) && nearAny(l, recent)) exclude.add(l.name);
       }
       picks = pickLocations(k, exclude);
       dailyPickCache.set(k, picks);
     }
-    window.push({ n: k, names: picks.map((l) => l.name) });
+    window.push({ n: k, picks });
     if (window.length > NO_REPEAT_WINDOW) window.shift();
   }
   return picks;

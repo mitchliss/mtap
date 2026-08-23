@@ -17,7 +17,9 @@ const PATCH_W = 1792;          // patch canvas width (px)
 const ENGAGE_DISTANCE = 2.1;   // start streaming below this camera distance
 const FULL_DISTANCE = 1.55;    // fully opaque below this
 const MERC_LAT_LIMIT = 85.05;
-const SETTLE_MS = 350;         // camera must rest this long before a rebuild
+const SETTLE_S = 0.12;         // camera must rest this long before a rebuild (s, frame-time based)
+const FADE_S = 0.25;           // a new patch crossfades in over the old one
+const REBUILD_ALT_RATIO = 2;   // ...or rebuild mid-motion once altitude halves/doubles (one zoom level)
 
 const TILE_HOSTS = [
   'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g',
@@ -40,7 +42,10 @@ export class TileDetail {
     this.mesh = null;
     this.building = false;
     this.lastCamPos = new THREE.Vector3();
-    this.stillSince = 0;
+    this.stillFor = 0;         // seconds the camera has been still
+    this.prev = null;          // the outgoing patch while a crossfade runs
+    this.fadeT = 0;
+    this.builtAlt = null;      // altitude the current patch was built for
     this.lastRegionKey = '';
     this._probe();
   }
@@ -86,28 +91,41 @@ export class TileDetail {
     const cam = this.globe.camera;
     const d = cam.position.length();
 
-    // Fade with zoom; drop the mesh entirely when far out.
+    // Fade with zoom; drop the mesh entirely when far out. A freshly built
+    // patch crossfades in ON TOP of the old one (which stays at full strength
+    // underneath), so replacing detail never dips or pops.
+    const zoomOp = THREE.MathUtils.clamp((ENGAGE_DISTANCE - d) / (ENGAGE_DISTANCE - FULL_DISTANCE), 0, 1);
     if (this.mesh) {
-      const opacity = THREE.MathUtils.clamp((ENGAGE_DISTANCE - d) / (ENGAGE_DISTANCE - FULL_DISTANCE), 0, 1);
-      this.mesh.material.opacity = opacity;
-      this.mesh.visible = opacity > 0.02;
+      if (this.prev) {
+        this.fadeT += dt;
+        const a = Math.min(1, this.fadeT / FADE_S);
+        this.mesh.material.opacity = zoomOp * a;
+        this.prev.material.opacity = zoomOp;
+        this.prev.visible = zoomOp > 0.02;
+        if (a >= 1) { this._dispose(this.prev); this.prev = null; this.mesh.renderOrder = 1; }
+      } else {
+        this.mesh.material.opacity = zoomOp;
+      }
+      this.mesh.visible = this.mesh.material.opacity > 0.02;
     }
     if (d > ENGAGE_DISTANCE || this.enabled === null) return;
 
-    // Rebuild only after the camera has settled somewhere new.
+    // Rebuild after the camera settles — or mid-motion once the altitude has
+    // halved/doubled since the last build, so detail arrives progressively
+    // during a long pinch instead of all at once when it ends.
     const moved = cam.position.distanceTo(this.lastCamPos) > 0.0004 * d;
-    if (moved) {
-      this.lastCamPos.copy(cam.position);
-      this.stillSince = performance.now();
-      return;
-    }
-    if (performance.now() - this.stillSince < SETTLE_MS || this.building) return;
+    if (moved) { this.lastCamPos.copy(cam.position); this.stillFor = 0; } else this.stillFor += dt;
+    const alt = Math.max(d - 1, 1e-4);
+    const levelJump = this.builtAlt !== null &&
+      Math.max(alt / this.builtAlt, this.builtAlt / alt) >= REBUILD_ALT_RATIO;
+    if (this.building || (this.stillFor < SETTLE_S && !levelJump)) return;
 
     const region = this._visibleRegion();
     if (!region) return;
     const key = [region.west.toFixed(2), region.east.toFixed(2), region.south.toFixed(2), region.north.toFixed(2)].join('|');
     if (key === this.lastRegionKey) return;
     this.building = true;
+    this.builtAlt = alt;
     this._buildPatch(region)
       .then(() => { this.lastRegionKey = key; })
       .catch(() => { /* keep the old patch; retry on next settle */ })
@@ -243,22 +261,32 @@ export class TileDetail {
     const mat = new THREE.MeshPhongMaterial({
       map: tex,
       transparent: true,
-      opacity: this.mesh ? this.mesh.material.opacity : 0,
+      opacity: 0, // crossfades in (update)
       shininess: 8,
       specular: new THREE.Color(0x222c3a),
       depthWrite: false, // sits just above the base sphere; avoid z-fighting
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.renderOrder = 1;
+    this._swapIn(mesh);
+  }
 
-    // Swap in atomically, dispose the old
-    if (this.mesh) {
-      this.globe.scene.remove(this.mesh);
-      this.mesh.geometry.dispose();
-      if (this.mesh.material.map) this.mesh.material.map.dispose();
-      this.mesh.material.dispose();
-    }
+  // The new patch draws above the old one (renderOrder 2) while it fades in;
+  // the old is disposed when the fade completes (see update).
+  _swapIn(mesh) {
+    if (this.prev) this._dispose(this.prev); // a fade still running: drop the oldest
+    this.prev = this.mesh;
     this.mesh = mesh;
+    this.fadeT = 0;
+    mesh.renderOrder = this.prev ? 2 : 1;
     this.globe.scene.add(mesh);
   }
+
+  _dispose(m) {
+    this.globe.scene.remove(m);
+    m.geometry.dispose();
+    if (m.material.map) m.material.map.dispose();
+    m.material.dispose();
+  }
+
+  meshCount() { return (this.mesh ? 1 : 0) + (this.prev ? 1 : 0); }
 }

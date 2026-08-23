@@ -10,6 +10,22 @@ import { TileDetail } from './tiledetail.js';
 
 const GLOBE_RADIUS = 1;
 
+// Pinch-zoom feel. The dolly is OURS (OrbitControls' is undamped and applied
+// per pointer event, which on a 120 Hz iPhone lands several full steps per
+// frame); every gesture event only moves a TARGET distance, and _tick eases
+// the camera toward it, so finger noise can never reverse or spike the zoom.
+const ZOOM_K = 1.0;        // altitude ∝ (gap0/gap)^K
+const ZOOM_TAU = 0.08;     // s — exponential approach of d -> targetD
+const GAP_EMA = 0.35;      // per-frame smoothing of the finger gap
+const AIM_EMA = 0.35;      // per-event smoothing of the pinch midpoint
+const AIM_GAIN = 1.5;      // aim assist: rotate by (altitude fraction consumed) * gain
+const AIM_STEP_MAX = 0.06; // rad per frame (~3.4°; was 0.15 = 8.6°, the "jump")
+const AIM_LIVE_MS = 400;   // aim stays live this long after the last zoom event (the smoothed dolly is still settling)
+const WHEEL_C = 0.18;      // altitude *= exp(±C) per 100 px of wheel
+const MIN_GAP_PX = 12;
+const ROTATE_MIN = 0.08;   // rotateSpeed floor near the surface
+const DT_MIN = 1 / 240, DT_MAX = 1 / 20;
+
 // Matches three.js SphereGeometry UV layout for an equirectangular texture
 // where the canvas is drawn with lon -180..180 left->right, lat 90..-90 top->bottom.
 export function latLngToVec3(lat, lng, radius = GLOBE_RADIUS) {
@@ -420,7 +436,13 @@ export class Globe {
     // tightens it to the play range (4.2) when the swoop lands.
     this.controls.maxDistance = 9;
     this.controls.rotateSpeed = 0.55;
-    this.controls.zoomSpeed = 0.9;
+    // The dolly is ours (see ZOOM_* above). DOLLY_ROTATE is REQUIRED with
+    // enableZoom=false: with the default DOLLY_PAN + enablePan=false,
+    // OrbitControls' two-finger start returns early and leaves finger-1's
+    // rotateStart live, so the first two-finger move lurches by half the gap.
+    // DOLLY_ROTATE anchors on the midpoint and gives damped two-finger drift.
+    this.controls.enableZoom = false;
+    this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
     this.controls.autoRotate = false;
     this.controls.autoRotateSpeed = 0.4;
 
@@ -431,7 +453,10 @@ export class Globe {
     this.draggingPin = false;
     this.interactive = false;  // taps place pins only when true
     this._activePointers = new Map(); // pointerId -> {x, y} (pinch-midpoint tracking)
-    this._zoomAim = null;      // { x, y, t } screen point the user is zooming toward
+    this._zoomAim = null;      // { x, y, t, src } screen point the user is zooming toward
+    this._targetD = this.camera.position.length(); // smoothed-dolly target distance
+    this._pinch = null;        // { gap } EMA'd finger gap of the live two-finger gesture
+    this._dtOverride = null;   // test harness: deterministic frame time
     this._prevPinSnapshot = undefined; // pin state before the last single tap (double-tap restore)
 
     this.raycaster = new THREE.Raycaster();
@@ -491,17 +516,42 @@ export class Globe {
   setAutoRotate(on) { this.controls.autoRotate = on; }
   setInteractive(on) { this.interactive = on; }
 
-  // Zoom-aware feel, retuned every frame:
-  // - rotateSpeed slows as you zoom in (fine control near the surface)
-  // - zoomSpeed scales with ALTITUDE so each pinch consumes a roughly constant
-  //   fraction of your height above the surface (the MapTap/Mapbox feel) instead
-  //   of a fraction of distance-to-center, which slams into the floor up close.
+  // rotateSpeed slows as you zoom in (fine control near the surface).
   _tuneControls() {
     const d = this.camera.position.length();
     const t = THREE.MathUtils.clamp((d - this.controls.minDistance) / (this.controls.maxDistance - this.controls.minDistance), 0, 1);
-    this.controls.rotateSpeed = 0.06 + t * 0.6;
-    const alt = Math.max(d - GLOBE_RADIUS, 0.02); // floor the altitude, not the output
-    this.controls.zoomSpeed = THREE.MathUtils.clamp(1.6 * alt / d, 0.06, 1.35);
+    this.controls.rotateSpeed = ROTATE_MIN + t * 0.6;
+  }
+
+  _setTargetD(d) {
+    this._targetD = THREE.MathUtils.clamp(d, this.controls.minDistance, this.controls.maxDistance);
+  }
+
+  // Scale the target ALTITUDE (not distance-to-center), so a pinch consumes a
+  // constant fraction of your height at every zoom level.
+  _zoomAltBy(factor) {
+    const alt = Math.max(this._targetD - GLOBE_RADIUS, 1e-4);
+    this._setTargetD(GLOBE_RADIUS + alt * factor);
+  }
+
+  // Analytic ray/sphere aim point (never the faceted mesh, never null): a miss
+  // projects the ray's closest approach onto the sphere inside the visible cap.
+  _aimDirAnalytic(clientX, clientY) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (!(rect.width > 0 && rect.height > 0)) return this.camera.position.clone().normalize();
+    const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
+    this.camera.updateMatrixWorld();
+    const o = this.camera.position;
+    const v = new THREE.Vector3(nx, ny, 0.5).unproject(this.camera).sub(o).normalize();
+    const b = o.dot(v), c = o.lengthSq() - 1, disc = b * b - c;
+    if (disc >= 0) return o.clone().addScaledVector(v, -b - Math.sqrt(disc)).normalize();
+    const p = o.clone().addScaledVector(v, -b).normalize();
+    const camDir = o.clone().normalize();
+    const cap = Math.acos(1 / o.length());
+    if (camDir.angleTo(p) <= cap) return p;
+    const axis = new THREE.Vector3().crossVectors(camDir, p).normalize();
+    return camDir.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, cap * 0.98));
   }
 
   // ---------- picking ----------
@@ -552,24 +602,39 @@ export class Globe {
     let lastTapTime = 0;
     let lastTapPos = null;
 
-    // Pinch-midpoint / cursor tracking feeds the zoom aim assist in _tick.
-    const noteAim = () => {
-      if (this._activePointers.size === 2) {
-        const [a, b] = [...this._activePointers.values()];
-        this._zoomAim = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, t: performance.now() };
-      }
+    // Two-finger gesture: the gap drives the smoothed dolly target, the
+    // (filtered) midpoint feeds the aim assist in _tick.
+    const pinchPair = () => {
+      const [a, b] = [...this._activePointers.values()];
+      return { gap: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
     };
+    // Events only record the finger positions; the pair is SAMPLED once per
+    // frame in _tick. Each finger's move arrives as its own event, so a
+    // per-event read sees a momentarily diagonal pair — a transient that is
+    // always positive and therefore biases any smoothing into a slow creep.
+    const startPinch = () => {
+      const p = pinchPair();
+      this._pinch = { gap: p.gap, appliedGap: p.gap, moved: false };
+      this._zoomAim = { x: p.mx, y: p.my, t: performance.now() };
+    };
+    const movePinch = () => {
+      if (!this._pinch) return;
+      this._pinch.moved = true;
+      this._zoomAim.t = performance.now();
+    };
+    // The aim is kept (recency-gated) so the assist rides the dolly's settle.
+    const endPinch = () => { this._pinch = null; };
 
     el.addEventListener('pointerdown', (e) => {
       this._activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      noteAim();
+      if (this._activePointers.size === 2) startPinch();
+      else this._pinch = null; // a third finger cancels the pinch
       downPos = { x: e.clientX, y: e.clientY };
       downTime = performance.now();
       moved = false;
       // Start dragging the existing pin if the press began on it.
       if (this.interactive && this._pinHit(e)) {
-        this.draggingPin = true;
-        this.controls.enabled = false;
+        this.draggingPin = true; // controls.enabled is derived per frame in _tick
         this.container.classList.add('dragging-pin');
         el.setPointerCapture(e.pointerId);
       }
@@ -578,7 +643,7 @@ export class Globe {
     el.addEventListener('pointermove', (e) => {
       if (this._activePointers.has(e.pointerId)) {
         this._activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        noteAim();
+        if (this._activePointers.size === 2) movePinch();
       }
       if (downPos && (Math.abs(e.clientX - downPos.x) > 6 || Math.abs(e.clientY - downPos.y) > 6)) {
         moved = true;
@@ -592,15 +657,21 @@ export class Globe {
       }
     });
 
-    // Wheel zooms aim at the cursor too (OrbitControls handles the dolly itself).
+    // Wheel: our smoothed dolly (OrbitControls' zoom is off, so we also own
+    // preventDefault — otherwise the page scrolls).
     el.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (this._flights.length) return;
+      const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 100 : e.deltaY;
+      this._zoomAltBy(Math.exp(THREE.MathUtils.clamp(px, -200, 200) / 100 * WHEEL_C));
       if (e.deltaY < 0) this._zoomAim = { x: e.clientX, y: e.clientY, t: performance.now() };
-    }, { passive: true });
+    }, { passive: false });
+    // iOS Safari page-zoom fallback (touch-action:none already covers most cases).
+    el.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
 
     const endDrag = (e) => {
       if (this.draggingPin) {
         this.draggingPin = false;
-        this.controls.enabled = true;
         this.container.classList.remove('dragging-pin');
         try { el.releasePointerCapture(e.pointerId); } catch { /* ok */ }
         return true;
@@ -610,6 +681,7 @@ export class Globe {
 
     el.addEventListener('pointerup', (e) => {
       this._activePointers.delete(e.pointerId);
+      endPinch();
       const wasPinPress = endDrag(e);
       if (!downPos) return;
       // A pin-press that actually moved was a drag — done. A stationary pin-press
@@ -666,6 +738,7 @@ export class Globe {
 
     el.addEventListener('pointercancel', (e) => {
       this._activePointers.delete(e.pointerId);
+      endPinch();
       endDrag(e);
     });
   }
@@ -1039,7 +1112,10 @@ export class Globe {
         const d = startDist + (endDistance - startDist) * e;
         this.camera.position.copy(dir.multiplyScalar(d));
         this.camera.lookAt(0, 0, 0);
-        if (t >= 1) this.controls.maxDistance = 8.5; // play range incl. deep-space view
+        if (t >= 1) {
+          this.controls.maxDistance = 8.5; // play range incl. deep-space view
+          this._setTargetD(this.camera.position.length());
+        }
         return t >= 1;
       },
     }];
@@ -1060,6 +1136,7 @@ export class Globe {
         const d = fromDist + (distance - fromDist) * e;
         this.camera.position.copy(dir.multiplyScalar(d));
         this.camera.lookAt(0, 0, 0);
+        if (t >= 1) this._setTargetD(distance);
         return t >= 1;
       },
     }];
@@ -1244,39 +1321,79 @@ export class Globe {
   // ---------- frame loop ----------
 
   _tick() {
-    const dt = this._clock.getDelta();
+    const rawDt = this._clock.getDelta();
+    // Clamped so a tab switch can't teleport; the harness may pin it.
+    const dt = this._dtOverride ?? THREE.MathUtils.clamp(rawDt, DT_MIN, DT_MAX);
     // Self-healing: if anything ever corrupts the camera (NaN), snap back to a
     // sane view instead of freezing the globe forever.
     if (!isFinite(this.camera.position.x) || !isFinite(this.camera.position.y) || !isFinite(this.camera.position.z)) {
+      // Flush OrbitControls' internal deltas too: with damping on, a NaN in
+      // sphericalDelta survives every update and re-corrupts the camera each
+      // frame. The damping-off branch of update() zeroes it.
+      this.controls.enableDamping = false;
+      this.controls.update();
+      this.controls.enableDamping = true;
       this.camera.position.set(0, 0.5, 2.9);
       this.camera.lookAt(0, 0, 0);
       this._lastTickD = 2.9;
+      this._targetD = 2.9;
+      this._pinch = null;
+      this._zoomAim = null;
     }
+    // Input is ignored while a flight owns the camera or the pin is being
+    // dragged — otherwise a drag accumulates inside OrbitControls and is
+    // released as a lurch the moment the flight ends.
+    this.controls.enabled = !this.draggingPin && !this._flights.length;
     this._tuneControls();
-    this.controls.update();
+    this.controls.update(dt); // dt makes autoRotate frame-rate independent
+
+    // Sample the two-finger pair once per frame: smooth the gap, apply the
+    // ratio against the gap last applied (ratios telescope exactly), and
+    // smooth the midpoint for the aim assist.
+    if (this._pinch && this._activePointers.size === 2 && !this._flights.length && !this.draggingPin) {
+      const [pa, pb] = [...this._activePointers.values()];
+      const gapNow = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+      this._pinch.gap += (gapNow - this._pinch.gap) * GAP_EMA;
+      const { gap, appliedGap } = this._pinch;
+      if (gap > MIN_GAP_PX && appliedGap > MIN_GAP_PX) this._zoomAltBy(Math.pow(appliedGap / gap, ZOOM_K));
+      this._pinch.appliedGap = gap;
+      const a = this._zoomAim;
+      a.x += ((pa.x + pb.x) / 2 - a.x) * AIM_EMA;
+      a.y += ((pa.y + pb.y) / 2 - a.y) * AIM_EMA;
+    }
+    // Smoothed dolly: ease toward the gesture's target distance. All the
+    // pointer events that landed since the last frame have already folded
+    // into _targetD, so a 120 Hz finger stream can't spike or reverse this.
+    if (!this._flights.length) {
+      const d = this.camera.position.length();
+      const k = 1 - Math.exp(-dt / ZOOM_TAU);
+      const nd = Math.abs(this._targetD - d) < 1e-6 ? this._targetD : d + (this._targetD - d) * k;
+      if (nd !== d) {
+        this.camera.position.setLength(nd);
+        this.camera.lookAt(0, 0, 0);
+      }
+    }
 
     // Zoom aim assist: as the user zooms IN, drift the point under their
-    // fingers/cursor toward screen center by the same fraction of altitude they
-    // consumed this frame. Target stays (0,0,0); OrbitControls re-derives its
+    // fingers/cursor toward screen center by the fraction of altitude they
+    // consumed this frame (now small and continuous, because the dolly above
+    // is smoothed). Target stays (0,0,0); OrbitControls re-derives its
     // spherical from camera.position each update, so this composes cleanly.
     {
       const d = this.camera.position.length();
       const prev = this._lastTickD !== undefined ? this._lastTickD : d;
       this._lastTickD = d;
-      if (
-        d < prev - 1e-7 && prev > 1 &&
-        this._zoomAim && performance.now() - this._zoomAim.t < 250 &&
-        !this._flights.length && !this.draggingPin
-      ) {
-        const ll = this._globeHitXY(this._zoomAim.x, this._zoomAim.y);
-        if (ll) { // limb miss -> skip the frame
-          const targetDir = latLngToVec3(ll.lat, ll.lng, 1);
-          const camDir = this.camera.position.clone().normalize();
-          const angle = camDir.angleTo(targetDir);
-          const f = THREE.MathUtils.clamp(1 - (d - 1) / (prev - 1), 0, 0.5);
-          const step = Math.min(angle * f * 1.5, 0.15);
-          if (angle > 1e-4 && step > 1e-5) {
-            const axis = new THREE.Vector3().crossVectors(camDir, targetDir).normalize();
+      const aim = this._zoomAim;
+      const live = aim && performance.now() - aim.t < AIM_LIVE_MS;
+      if (d < prev - 1e-7 && prev > 1 && live && !this._flights.length && !this.draggingPin) {
+        const targetDir = this._aimDirAnalytic(aim.x, aim.y);
+        const camDir = this.camera.position.clone().normalize();
+        const angle = camDir.angleTo(targetDir);
+        const f = THREE.MathUtils.clamp(1 - (d - 1) / (prev - 1), 0, 0.5);
+        const step = Math.min(angle * f * AIM_GAIN, AIM_STEP_MAX);
+        if (angle > 1e-4 && step > 1e-6) {
+          const axis = new THREE.Vector3().crossVectors(camDir, targetDir).normalize();
+          if (axis.lengthSq() > 0.5) {
             this.camera.position.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, step));
             this.camera.lookAt(0, 0, 0);
           }
@@ -1284,10 +1401,13 @@ export class Globe {
       }
     }
 
-    // Camera flights override nothing else; they just move the camera.
+    // Camera flights own the camera; keep the dolly target glued to them so
+    // the smoothing above never fights a flight or snaps back afterwards.
     if (this._flights.length) {
       const done = this._flights[0].step();
-      if (done) this._flights = [];
+      this._targetD = this.camera.position.length();
+      this._lastTickD = this._targetD;
+      if (done) { this._flights = []; this._pinch = null; }
     }
 
     // Keep pin sprites a sane size while zooming.

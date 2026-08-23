@@ -10,7 +10,7 @@ import {
   loadSettings, saveSettings, pickLocations, dailyPicksFor, multiplierForRound,
   practiceExcludeSet, noteLocationsSeen,
 } from './game.js';
-import { puzzleNumberForToday, todayDateText } from './rng.js';
+import { puzzleNumberForToday, todayDateText, mulberry32 } from './rng.js';
 import { fetchWikiSummary, fetchOnThisDay } from './enrich.js';
 import { startMusic, stopMusic, unlockIosAudio, duckMusic, MUSIC_STYLES } from './music.js';
 import { geocodePlace, reverseGeocode, fetchPopulationNear, formatPopulation } from './geocode.js';
@@ -1439,35 +1439,75 @@ window.__marctap = {
       globe.camera.position.copy(dir.multiplyScalar(d));
       globe.camera.lookAt(0, 0, 0);
       globe._lastTickD = d;
+      globe._targetD = d;
     },
+    setDt: (s) => { globe._dtOverride = s; },
+    targetD: () => globe._targetD,
     step: (n = 1) => { for (let i = 0; i < n; i++) globe._tick(); },
+    // Hidden-pane trap: the canvas lays out at 0x0, so every raycast misses.
+    // Size the renderer explicitly and fake the client rect (tests only).
+    stubRect: (w = 900, h = 700) => {
+      const el = globe.renderer.domElement;
+      globe.renderer.setSize(w, h, false);
+      globe.camera.aspect = w / h; globe.camera.updateProjectionMatrix();
+      el.getBoundingClientRect = () => ({ left: 0, top: 0, right: w, bottom: h, width: w, height: h, x: 0, y: 0 });
+      // OrbitControls divides by clientHeight (0 in a hidden pane -> NaN camera).
+      Object.defineProperty(el, 'clientWidth', { configurable: true, get: () => w });
+      Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => h });
+      return { w, h };
+    },
     stubCapture: () => {
       // OrbitControls calls setPointerCapture uncaught; synthetic pointerIds throw.
       Element.prototype.setPointerCapture = function () {};
       Element.prototype.releasePointerCapture = function () {};
     },
-    wheel: (dy, x, y) => {
-      globe.renderer.domElement.dispatchEvent(new WheelEvent('wheel', {
-        bubbles: true, cancelable: true, deltaY: dy, clientX: x, clientY: y,
-      }));
-    },
-    pinch: (g0, g1, steps, cx, cy) => {
+    wheel: (dy, x, y) => globe.renderer.domElement.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true, cancelable: true, deltaY: dy, clientX: x, clientY: y,
+    })),
+    // pinch: g0->g1 px gap over `steps` ticks. opts.movesPerTick dispatches several
+    // move pairs per rendered frame (as a 120 Hz iPhone does); opts.jitterPx adds
+    // seeded finger noise; opts.record returns per-frame smoothness metrics.
+    pinch: (g0, g1, steps, cx, cy, opts = {}) => {
+      const { movesPerTick = 1, jitterPx = 0, seed = 1, settleTicks = 30, record = false } = opts;
+      const rng = mulberry32(seed);
       const el = globe.renderer.domElement;
       const mk = (type, id, x, y) => new PointerEvent(type, {
         bubbles: true, cancelable: true, pointerId: id, pointerType: 'touch',
         isPrimary: id === 501, clientX: x, clientY: y, button: 0, buttons: 1,
       });
+      const j = () => (rng() * 2 - 1) * jitterPx;
       el.dispatchEvent(mk('pointerdown', 501, cx - g0 / 2, cy));
       el.dispatchEvent(mk('pointerdown', 502, cx + g0 / 2, cy));
+      const angs = [], dds = [];
       for (let i = 1; i <= steps; i++) {
-        const g = g0 + (g1 - g0) * (i / steps);
-        el.dispatchEvent(mk('pointermove', 501, cx - g / 2, cy));
-        el.dispatchEvent(mk('pointermove', 502, cx + g / 2, cy));
+        // capture BEFORE the moves: OrbitControls may apply motion inside the events
+        const dir0 = globe.camera.position.clone().normalize();
+        const d0 = globe.camera.position.length();
+        for (let m = 0; m < movesPerTick; m++) {
+          const p = (i - 1 + (m + 1) / movesPerTick) / steps;
+          const g = g0 + (g1 - g0) * p;
+          el.dispatchEvent(mk('pointermove', 501, cx - g / 2 + j(), cy + j()));
+          el.dispatchEvent(mk('pointermove', 502, cx + g / 2 + j(), cy + j()));
+        }
         globe._tick();
+        if (record) {
+          const dir1 = globe.camera.position.clone().normalize();
+          angs.push(dir0.angleTo(dir1) * 180 / Math.PI);
+          dds.push(globe.camera.position.length() - d0);
+        }
       }
       el.dispatchEvent(mk('pointerup', 501, cx - g1 / 2, cy));
       el.dispatchEvent(mk('pointerup', 502, cx + g1 / 2, cy));
-      for (let i = 0; i < 30; i++) globe._tick();
+      for (let i = 0; i < settleTicks; i++) globe._tick();
+      if (!record) return undefined;
+      const rms = (arr) => Math.sqrt(arr.reduce((acc, v) => acc + v * v, 0) / Math.max(1, arr.length));
+      return {
+        frames: angs.length,
+        maxAngDeg: Math.max(...angs), rmsAngDeg: rms(angs),
+        maxAbsDd: Math.max(...dds.map(Math.abs)), rmsDd: rms(dds),
+        maxDUp: Math.max(0, ...dds),
+        finalD: globe.camera.position.length(),
+      };
     },
   },
 };
