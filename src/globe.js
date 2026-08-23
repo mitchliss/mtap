@@ -10,6 +10,15 @@ import { TileDetail } from './tiledetail.js';
 
 const GLOBE_RADIUS = 1;
 
+// Marker sprite sizing (see _spriteScaleForDistance). K is roughly "world units
+// of sprite per world unit of camera distance"; with a 45deg fov, K = 0.062 is
+// ~7.5% of the viewport height and K = 0.030 is ~3.6%.
+const SPRITE_K_FAR = 0.062;   // wide / whole-globe view
+const SPRITE_K_NEAR = 0.030;  // fully zoomed in, where precision matters
+const SPRITE_NEAR_ALT = 0.10; // ~640 km up: below this the pin is at its smallest
+const SPRITE_FAR_ALT = 1.10;  // above this it is back to the wide-view size
+const PIN_TAP_RADIUS_PX = 30; // forgiveness around the pin tip for double-tap-to-confirm
+
 // Pinch-zoom feel. The dolly is OURS (OrbitControls' is undamped and applied
 // per pointer event, which on a 120 Hz iPhone lands several full steps per
 // frame); every gesture event only moves a TARGET distance, and _tick eases
@@ -586,12 +595,24 @@ export class Globe {
     this.flyTo(ll.lat, ll.lng, newD, ms);
   }
 
+  // Double-tapping the pin confirms the guess; double-tapping bare map ZOOMS,
+  // so a near-miss is not a no-op, it does the wrong thing. Now that the pin
+  // draws small at deep zoom, the sprite's own geometry is too tight a target
+  // (~29 px tall on a phone), so a fixed PIXEL radius around the pin's tip
+  // counts as a hit too. Falls back to the geometric test when the canvas has
+  // no measurable size (headless/hidden pane), where the projection is unsafe.
   _pinHit(e) {
     if (!this.pin) return false;
     this._setPointerFromEvent(e);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hits = this.raycaster.intersectObject(this.pin, false);
-    return hits.length > 0;
+    if (this.raycaster.intersectObject(this.pin, false).length > 0) return true;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    if (!rect.height || !rect.width) return false;
+    const ndc = this.pin.position.clone().project(this.camera);
+    if (ndc.z > 1) return false; // behind the camera
+    const dxPx = (ndc.x - this.pointer.x) * rect.width * 0.5;
+    const dyPx = (ndc.y - this.pointer.y) * rect.height * 0.5;
+    return Math.hypot(dxPx, dyPx) <= PIN_TAP_RADIUS_PX;
   }
 
   _bindPointerEvents() {
@@ -745,11 +766,22 @@ export class Globe {
 
   // ---------- pin management ----------
 
-  _spriteScaleForDistance() {
-    // Proportional to camera height above the surface with NO floor worth naming:
-    // zoomed close, the pin shrinks with the terrain instead of towering over it.
-    const d = this.camera.position.length() - GLOBE_RADIUS;
-    return THREE.MathUtils.clamp(d * 0.062, 0.003, 0.16);
+  // A sprite's SCREEN size is its world scale divided by its distance from the
+  // camera, so scaling by that distance is what holds it steady while zooming.
+  // Two corrections on top of that, both from real complaints:
+  //  - the old version scaled by camera ALTITUDE and floored at 0.003, so past
+  //    ~300 km up the pin stopped shrinking and grew on screen instead: at full
+  //    zoom it covered ~9% of the viewport, hiding the very thing being pinned.
+  //  - it also used altitude for every sprite, so a pin near the horizon (much
+  //    further from the camera than the ground directly below it) drew small.
+  // The target screen fraction now EASES DOWN as you zoom in - a pin sized for
+  // the whole-globe view is far too heavy over a single street.
+  _spriteScaleForDistance(worldPos = null) {
+    const alt = this.camera.position.length() - GLOBE_RADIUS;
+    const t = THREE.MathUtils.smoothstep(alt, SPRITE_NEAR_ALT, SPRITE_FAR_ALT);
+    const k = THREE.MathUtils.lerp(SPRITE_K_NEAR, SPRITE_K_FAR, t);
+    const d = worldPos ? this.camera.position.distanceTo(worldPos) : alt;
+    return THREE.MathUtils.clamp(d * k, 0.0004, 0.16);
   }
 
   _placePin(lat, lng) {
@@ -771,7 +803,7 @@ export class Globe {
       this.markerRoot.add(this.pinDot);
     }
     this.pin.position.copy(surface);
-    const s = this._spriteScaleForDistance();
+    const s = this._spriteScaleForDistance(surface);
     this.pin.scale.set(s, s, 1);
     this.pinDot.position.copy(latLngToVec3(lat, lng, GLOBE_RADIUS * 1.004));
     this.pinDot.lookAt(this.pinDot.position.clone().multiplyScalar(2));
@@ -826,7 +858,7 @@ export class Globe {
       badge.center.set(0.5, 0.06);
       badge.renderOrder = 999;
       badge.position.copy(latLngToVec3(item.lat, item.lng, GLOBE_RADIUS * 1.002));
-      const s0 = this._spriteScaleForDistance();
+      const s0 = this._spriteScaleForDistance(badge.position);
       badge.scale.set(s0, s0, 1);
       badge.userData.overviewIndex = i;
       this.markerRoot.add(badge);
@@ -1425,16 +1457,17 @@ export class Globe {
       if (done) { this._flights = []; this._pinch = null; }
     }
 
-    // Keep pin sprites a sane size while zooming.
-    const s = this._spriteScaleForDistance();
-    if (this.pin) this.pin.scale.set(s, s, 1);
-    if (this._answerPin) this._answerPin.scale.set(s, s, 1);
+    // Keep marker sprites a steady SCREEN size while zooming - each measured
+    // from its own position, so a marker near the horizon doesn't shrink away.
+    if (this.pin) { const s = this._spriteScaleForDistance(this.pin.position); this.pin.scale.set(s, s, 1); }
+    if (this._answerPin) { const s = this._spriteScaleForDistance(this._answerPin.position); this._answerPin.scale.set(s, s, 1); }
     for (const o of this._overviewMarkers) {
       if (o.userData && o.userData.overviewIndex !== undefined) {
+        const s = this._spriteScaleForDistance(o.position);
         const k = o.userData.selected ? s * 1.25 : s;
         o.scale.set(k, k, 1);
       } else if (o.userData && o.userData.isLabel) {
-        const k = s * 1.05; // card height tracks the badge size
+        const k = this._spriteScaleForDistance(o.position) * 1.05; // card height tracks the badge
         o.scale.set(k * o.userData.aspect, k, 1);
       }
     }

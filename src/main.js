@@ -262,7 +262,9 @@ function beginRound() {
   hide(els.familyHintText);
   const loc = session.currentLocation;
   if (loc.isFamily) show(els.familyActions); else hide(els.familyActions);
-  els.promptPlace.textContent = loc.name;
+  // A clue location (EXPANSION 6) asks a question instead of naming the place;
+  // the name is revealed only after the guess, by every result/overview surface.
+  els.promptPlace.textContent = loc.prompt || loc.name;
   const mult = session.currentMultiplier;
   const labelEl = document.querySelector('#prompt-card .prompt-label');
   const verb = 'tap where this is';
@@ -294,7 +296,7 @@ function beginRound() {
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
       (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
   } else {
-    labelEl.textContent = 'Tap where you think this is…';
+    labelEl.textContent = loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
     els.promptCard.classList.remove('family-round');
     const theme = (!session.isPractice || session.replayOf) ? dailyThemeFor(session.replayOf || session.seed) : null;
     const prefix = session.replayOf ? `Replay #${session.replayOf} · ` : session.challenge ? `⚔️ vs ${session.challenge.name.replace(/[<>&]/g, '')} · ` : '';
