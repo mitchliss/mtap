@@ -8,7 +8,7 @@ import {
   dailySeed, practiceSeed, dailyAlreadyPlayed, recordDailyResult,
   emojiForScore, verdictForResult, buildShareText, computeStreak,
   loadSettings, saveSettings, pickLocations, dailyPicksFor, multiplierForRound,
-  practiceExcludeSet, noteLocationsSeen, dailyThemeFor,
+  practiceExcludeSet, noteLocationsSeen, dailyThemeFor, loadJSON, saveJSON, DAILY_GENERATION,
 } from './game.js';
 import { archiveEntries, replayLocations, buildChallengePayload, importChallengePayload, visitedPlaces, shortDate } from './archive.js';
 import { puzzleNumberForToday, todayDateText, mulberry32 } from './rng.js';
@@ -243,7 +243,7 @@ function beginSession(s) {
   globe.clearResults();
   globe.setAutoRotate(false);
   globe.setInteractive(true);
-  setScoreDisplay(0);
+  setScoreDisplay(session.totalScore); // 0 on a fresh game; carried points on a resume
   if (settings.music) startMusic(resolveMusicStyle(), puzzleNumberForToday());
   beginRound();
 }
@@ -364,6 +364,7 @@ function confirmGuess(lat, lng) {
       result.hintUsed = true;
     }
   }
+  saveDailyProgress(); // a reload resumes at the NEXT round - answered ones are settled
 
   // Neon label floating in the 3D scene at the answer (MapTap-style).
   const labelLines = [
@@ -441,6 +442,7 @@ function endGame() {
   const player = getActivePlayer();
   const prevBest = computeStreak().best; // before this game is recorded
   if (!session.isPractice) {
+    saveJSON('dailyProgress', null); // the finished game supersedes the checkpoint
     recordDailyResult(puzzleNumberForToday(), rounds, total);
     const emojis = session.results.filter((r) => !r.isBonus).map((r) => emojiForScore(r.score)).join('');
     if (player) recordPlayerResult(player, puzzleNumberForToday(), total, emojis, bonus);
@@ -1255,6 +1257,61 @@ async function shareScore() {
   await shareOrCopy(text, 'Copied! Paste it in the family chat 📣');
 }
 
+// ---------- mid-game resume (daily only) ----------
+// Written after every confirmed guess, cleared when the game records. A reload
+// mid-game therefore restarts at the next unanswered round: replaying a round
+// that already got a score would be a do-over, which is the complaint that
+// created this ("almost like cheating").
+
+function saveDailyProgress() {
+  if (!session || session.isPractice) return;
+  saveJSON('dailyProgress', {
+    pn: puzzleNumberForToday(),
+    gen: DAILY_GENERATION,
+    rounds: session.results.map((r) => ({
+      name: r.target.name, score: r.score, points: r.points, multiplier: r.multiplier,
+      distanceKm: r.distanceKm, guess: r.guess, b: r.isBonus ? 1 : 0,
+    })),
+  });
+}
+
+function loadDailyProgress() {
+  const saved = loadJSON('dailyProgress', null);
+  if (!saved || saved.pn !== puzzleNumberForToday() || saved.gen !== DAILY_GENERATION) return null;
+  if (!Array.isArray(saved.rounds) || !saved.rounds.length) return null;
+  return saved;
+}
+
+function resumeDaily(saved) {
+  const s = new GameSession(dailySeed(), false);
+  const familyPlace = familyPlaceForPuzzle(puzzleNumberForToday(), getActivePlayer());
+  if (familyPlace) s.appendFamilyRound(familyPlace);
+  for (const r of saved.rounds) {
+    const target = s.locations[s.roundIndex];
+    // The deal is deterministic, so a name mismatch means the data changed under
+    // us (new build, different family rotation) - stop restoring, never guess.
+    if (!target || (!r.b && target.name !== r.name) || (!!r.b !== !!target.isFamily)) break;
+    s.results.push({
+      target: r.b && target.name !== r.name ? { ...target, name: r.name } : target,
+      guess: r.guess, score: r.score, points: r.points,
+      multiplier: r.multiplier, distanceKm: r.distanceKm, isBonus: !!r.b,
+    });
+    s.roundIndex++;
+  }
+  if (!s.results.length) { startGame(false); return; }
+  if (s.isOver) {
+    // Crashed between the last guess and the end screen: finish the game now.
+    session = s;
+    hide(els.startScreen);
+    hide(els.resultPanel);
+    hide(els.confirmBar);
+    endGame();
+    return;
+  }
+  toast(`Welcome back - resuming at round ${s.roundIndex + 1} ${'🌍'}`, 2600);
+  beginSession(s);
+}
+
 // ---------- prior days archive ----------
 
 function openArchive() {
@@ -1405,9 +1462,14 @@ async function boot() {
     if (record) {
       showEndScreenForRecorded(record);
     } else {
-      startGame(false);
+      const saved = loadDailyProgress();
+      if (saved) resumeDaily(saved); else startGame(false);
     }
   });
+  // Say so on the button when there is a game to pick back up.
+  if (!dailyAlreadyPlayed(puzzleNumberForToday()) && loadDailyProgress()) {
+    els.btnPlay.textContent = `▶ Resume today's game (round ${Math.min(loadDailyProgress().rounds.length + 1, ROUNDS_PER_GAME)} of ${ROUNDS_PER_GAME})`;
+  }
   els.btnPractice.addEventListener('click', () => startGame(true));
   els.btnArchive.addEventListener('click', openArchive);
   els.btnEndArchive.addEventListener('click', openArchive);
