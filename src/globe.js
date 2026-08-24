@@ -1513,7 +1513,7 @@ export class Globe {
         // Head position + pulse
         const p = this._arcAnim.points[Math.min(headIdx, this._arcAnim.segments)];
         this._arcAnim.head.position.copy(p);
-        const hk = s * 0.5 * (1 + 0.15 * Math.sin(nowMs / 60));
+        const hk = this._spriteScaleForDistance(p) * 0.5 * (1 + 0.15 * Math.sin(nowMs / 60));
         this._arcAnim.head.scale.set(hk, hk, 1);
         if (t >= 1) {
           this._arcAnim.head.visible = false;
@@ -1524,7 +1524,7 @@ export class Globe {
     if (this._resultLabel) {
       const fade = Math.min(1, (nowMs - this._resultLabel.userData.fadeBorn) / 250);
       this._resultLabel.material.opacity = fade;
-      const k = s * 1.1;
+      const k = this._spriteScaleForDistance(this._resultLabel.position) * 1.1;
       this._resultLabel.scale.set(k * this._resultLabel.userData.aspect, k, 1);
     }
 
