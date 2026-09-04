@@ -7,6 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { toRad, toDeg } from './geo.js';
 import { mulberry32 } from './rng.js';
 import { TileDetail } from './tiledetail.js';
+import { GFX, K_ROT, applySunShader, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from './graphics.js';
 
 const GLOBE_RADIUS = 1;
 
@@ -25,14 +26,12 @@ const PIN_TAP_RADIUS_PX = 30; // forgiveness around the pin tip for double-tap-t
 // the camera toward it, so finger noise can never reverse or spike the zoom.
 const ZOOM_K = 1.0;        // altitude ∝ (gap0/gap)^K
 const ZOOM_TAU = 0.08;     // s — exponential approach of d -> targetD
-const GAP_EMA = 0.35;      // per-frame smoothing of the finger gap
-const AIM_EMA = 0.35;      // per-event smoothing of the pinch midpoint
+const GESTURE_TAU = 0.045;
+const DAMP_TAU = 0.19;
 const AIM_GAIN = 1.5;      // aim assist: rotate by (altitude fraction consumed) * gain
-const AIM_STEP_MAX = 0.06; // rad per frame (~3.4°; was 0.15 = 8.6°, the "jump")
-const AIM_LIVE_MS = 400;   // aim stays live this long after the last zoom event (the smoothed dolly is still settling)
+const AIM_LIVE_MS = 150;
 const WHEEL_C = 0.18;      // altitude *= exp(±C) per 100 px of wheel
 const MIN_GAP_PX = 12;
-const ROTATE_MIN = 0.08;   // rotateSpeed floor near the surface
 const DT_MIN = 1 / 240, DT_MAX = 1 / 20;
 
 // Matches three.js SphereGeometry UV layout for an equirectangular texture
@@ -69,6 +68,16 @@ function loadImage(url) {
   });
 }
 
+async function loadTieredTexture(url, size) {
+  const img = await loadImage(url);
+  const canvas = document.createElement('canvas');
+  canvas.width = size[0]; canvas.height = size[1];
+  canvas.getContext('2d').drawImage(img, 0, 0, size[0], size[1]);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function strokeBoundaries(ctx, geojson, W, H, style) {
   const px = (lng) => ((lng + 180) / 360) * W;
   const py = (lat) => ((90 - lat) / 180) * H;
@@ -94,9 +103,9 @@ function strokeBoundaries(ctx, geojson, W, H, style) {
   }
 }
 
-async function buildEarthTexture(geojson, baseUrl) {
+async function buildEarthTexture(geojson, baseUrl, size = null) {
   const img = await loadImage(`${baseUrl}textures/earth-blue-marble.jpg`);
-  const W = img.naturalWidth, H = img.naturalHeight; // 5400 x 2700
+  const W = size ? size[0] : img.naturalWidth, H = size ? size[1] : img.naturalHeight;
   const canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
@@ -380,30 +389,46 @@ export class Globe {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x060a18);
+    this.renderer.toneMapping = GFX.toneMapping ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
+    const mobile = navigator.maxTouchPoints > 0 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const promoted = localStorage.getItem('marctap.gfxHigh') === '1';
+    const pinnedLow = localStorage.getItem('marctap.gfxPinnedLow') === '1';
+    this.textureTier = selectTextureTier({ mobile, maxTextureSize: this.renderer.capabilities.maxTextureSize, promoted: promoted && !pinnedLow });
+    this.contextLossCount = 0;
+    this._frameTimes = [];
+    this.longTaskCount = 0;
+    if (typeof PerformanceObserver !== 'undefined') {
+      try { this._longTaskObserver = new PerformanceObserver((list) => { this.longTaskCount += list.getEntries().length; }); this._longTaskObserver.observe({ type: 'longtask', buffered: true }); } catch { /* unsupported */ }
+    }
+    this._rect = null;
     // touch-action must be on the CANVAS itself (it is not inherited): without it,
     // iOS hijacks vertical drags for scroll/pull-to-refresh, so the globe spins
     // horizontally but won't tilt on phones.
     this.renderer.domElement.style.touchAction = 'none';
     container.appendChild(this.renderer.domElement);
 
-    // Lights — mostly even (a geography game needs no dark side) with a gentle
-    // key light for dimensionality and the ocean specular glint.
-    this.scene.add(new THREE.AmbientLight(0xffffff, 1.75));
-    const sun = new THREE.DirectionalLight(0xfff6e6, 1.0);
-    sun.position.set(3, 2, 2.5);
-    this.scene.add(sun);
+    // Lights — a real sun at the computed subsolar point (v4.0 day/night), a
+    // low ambient plus a cool fill so the night side stays readable, never black.
+    this.ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    this.scene.add(this.ambient);
+    this.sun = new THREE.DirectionalLight(0xfff6e6, 1.65);
+    const subsolar = subsolarPoint();
+    this.sun.position.copy(latLngToVec3(subsolar.lat, subsolar.lng, 5));
+    this.sunDir = this.sun.position.clone().normalize();
+    this.scene.add(this.sun);
     const fill = new THREE.DirectionalLight(0x88aaff, 0.25);
     fill.position.set(-3, -1, -2);
     this.scene.add(fill);
 
     // Star field + deep-space scenery (moon, planets, sun glare, Milky Way)
     this.scene.add(this._makeStars());
-    this._makeSpaceScenery(sun.position);
+    this._makeSpaceScenery(this.sun.position);
 
     // Globe sphere (texture applied after geojson loads)
     this.sphere = new THREE.Mesh(
       new THREE.SphereGeometry(GLOBE_RADIUS, 128, 96),
-      new THREE.MeshPhongMaterial({ color: 0x12386e, shininess: 12, specular: 0x223a5e })
+      new THREE.MeshPhongMaterial({ color: 0x12386e, shininess: 30, specular: 0x8fb8cc })
     );
     this.scene.add(this.sphere);
 
@@ -414,21 +439,30 @@ export class Globe {
         side: THREE.BackSide,
         transparent: true,
         depthWrite: false,
-        uniforms: {},
+        uniforms: { sunDir: { value: this.sunDir } },
         vertexShader: `
           varying vec3 vNormal;
+          varying vec3 vWorldNormal;
           void main() {
             vNormal = normalize(normalMatrix * normal);
+            vWorldNormal = normalize(mat3(modelMatrix) * normal);
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
           }`,
         fragmentShader: `
           varying vec3 vNormal;
+          varying vec3 vWorldNormal;
+          uniform vec3 sunDir;
           void main() {
             float intensity = pow(0.76 - dot(vNormal, vec3(0.0, 0.0, -1.0)), 3.2);
-            gl_FragColor = vec4(0.38, 0.62, 1.0, 1.0) * intensity;
+            float day = dot(normalize(vWorldNormal), normalize(sunDir));
+            vec3 color = mix(vec3(1.0, 0.34, 0.20), vec3(0.32, 0.62, 1.0), smoothstep(-0.08, 0.18, day));
+            gl_FragColor = vec4(color, 1.0) * intensity;
           }`,
+        blending: THREE.AdditiveBlending,
       })
     );
+    atmosphere.visible = GFX.atmosphere;
+    this.atmosphere = atmosphere;
     this.scene.add(atmosphere);
 
     // Marker roots
@@ -454,6 +488,8 @@ export class Globe {
     this.controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
     this.controls.autoRotate = false;
     this.controls.autoRotateSpeed = 0.4;
+    this.controls.minPolarAngle = 0.05;
+    this.controls.maxPolarAngle = Math.PI - 0.05;
 
     // Pin state
     this.pin = null;           // candidate guess sprite
@@ -466,6 +502,9 @@ export class Globe {
     this._targetD = this.camera.position.length(); // smoothed-dolly target distance
     this._pinch = null;        // { gap } EMA'd finger gap of the live two-finger gesture
     this._dtOverride = null;   // test harness: deterministic frame time
+    this._scratchAim = new THREE.Vector3();
+    this._scratchAxis = new THREE.Vector3();
+    this._scratchQuat = new THREE.Quaternion();
     this._prevPinSnapshot = undefined; // pin state before the last single tap (double-tap restore)
 
     this.raycaster = new THREE.Raycaster();
@@ -483,16 +522,29 @@ export class Globe {
     this.resize();
 
     this._clock = new THREE.Clock();
-    this.renderer.setAnimationLoop(() => this._tick());
+    this._onVisibility = () => document.hidden ? this.stopLoop() : this.startLoop();
+    this._onContextLost = (e) => { e.preventDefault(); this.contextLossCount++; localStorage.setItem('marctap.gfxPinnedLow', '1'); this.stopLoop(); this.tileDetail?.cancel(); };
+    this._onContextRestored = () => {
+      this.scene.traverse((o) => {
+        if (o.geometry) o.geometry.attributes.position.needsUpdate = true;
+        const materials = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        for (const m of materials) { m.needsUpdate = true; if (m.map) m.map.needsUpdate = true; }
+      });
+      this.tileDetail?.cancel(); this.startLoop();
+    };
+    document.addEventListener('visibilitychange', this._onVisibility);
+    this.renderer.domElement.addEventListener('webglcontextlost', this._onContextLost);
+    this.renderer.domElement.addEventListener('webglcontextrestored', this._onContextRestored);
+    this.startLoop();
   }
 
   async init(geojson) {
     let tex;
     try {
-      tex = await buildEarthTexture(geojson, import.meta.env.BASE_URL);
+      tex = await buildEarthTexture(geojson, import.meta.env.BASE_URL, this.textureTier.base);
       this.sphere.material.specularMap = buildSpecularMap(geojson);
-      this.sphere.material.specular = new THREE.Color(0x88aabb);
-      this.sphere.material.shininess = 22;
+      this.sphere.material.specular = new THREE.Color(GFX.oceanGlint ? 0x88aabb : 0x111111);
+      this.sphere.material.shininess = GFX.oceanGlint ? 30 : 8;
     } catch (err) {
       console.warn('Satellite texture unavailable, using painted fallback', err);
       tex = drawGlobeTexture(geojson);
@@ -500,6 +552,17 @@ export class Globe {
     this.sphere.material.map = tex;
     this.sphere.material.color.set(0xffffff);
     this.sphere.material.needsUpdate = true;
+    this.nightTexture = await loadTieredTexture(`${import.meta.env.BASE_URL}textures/earth-night.jpg`, this.textureTier.night);
+    this._sunShaderState = { sunDir: this.sunDir, nightTexture: this.nightTexture, enabled: true };
+    applySunShader(this.sphere.material, this._sunShaderState);
+    if (GFX.clouds) {
+      const cloudTex = await loadTieredTexture(`${import.meta.env.BASE_URL}textures/earth-clouds.jpg`, this.textureTier.clouds);
+      this.clouds = new THREE.Mesh(new THREE.SphereGeometry(1.006, 96, 64), new THREE.MeshPhongMaterial({
+        map: cloudTex, alphaMap: cloudTex, transparent: true, opacity: 0.35, depthWrite: false, color: 0xffffff,
+      }));
+      this.clouds.renderOrder = 3;
+      this.scene.add(this.clouds);
+    }
     this.pinTexGuess = makePinTexture('#ff4d6d', '#ffd6de');
     this.pinTexAnswer = makePinTexture('#38d67a', '#d7ffe8');
     // Zoom-detail satellite tile streaming (self-disables if tiles unreachable).
@@ -520,16 +583,26 @@ export class Globe {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this._rect = this.renderer.domElement.getBoundingClientRect();
   }
 
   setAutoRotate(on) { this.controls.autoRotate = on; }
   setInteractive(on) { this.interactive = on; }
+  setGameplayActive(on) { this._gameplayActive = !!on; }
+  setRealisticLighting(on) {
+    this._sunShaderState.enabled = !!on;
+    this.ambient.intensity = on ? 0.5 : 1.75;
+    this.sun.intensity = on ? 1.65 : 1.0;
+    this.sphere.material.needsUpdate = true;
+    if (this.tileDetail) this.tileDetail.setLighting(!!on);
+  }
+  applySunShader(material) { return applySunShader(material, this._sunShaderState); }
+  startLoop() { this._clock?.start(); this._clock?.getDelta(); this.renderer.setAnimationLoop(() => this._tick()); }
+  stopLoop() { this.renderer.setAnimationLoop(null); this._clock?.stop(); this.tileDetail?.cancel(); }
 
   // rotateSpeed slows as you zoom in (fine control near the surface).
   _tuneControls() {
-    const d = this.camera.position.length();
-    const t = THREE.MathUtils.clamp((d - this.controls.minDistance) / (this.controls.maxDistance - this.controls.minDistance), 0, 1);
-    this.controls.rotateSpeed = ROTATE_MIN + t * 0.6;
+    this.controls.rotateSpeed = rotationSpeedForAltitude(Math.max(0, this.camera.position.length() - GLOBE_RADIUS), K_ROT);
   }
 
   _setTargetD(d) {
@@ -546,7 +619,7 @@ export class Globe {
   // Analytic ray/sphere aim point (never the faceted mesh, never null): a miss
   // projects the ray's closest approach onto the sphere inside the visible cap.
   _aimDirAnalytic(clientX, clientY) {
-    const rect = this.renderer.domElement.getBoundingClientRect();
+    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
     if (!(rect.width > 0 && rect.height > 0)) return this.camera.position.clone().normalize();
     const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
     const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
@@ -566,13 +639,13 @@ export class Globe {
   // ---------- picking ----------
 
   _setPointerFromEvent(e) {
-    const rect = this.renderer.domElement.getBoundingClientRect();
+    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
   _globeHitXY(clientX, clientY) {
-    const rect = this.renderer.domElement.getBoundingClientRect();
+    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
@@ -606,7 +679,7 @@ export class Globe {
     this._setPointerFromEvent(e);
     this.raycaster.setFromCamera(this.pointer, this.camera);
     if (this.raycaster.intersectObject(this.pin, false).length > 0) return true;
-    const rect = this.renderer.domElement.getBoundingClientRect();
+    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
     if (!rect.height || !rect.width) return false;
     const ndc = this.pin.position.clone().project(this.camera);
     if (ndc.z > 1) return false; // behind the camera
@@ -634,6 +707,7 @@ export class Globe {
     // per-event read sees a momentarily diagonal pair — a transient that is
     // always positive and therefore biases any smoothing into a slow creep.
     const startPinch = () => {
+      this.tileDetail?.cancel();
       const p = pinchPair();
       this._pinch = { gap: p.gap, appliedGap: p.gap, moved: false };
       this._zoomAim = { x: p.mx, y: p.my, t: performance.now() };
@@ -647,6 +721,7 @@ export class Globe {
     const endPinch = () => { this._pinch = null; };
 
     el.addEventListener('pointerdown', (e) => {
+      this.tileDetail?.gestureStart();
       this._activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this._activePointers.size === 2) startPinch();
       else this._pinch = null; // a third finger cancels the pinch
@@ -702,6 +777,7 @@ export class Globe {
 
     el.addEventListener('pointerup', (e) => {
       this._activePointers.delete(e.pointerId);
+      if (!this._activePointers.size) this.tileDetail?.gestureEnd();
       endPinch();
       const wasPinPress = endDrag(e);
       if (!downPos) return;
@@ -1349,6 +1425,7 @@ export class Globe {
     const rng = mulberry32(99);
     const count = 2200;
     const positions = new Float32Array(count * 3);
+    const phases = new Float32Array(count);
     for (let i = 0; i < count; i++) {
       // random point on a big sphere
       const u = rng() * 2 - 1;
@@ -1358,10 +1435,21 @@ export class Globe {
       positions[i * 3] = r * s * Math.cos(theta);
       positions[i * 3 + 1] = r * u;
       positions[i * 3 + 2] = r * s * Math.sin(theta);
+      phases[i] = rng() * Math.PI * 2;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
     const mat = new THREE.PointsMaterial({ color: 0xcfe0ff, size: 0.13, sizeAttenuation: true, transparent: true, opacity: 0.85 });
+    if (GFX.starTwinkle) {
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uTime = { value: 0 };
+        shader.vertexShader = shader.vertexShader.replace('void main() {', 'attribute float phase; varying float vTwinkle; uniform float uTime;\nvoid main() {\n vTwinkle = 0.82 + 0.18 * sin(uTime * 1.7 + phase);');
+        shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'varying float vTwinkle;\nvoid main() {').replace('#include <opaque_fragment>', 'diffuseColor.a *= vTwinkle;\n#include <opaque_fragment>');
+        mat.userData.shader = shader;
+      };
+      this._starMaterial = mat;
+    }
     return new THREE.Points(geo, mat);
   }
 
@@ -1392,6 +1480,7 @@ export class Globe {
     // released as a lurch the moment the flight ends.
     this.controls.enabled = !this.draggingPin && !this._flights.length;
     this._tuneControls();
+    this.controls.dampingFactor = smoothingAlpha(dt, DAMP_TAU);
     this.controls.update(dt); // dt makes autoRotate frame-rate independent
 
     // Sample the two-finger pair once per frame: smooth the gap, apply the
@@ -1400,13 +1489,14 @@ export class Globe {
     if (this._pinch && this._activePointers.size === 2 && !this._flights.length && !this.draggingPin) {
       const [pa, pb] = [...this._activePointers.values()];
       const gapNow = Math.hypot(pa.x - pb.x, pa.y - pb.y);
-      this._pinch.gap += (gapNow - this._pinch.gap) * GAP_EMA;
+      const gestureAlpha = smoothingAlpha(dt, GESTURE_TAU);
+      this._pinch.gap += (gapNow - this._pinch.gap) * gestureAlpha;
       const { gap, appliedGap } = this._pinch;
       if (gap > MIN_GAP_PX && appliedGap > MIN_GAP_PX) this._zoomAltBy(Math.pow(appliedGap / gap, ZOOM_K));
       this._pinch.appliedGap = gap;
       const a = this._zoomAim;
-      a.x += ((pa.x + pb.x) / 2 - a.x) * AIM_EMA;
-      a.y += ((pa.y + pb.y) / 2 - a.y) * AIM_EMA;
+      a.x += ((pa.x + pb.x) / 2 - a.x) * gestureAlpha;
+      a.y += ((pa.y + pb.y) / 2 - a.y) * gestureAlpha;
     }
     // Smoothed dolly: ease toward the gesture's target distance. All the
     // pointer events that landed since the last frame have already folded
@@ -1434,14 +1524,16 @@ export class Globe {
       const live = aim && performance.now() - aim.t < AIM_LIVE_MS;
       if (d < prev - 1e-7 && prev > 1 && live && !this._flights.length && !this.draggingPin) {
         const targetDir = this._aimDirAnalytic(aim.x, aim.y);
-        const camDir = this.camera.position.clone().normalize();
+        const camDir = this._scratchAim.copy(this.camera.position).normalize();
         const angle = camDir.angleTo(targetDir);
         const f = THREE.MathUtils.clamp(1 - (d - 1) / (prev - 1), 0, 0.5);
-        const step = Math.min(angle * f * AIM_GAIN, AIM_STEP_MAX);
+        const altitudeScreen = Math.max(d - 1, 0) * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+        const maxStep = Math.min(0.06, altitudeScreen) * (dt / (1 / 60));
+        const step = Math.min(angle * f * AIM_GAIN, maxStep);
         if (angle > 1e-4 && step > 1e-6) {
-          const axis = new THREE.Vector3().crossVectors(camDir, targetDir).normalize();
+          const axis = this._scratchAxis.crossVectors(camDir, targetDir).normalize();
           if (axis.lengthSq() > 0.5) {
-            this.camera.position.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(axis, step));
+            this.camera.position.applyQuaternion(this._scratchQuat.setFromAxisAngle(axis, step));
             this.camera.lookAt(0, 0, 0);
           }
         }
@@ -1530,6 +1622,11 @@ export class Globe {
 
     // Zoom-detail tile streaming.
     if (this.tileDetail) this.tileDetail.update(dt);
+    if (this.clouds) {
+      this.clouds.rotation.y += dt * 0.0015;
+      this.clouds.material.opacity = GFX.clouds && !this._gameplayActive && this.camera.position.length() >= 1.7 ? 0.32 : 0;
+    }
+    if (this._starMaterial?.userData.shader) this._starMaterial.userData.shader.uniforms.uTime.value += dt;
 
     // The Moon creeps along its orbit in real time (13.18°/day - correct, and
     // just barely perceptible across a long session).
@@ -1553,11 +1650,33 @@ export class Globe {
     }
 
     this.renderer.render(this.scene, this.camera);
+    this._frameTimes.push({ t: performance.now(), ms: dt * 1000 });
+    while (this._frameTimes.length && this._frameTimes[0].t < performance.now() - 10000) this._frameTimes.shift();
+    if (!this._tierBenchmarked && this._frameTimes.length > 120 && this._frameTimes.at(-1).t - this._frameTimes[0].t > 9000) {
+      this._tierBenchmarked = true;
+      const sorted = this._frameTimes.map((f) => f.ms).sort((a, b) => a - b);
+      const p95 = sorted[Math.floor(sorted.length * 0.95)];
+      if (this.contextLossCount === 0 && p95 <= 16.7) localStorage.setItem('marctap.gfxHigh', '1');
+    }
+  }
+
+  debugInfo() {
+    const values = this._frameTimes.map((f) => f.ms).sort((a, b) => a - b);
+    const pct = (p) => values.length ? values[Math.min(values.length - 1, Math.floor(values.length * p))] : 0;
+    return {
+      gfx: { ...GFX, realisticLighting: this._sunShaderState?.enabled !== false }, tier: this.textureTier,
+      maxTextureSize: this.renderer.capabilities.maxTextureSize, frameP50: pct(0.5), frameP95: pct(0.95),
+      longTaskCount: this.longTaskCount,
+      tile: this.tileDetail?.debugInfo() || null, contextLossCount: this.contextLossCount,
+      textureInventory: { base: this.textureTier.base, night: this.textureTier.night, clouds: this.textureTier.clouds, patchCanvases: 3 },
+    };
   }
 
   dispose() {
     window.removeEventListener('resize', this._onResize);
-    this.renderer.setAnimationLoop(null);
+    document.removeEventListener('visibilitychange', this._onVisibility);
+    this._longTaskObserver?.disconnect();
+    this.stopLoop();
     this.renderer.dispose();
   }
 }

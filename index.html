@@ -359,6 +359,10 @@
           <span>Auto-rotate on menus<small>Globe slowly spins while idle</small></span>
           <input type="checkbox" id="set-autorotate" checked />
         </label>
+        <label class="setting-row">
+          <span>Realistic lighting<small>Sunlight, night cities, atmosphere and ocean glint</small></span>
+          <input type="checkbox" id="set-realistic-lighting" checked />
+        </label>
         <div class="settings-account">
           <div class="acct-title">Account · cross-device sync</div>
           <div id="acct-disabled" class="settings-about">
@@ -381,13 +385,14 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v3.10 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v4.0 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
         </div>
       </div>
     </div>
 
     <!-- toast -->
     <div id="toast" class="toast hidden"></div>
+    <pre id="debug-overlay" class="debug-overlay hidden"></pre>
   </div>
 
   <script type="module" src="/src/main.js"></script>

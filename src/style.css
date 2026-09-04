@@ -823,6 +823,8 @@ html, body {
 .start-theme { margin: -16px 0 20px; color: var(--text-dim); font-size: 0.92rem; }
 .start-theme b { color: var(--gold); }
 .theme-chip { display: inline-block; background: rgba(255, 209, 102, 0.16); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: 0.78rem; font-weight: 700; margin-left: 6px; }
+.news-chip { display: inline-block; background: rgba(80, 190, 255, 0.18); color: #9fddff; border-radius: 999px; padding: 1px 8px; font-size: 0.78rem; font-weight: 700; margin-left: 6px; }
+.debug-overlay { position: fixed; z-index: 9999; left: 6px; bottom: 6px; margin: 0; max-width: min(96vw, 520px); max-height: 45vh; overflow: auto; padding: 7px; border-radius: 6px; background: rgba(0,0,0,.78); color: #9fffc2; font: 10px/1.25 ui-monospace, monospace; pointer-events: none; white-space: pre-wrap; }
 .archive-list { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .archive-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.05); cursor: pointer; text-align: left; }
 .archive-row:hover { background: rgba(77, 163, 255, 0.16); }

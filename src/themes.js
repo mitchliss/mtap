@@ -5,6 +5,7 @@
 // 400+ entries need no per-row edits.
 
 import { LOCATIONS } from './locations.js';
+import { NEWS } from './news.js';
 import { mulberry32 } from './rng.js';
 
 export const THEMES = {
@@ -32,7 +33,7 @@ const RULES = {
   mountain: /Mount|Mt\.|Peak|Alps|Everest|Kilimanjaro|Matterhorn|Elbrus|Ararat|Aconcagua|Jungfrau|Annapurna|Denali|Fuji|Machtesh|Makhtesh|Simien|Crater|Table Mountain|Rockies|Andes|Himalaya|Caucasus|Golan|Dolomites|Pass\b/i,
 };
 
-const indexByName = new Map(LOCATIONS.map((l, i) => [l.name, i]));
+const indexByName = new Map([...LOCATIONS, ...NEWS].map((l, i) => [l.name, i]));
 
 export function tagsFor(loc) {
   const i = indexByName.get(loc.name);

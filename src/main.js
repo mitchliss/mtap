@@ -8,7 +8,7 @@ import {
   dailySeed, practiceSeed, dailyAlreadyPlayed, recordDailyResult,
   emojiForScore, verdictForResult, buildShareText, computeStreak,
   loadSettings, saveSettings, pickLocations, dailyPicksFor, multiplierForRound,
-  practiceExcludeSet, noteLocationsSeen, dailyThemeFor, loadJSON, saveJSON, DAILY_GENERATION,
+  practiceExcludeSet, noteLocationsSeen, dailyThemeFor, newsDecisionFor, loadJSON, saveJSON, DAILY_GENERATION,
 } from './game.js';
 import { archiveEntries, replayLocations, buildChallengePayload, importChallengePayload, visitedPlaces, shortDate } from './archive.js';
 import { puzzleNumberForToday, todayDateText, mulberry32 } from './rng.js';
@@ -74,7 +74,7 @@ const els = {
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
-  setMiles: $('set-miles'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'),
+  setMiles: $('set-miles'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'), setRealisticLighting: $('set-realistic-lighting'),
   resultPop: $('result-pop'),
   toast: $('toast'),
 };
@@ -243,6 +243,7 @@ function beginSession(s) {
   globe.clearResults();
   globe.setAutoRotate(false);
   globe.setInteractive(true);
+  globe.setGameplayActive(true);
   setScoreDisplay(session.totalScore); // 0 on a fresh game; carried points on a resume
   if (settings.music) startMusic(resolveMusicStyle(), puzzleNumberForToday());
   beginRound();
@@ -296,13 +297,13 @@ function beginRound() {
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
       (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
   } else {
-    labelEl.textContent = loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
+    labelEl.textContent = loc.isNews ? 'Tap where this is happening…' : loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
     els.promptCard.classList.remove('family-round');
     const theme = (!session.isPractice || session.replayOf) ? dailyThemeFor(session.replayOf || session.seed) : null;
     const prefix = session.replayOf ? `Replay #${session.replayOf} · ` : session.challenge ? `⚔️ vs ${session.challenge.name.replace(/[<>&]/g, '')} · ` : '';
     els.promptSub.innerHTML = `${prefix}Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
       (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '') +
-      (theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
+      (loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
   }
   renderRoundDots();
   show(els.promptCard);
@@ -423,6 +424,7 @@ function endGame() {
   hide(els.promptCard);
   globe.clearPin();
   globe.setInteractive(false);
+  globe.setGameplayActive(false);
   globe.setAutoRotate(settings.autoRotate);
   stopMusic();
   sounds.fanfare();
@@ -563,6 +565,7 @@ function showEndScreenForRecorded(record) {
   hide(els.startScreen);
   show(els.endScreen);
   globe.setAutoRotate(settings.autoRotate);
+  globe.setGameplayActive(false);
   startNextCountdown();
   renderOnThisDay();
 }
@@ -1246,11 +1249,12 @@ async function shareScore() {
       (payload ? `\n⚔️ Play the same 5 places and beat it: ${shareBaseUrl()}#mt=${encodePayload(payload)}` : '');
   } else {
     const theme = dailyThemeFor(pn);
+    const newsMarker = dailyPicksFor(pn).some((loc) => loc.isNews) ? ' 📰' : '';
     // Result link doubles as a challenge + leaderboard merge for whoever opens it.
     const link = `${shareBaseUrl()}#mt=${encodePayload(buildResultPayload(player, pn, total, emojis, bonus))}`;
     // The family bonus is deliberately OUTSIDE the /1000 total: friends without
     // the family pack compete on the same scale, and the bonus is just bragging.
-    text = `${player} scored ${total}/${MAX_GAME_SCORE} on MTap #${pn}${theme ? ` (${theme.emoji} ${theme.title})` : ''} 🌍\n${perRound}` +
+    text = `${player} scored ${total}/${MAX_GAME_SCORE} on MTap #${pn}${theme ? ` (${theme.emoji} ${theme.title})` : ''}${newsMarker} 🌍\n${perRound}` +
       (bonus ? `\n🏠 +${bonus} homefield points (family round — doesn't count in the ${MAX_GAME_SCORE})` : '') +
       `\nThink you can beat it? ${link}`;
   }
@@ -1368,8 +1372,9 @@ async function boot() {
   els.startPuzzleLabel.textContent = `MTap #${puzzleNumberForToday()} · ${todayDateText()}`;
 
   const todayTheme = dailyThemeFor(dailySeed());
+  const todayHasNews = dailyPicksFor(dailySeed()).some((loc) => loc.isNews);
   if (todayTheme) {
-    els.startTheme.innerHTML = `Today's theme: <b>${todayTheme.emoji} ${todayTheme.title}</b> · ${todayTheme.blurb}`;
+    els.startTheme.innerHTML = `Today's theme: <b>${todayTheme.emoji} ${todayTheme.title}</b> · ${todayTheme.blurb}${todayHasNews ? " · 📰 plus one from this week's news" : ''}`;
     show(els.startTheme);
   }
 
@@ -1384,6 +1389,7 @@ async function boot() {
   els.setMusic.checked = settings.music;
   els.setMusicStyle.value = settings.musicStyle || 'auto';
   els.setAutoRotate.checked = settings.autoRotate;
+  els.setRealisticLighting.checked = settings.realisticLighting !== false;
 
   // Globe
   globe = new Globe(document.getElementById('globe-container'), {
@@ -1396,6 +1402,7 @@ async function boot() {
 
   const geojson = await loadCountries(`${import.meta.env.BASE_URL}data/countries-50m.geojson`);
   await globe.init(geojson);
+  globe.setRealisticLighting(settings.realisticLighting !== false);
   globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
 
   // Social boot: import any share-link payload (needs country data), then profiles.
@@ -1571,7 +1578,7 @@ async function boot() {
 
   // Settings changes — ONE shared list drives both boot population and listener
   // wiring, so a control can never again be saved-but-not-listened (or vice versa).
-  const settingInputs = [els.setMiles, els.setSound, els.setMusic, els.setMusicStyle, els.setAutoRotate];
+  const settingInputs = [els.setMiles, els.setSound, els.setMusic, els.setMusicStyle, els.setAutoRotate, els.setRealisticLighting];
   const syncSettings = () => {
     const prevStyle = settings.musicStyle;
     settings = {
@@ -1580,10 +1587,12 @@ async function boot() {
       music: els.setMusic.checked,
       musicStyle: els.setMusicStyle.value,
       autoRotate: els.setAutoRotate.checked,
+      realisticLighting: els.setRealisticLighting.checked,
       v: 2,
     };
     saveSettings(settings);
     if (!session || session.isOver) globe.setAutoRotate(settings.autoRotate);
+    globe.setRealisticLighting(settings.realisticLighting);
     // Music toggle/style takes effect immediately, even mid-game.
     if (!settings.music) {
       stopMusic();
@@ -1593,6 +1602,11 @@ async function boot() {
     }
   };
   settingInputs.forEach((el) => el.addEventListener('change', syncSettings));
+
+  if (new URLSearchParams(location.search).get('debug') === '1') {
+    const overlay = $('debug-overlay'); show(overlay);
+    setInterval(() => { overlay.textContent = JSON.stringify({ ...globe.debugInfo(), news: newsDecisionFor(puzzleNumberForToday()) }, null, 2); }, 500);
+  }
 
   // First-visit help
   if (!localStorage.getItem('marctap.seenHelp')) {
@@ -1610,6 +1624,7 @@ window.__marctap = {
   globe: () => globe,
   session: () => session,
   state: () => ({ awaitingConfirm, roundLocked, interactive: globe?.interactive }),
+  debug: () => ({ ...globe?.debugInfo(), news: newsDecisionFor(puzzleNumberForToday()) }),
   tapAt: (lat, lng) => { globe.movePin(lat, lng); onGlobeTap(); },
   confirmAt: (lat, lng) => { globe.movePin(lat, lng); confirmGuess(lat, lng); },
   next: () => nextRound(),
@@ -1627,6 +1642,17 @@ window.__marctap = {
       globe._targetD = d;
     },
     setDt: (s) => { globe._dtOverride = s; },
+    groundPerPixel: (alt) => {
+      const h = globe.renderer.domElement.clientHeight || 700;
+      const k = 1.1 * 2 * Math.tan(globe.camera.fov * Math.PI / 360) / (2 * Math.PI);
+      return (2 * Math.PI / h) * Math.min(0.7, Math.max(0.006, alt * k)) / alt;
+    },
+    groundPerPixelSweep: () => {
+      const alts = [0.04, 0.08, 0.16, 0.32, 0.64, 1.0, 1.5];
+      const values = alts.map((alt) => ({ alt, value: window.__marctap.zoom.groundPerPixel(alt) }));
+      const mean = values.reduce((s, v) => s + v.value, 0) / values.length;
+      return { values, maxDeviation: Math.max(...values.map((v) => Math.abs(v.value / mean - 1))), pass: values.every((v) => Math.abs(v.value / mean - 1) <= 0.15) };
+    },
     targetD: () => globe._targetD,
     step: (n = 1) => { for (let i = 0; i < n; i++) globe._tick(); },
     // Hidden-pane trap: the canvas lays out at 0x0, so every raycast misses.
@@ -1636,6 +1662,7 @@ window.__marctap = {
       globe.renderer.setSize(w, h, false);
       globe.camera.aspect = w / h; globe.camera.updateProjectionMatrix();
       el.getBoundingClientRect = () => ({ left: 0, top: 0, right: w, bottom: h, width: w, height: h, x: 0, y: 0 });
+      globe._rect = el.getBoundingClientRect();
       // OrbitControls divides by clientHeight (0 in a hidden pane -> NaN camera).
       Object.defineProperty(el, 'clientWidth', { configurable: true, get: () => w });
       Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => h });
@@ -1693,6 +1720,12 @@ window.__marctap = {
         maxDUp: Math.max(0, ...dds),
         finalD: globe.camera.position.length(),
       };
+    },
+    levelJumpPinch: (opts = {}) => {
+      const before = globe.tileDetail?.debugInfo();
+      const result = window.__marctap.zoom.pinch(120, 360, 36, 450, 350, { record: true, ...opts });
+      const after = globe.tileDetail?.debugInfo();
+      return { result, before, after, pass: !globe.tileDetail?.pendingFinal && (after?.timings?.upload || 0) <= 30 };
     },
   },
 };

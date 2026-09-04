@@ -4,11 +4,16 @@
 // (so a location can be shipped in a link as a stable index).
 
 import { LOCATIONS } from './locations.js';
+import { NEWS } from './news.js';
 import { dailyPicksFor, dailyThemeFor, loadHistory, DAILY_GENERATION, emojiForScore } from './game.js';
 import { dateForPuzzle } from './themes.js';
 import { puzzleNumberForToday } from './rng.js';
 
-const indexByName = new Map(LOCATIONS.map((l, i) => [l.name, i]));
+const NEWS_INDEX_BASE = 100000;
+const allByName = new Map([
+  ...LOCATIONS.map((l, i) => [l.name, { loc: l, index: i }]),
+  ...NEWS.map((l, i) => [l.name, { loc: l, index: NEWS_INDEX_BASE + i }]),
+]);
 
 export function shortDate(n) {
   return dateForPuzzle(n).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -43,7 +48,7 @@ export function replayLocations(n) {
 // sender's local exclusions, so a seed alone would not reproduce them).
 
 export function buildChallengePayload(name, session) {
-  const idx = session.locations.filter((l) => !l.isFamily).map((l) => indexByName.get(l.name));
+  const idx = session.locations.filter((l) => !l.isFamily).map((l) => allByName.get(l.name)?.index);
   if (idx.some((i) => i === undefined)) return null;
   const rounds = session.results.filter((r) => !r.isBonus).map((r) => r.score);
   return { t: 'v', n: String(name).slice(0, 24), i: idx, s: session.totalScore, r: rounds, p: session.isPractice ? 0 : session.seed };
@@ -51,7 +56,7 @@ export function buildChallengePayload(name, session) {
 
 export function importChallengePayload(p) {
   if (!p || p.t !== 'v' || !Array.isArray(p.i) || !p.i.length) return null;
-  const locs = p.i.map((i) => LOCATIONS[i]).filter(Boolean);
+  const locs = p.i.map((i) => i >= NEWS_INDEX_BASE ? NEWS[i - NEWS_INDEX_BASE] : LOCATIONS[i]).filter(Boolean);
   if (locs.length !== p.i.length) return null; // a link from a newer build than this one
   return { name: String(p.n || 'A friend').slice(0, 24), locations: locs, score: Number(p.s) || 0, rounds: Array.isArray(p.r) ? p.r.map(Number) : [], puzzle: Number(p.p) || 0 };
 }
@@ -63,18 +68,18 @@ export function visitedPlaces() {
   const best = new Map(); // name -> best score
   for (const rec of Object.values(history)) {
     for (const r of rec.rounds || []) {
-      if (r.b || !indexByName.has(r.name)) continue;
+      if (r.b || !allByName.has(r.name)) continue;
       if (!best.has(r.name) || best.get(r.name) < r.score) best.set(r.name, r.score);
     }
   }
   const dots = [];
   const countries = new Set();
   for (const [name, score] of best) {
-    const l = LOCATIONS[indexByName.get(name)];
+    const l = allByName.get(name).loc;
     dots.push({ lat: l.lat, lng: l.lng, name, score, color: tierColor(score) });
     if (l.country) countries.add(l.country);
   }
-  return { dots, pinned: dots.length, total: LOCATIONS.length, countries: countries.size };
+  return { dots, pinned: dots.length, total: LOCATIONS.length + NEWS.length, countries: countries.size };
 }
 
 export function tierColor(score) {

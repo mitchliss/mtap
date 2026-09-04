@@ -129,3 +129,62 @@ No remaining material blocker found. The earlier rejected and accepted-as-docume
 
 VERDICT: APPROVED
 **Converged: APPROVED in 5 rounds.**
+
+## Act 3 - Build
+
+### Round 1 - Codex build (thread 01a06584-770d-7f70-8a30-c063b4e6c301)
+Codex implemented all three workstreams (A news engine, B deep-zoom feel, C day/night Earth) in one
+pass: 15 files changed, nothing touched outside scope (locations.js, PLAN.md, package.json, .claude/
+untouched). Proof in its report: vite build green, 18/18 Node gates, standalone deal-oracle green.
+Stated deviations (accepted): context restore re-marks GPU resources rather than rebuilding the
+handle graph; no auto re-sharpen after a quiet second; Image-fallback fetches not network-abortable
+(generation tokens still discard stale results); LRU weights are decoded-RGBA estimates; the 30ms
+level-jump claim left to the browser pass.
+
+### Claude's verdict
+Full diff read; judged faithful to the frozen spec. All proof re-run first-hand: 18/18 gates,
+oracle byte-identical 1..43, vite build green.
+
+Browser verification (dev server, manual-tick harness for logic; hidden-pane rAF trap respected):
+- Boot smoke: zero errors, 5x _tick clean, shaders compile with all GFX flags on.
+- City-lights UV: computed world-position equirect UV matches expected (lng+180)/360 form EXACTLY
+  for Tokyo/NYC/Sydney/London (the atan(-p.z, p.x) convention is right); night-side screenshot
+  shows lights on Japan/Korea/China coast/Java where they belong.
+- EMPIRICAL rotation sweep (synthetic pointer drags through OrbitControls, auto-rotate disabled,
+  baseline-controlled - NOT the tautological groundPerPixelSweep, P-162): ground-motion-per-pixel
+  constant to +/-2.9 percent across alt 0.08..1.5 (metric 0.1533 flat; alt 0.04 +3.4 percent = the
+  documented 0.006 clamp floor). Spec allowed +/-15. rotateSpeed tracks alt*K_ROT exactly.
+- Pinch harness: smooth at 60Hz and 120Hz-style input with jitter (maxDUp 0, no spikes); NaN heal
+  passes; levelJumpPinch passes (no pendingFinal, upload <= 30ms).
+- Clouds gating: 0.32 menus far-out; EXACTLY 0 in gameplay far and near; 0 below d=1.7; restores.
+- Realistic-lighting toggle: ambient 0.5 <-> 1.75, clean flip both ways.
+- Context loss x2 via WEBGL_lose_context: counted, pinned gfxPinnedLow, zero errors; backgrounding
+  cycle sane.
+- News: deal #43 deterministic, no news (NEWS_START=44); newsDecisionFor(44) roll=false ->
+  "no-entry"; forced in-memory injection places a fake entry at its slot deterministically with
+  five rounds intact.
+- Screenshots: day limb + warm terminator band (start screen), night city lights, deep-zoom
+  Sentinel-2 patch with borders, all clean. Desktop tier resolves "low" here because this Windows
+  box reports maxTouchPoints=10 (touchscreen) - conservative-first per spec, promotes after a
+  clean session.
+
+### Round 1 fixes - Claude direct (below the delegate threshold; logged as the deviation)
+One real defect found by the browser pass, in src/tiledetail.js: the tile cache was FIFO (hits
+never re-inserted) and eviction close()d bitmaps immediately, so a build at the 32MB ceiling could
+have tiles it already held evicted and closed by its own later fetches -> "drawImage: image source
+is detached" (surfaced as tile lastFailure under a 6-city deep-zoom hammer). Fix: touch-on-hit
+(true LRU), evictions parked on a _retired list drained only at build start (no build mid-draw),
+plus a missing check() between the last fetch chunk and the synchronous mosaic paste. Re-ran the
+same hammer: lastFailure null with the cache pinned at the ceiling. Also corrected the stale
+"mostly even / no dark side" lighting comment in globe.js (P-129). All 18 gates + oracle + build
+re-run green after the fixes.
+
+### Deferred to the shipping gates (cannot be measured in a hidden pane - it delivers no rAF)
+Visible-tab p50/p95 + long-task benchmark (desktop smoke when the pane is actually open) and the
+iPhone p95 <= 16.7ms gate, which Mitch runs from the ?debug=1 overlay. Production smoke after push.
+
+### Sequencing deviation (logged at commit time)
+The plan called for three commits (B feel / C day+night / A news), assuming sequential builds.
+Codex delivered all three workstreams as one entangled diff (globe.js, graphics.js, main.js and
+index.html each carry all three; tiledetail.js calls the C sun shader), so intermediate per-
+workstream commits would not build. Shipped as ONE atomic v4.0 commit with Mitch's approval.

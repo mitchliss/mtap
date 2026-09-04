@@ -29,17 +29,21 @@ export function formatDistance(km, useMiles) {
 
 let countryFeatures = null;
 
-export async function loadCountries(url) {
-  const res = await fetch(url);
-  const geo = await res.json();
-  countryFeatures = geo.features.map((f) => ({
+export function prepareCountries(geojson) {
+  countryFeatures = geojson.features.map((f) => ({
     name: f.properties.NAME || f.properties.ADMIN,
     continent: f.properties.CONTINENT,
     iso2: f.properties.ISO_A2_EH || f.properties.ISO_A2,
     geometry: f.geometry,
     bbox: computeBBox(f.geometry),
   }));
-  return geo; // raw geojson is also used to paint the globe texture
+  return geojson;
+}
+
+export async function loadCountries(url) {
+  const res = await fetch(url);
+  const geo = await res.json();
+  return prepareCountries(geo); // raw geojson is also used to paint the globe texture
 }
 
 function computeBBox(geometry) {

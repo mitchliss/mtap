@@ -4,6 +4,7 @@ import { LOCATIONS } from './locations.js';
 import { distanceKm, countryAt } from './geo.js';
 import { mulberry32, seededShuffle, puzzleNumberForToday, todayKey } from './rng.js';
 import { themeForPuzzle, tagsFor } from './themes.js';
+import { NEWS, NEWS_START, newsRollFor } from './news.js';
 
 export const ROUNDS_PER_GAME = 5;
 export const MAX_ROUND_SCORE = 100;
@@ -19,8 +20,8 @@ export const MAX_GAME_SCORE = ROUND_MULTIPLIERS.reduce((a, m) => a + m * MAX_ROU
 // generation no longer counts as "already played".
 export const DAILY_GENERATION = 2;
 
-// Deterministic daily pick: 5 locations, easy -> hard, no repeated country,
-// at least 3 different continents. NEVER pass excludeNames for a daily pick -
+// Deterministic daily pick: 5 locations, easy -> hard, deduplicating countries
+// except for the explicit themed-day allowance. NEVER pass excludeNames for a daily pick -
 // dailies must stay identical for every player; exclusion is a practice-only
 // feature (avoids repeating recent games and spoiling upcoming dailies).
 // Pool-expansion guard: growing the database changes every seeded deal, which
@@ -109,6 +110,26 @@ function nearAny(loc, picks) {
   return false;
 }
 
+function continentCount(picks) {
+  return new Set(picks.map((l) => l.continent).filter(Boolean)).size;
+}
+
+export function injectNewsIntoDeal(base, entry) {
+  if (!entry) return { picks: base, slot: null, reason: 'no-entry' };
+  const order = [entry.slot, 0, 1, 2, 3, 4].filter((slot, i, a) => Number.isInteger(slot) && slot >= 0 && slot < 5 && a.indexOf(slot) === i);
+  const minContinents = Math.min(3, continentCount(base));
+  for (const slot of order) {
+    const others = base.filter((_, i) => i !== slot);
+    if (entry.country && others.some((l) => l.country === entry.country)) continue;
+    if (others.some((l) => distanceKm(entry.lat, entry.lng, l.lat, l.lng) < NEAR_KM)) continue;
+    const candidate = base.slice();
+    candidate[slot] = { ...entry, isNews: true };
+    if (continentCount(candidate) < minContinents) continue;
+    return { picks: candidate, slot, reason: slot === entry.slot ? 'injected' : 'slot-fallback' };
+  }
+  return { picks: base, slot: null, reason: 'deal-invariant' };
+}
+
 export function dailyPicksFor(n) {
   if (n < NO_REPEAT_START) return pickLocations(n);
   if (dailyPickCache.has(n)) return dailyPickCache.get(n);
@@ -137,6 +158,8 @@ export function dailyPicksFor(n) {
         if (avail < THEME_MIN_POOL) theme = null;
       }
       picks = pickLocations(k, exclude, theme ? { preferTag: theme.key } : {});
+      const news = k >= NEWS_START ? NEWS.find((entry) => entry.pn === k) : null;
+      if (news && (news.force || newsRollFor(k))) picks = injectNewsIntoDeal(picks, news).picks;
       dailyPickCache.set(k, picks);
       dailyThemeCache.set(k, theme);
     }
@@ -144,6 +167,15 @@ export function dailyPicksFor(n) {
     if (window.length > NO_REPEAT_WINDOW) window.shift();
   }
   return picks;
+}
+
+export function newsDecisionFor(n) {
+  const entry = n >= NEWS_START ? NEWS.find((item) => item.pn === n) : null;
+  const roll = newsRollFor(n);
+  if (!entry) return { pn: n, roll, entry: false, injected: false, reason: 'no-entry' };
+  if (!roll && !entry.force) return { pn: n, roll, entry: true, injected: false, reason: 'off-roll' };
+  const pick = dailyPicksFor(n).find((loc) => loc.isNews && loc.name === entry.name);
+  return { pn: n, roll, entry: true, injected: !!pick, reason: pick ? 'injected' : 'deal-invariant' };
 }
 
 export function practiceSeed() {
@@ -277,7 +309,7 @@ export function loadSettings() {
     saveJSON('settings', stored);
   }
   return Object.assign(
-    { miles: false, sound: true, music: true, musicStyle: 'auto', autoRotate: true, v: 2 },
+    { miles: false, sound: true, music: true, musicStyle: 'auto', autoRotate: true, realisticLighting: true, v: 2 },
     stored
   );
 }
@@ -320,7 +352,8 @@ export function computeStreak() {
 export function buildShareText(puzzleNumber, rounds, total, isPractice) {
   const emojis = rounds.map((r) => emojiForScore(r.score)).join('');
   const title = isPractice ? 'MTap practice' : `MTap #${puzzleNumber}`;
-  return `${title} 🌍 ${total}/${MAX_GAME_SCORE}\n${emojis}`;
+  const news = rounds.some((r) => r.isNews || r.target?.isNews) ? ' 📰' : '';
+  return `${title}${news} 🌍 ${total}/${MAX_GAME_SCORE}\n${emojis}`;
 }
 
 // Multiplier for a given 0-based round index (shared by UI + reconstruction).
