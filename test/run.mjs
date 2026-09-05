@@ -102,6 +102,30 @@ test('subsolar calculation is finite and bounded', () => {
   const sun = subsolarPoint(new Date('2026-09-02T12:00:00Z'));
   assert.ok(Number.isFinite(sun.lat) && Number.isFinite(sun.lng)); assert.ok(Math.abs(sun.lat) <= 23.5 && Math.abs(sun.lng) <= 180);
 });
+test('pool is large enough for the 365-day no-repeat window', () => {
+  // 5 slots/day * 365-day window + margin for the country/diff filters.
+  assert.ok(LOCATIONS.length >= 5 * 365 + 45, `pool=${LOCATIONS.length}`);
+});
+test('no location repeats within any 365-day span from puzzle 48 onward', function () {
+  const lastSeen = new Map();
+  for (let k = 1; k <= 448; k++) {
+    for (const p of dailyPicksFor(k)) {
+      const prev = lastSeen.get(p.name);
+      if (prev !== undefined && k >= 48) {
+        assert.ok(k - prev > 365, `${p.name} dealt at #${prev} and again at #${k} (${k - prev} days)`);
+      }
+      lastSeen.set(p.name, k);
+    }
+  }
+});
+test('year-window deals stay deterministic and well-formed', () => {
+  for (const k of [48, 100, 250, 448]) {
+    const a = dailyPicksFor(k), b = dailyPicksFor(k);
+    assert.deepEqual(a.map((p) => p.name), b.map((p) => p.name));
+    assert.equal(a.length, 5);
+    assert.equal(new Set(a.map((p) => p.country)).size, 5, `country dupe on #${k}`);
+  }
+});
 test('immutable deal oracle remains byte-identical through puzzle 43', () => {
   const out = execFileSync(process.execPath, ['scripts/capture-deal-oracle.mjs', '--check'], { cwd: process.cwd(), encoding: 'utf8' });
   assert.match(out, /PASS deal oracle/);

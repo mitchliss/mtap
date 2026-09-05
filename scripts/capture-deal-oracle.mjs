@@ -5,25 +5,36 @@ import { fileURLToPath } from 'node:url';
 import { dailyPicksFor } from '../src/game.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const fixturePath = path.join(root, 'test', 'fixtures', 'deals-through-43.json');
-const actual = Object.fromEntries(
-  Array.from({ length: 43 }, (_, i) => {
-    const pn = i + 1;
-    return [pn, dailyPicksFor(pn).map((loc) => loc.name)];
-  }),
-);
-const serialized = `${JSON.stringify(actual, null, 2)}\n`;
+// Every fixture is immutable once captured: each one pins the deals that were
+// live through its last puzzle, so any dealer change must reproduce ALL of them.
+const FIXTURES = [43, 47];
 
-if (process.argv.includes('--check')) {
-  const expected = await readFile(fixturePath, 'utf8');
-  if (expected !== serialized) {
-    console.error(`FAIL deal oracle differs: ${path.relative(root, fixturePath)}`);
-    process.exitCode = 1;
-  } else {
-    console.log('PASS deal oracle: puzzles 1..43 are byte-identical');
-  }
-} else {
-  await mkdir(path.dirname(fixturePath), { recursive: true });
-  await writeFile(fixturePath, serialized, 'utf8');
-  console.log(`Captured ${path.relative(root, fixturePath)}`);
+function serialize(last) {
+  const actual = Object.fromEntries(
+    Array.from({ length: last }, (_, i) => {
+      const pn = i + 1;
+      return [pn, dailyPicksFor(pn).map((loc) => loc.name)];
+    }),
+  );
+  return `${JSON.stringify(actual, null, 2)}\n`;
 }
+
+let failed = false;
+for (const last of FIXTURES) {
+  const fixturePath = path.join(root, 'test', 'fixtures', `deals-through-${last}.json`);
+  const serialized = serialize(last);
+  if (process.argv.includes('--check')) {
+    const expected = await readFile(fixturePath, 'utf8');
+    if (expected !== serialized) {
+      console.error(`FAIL deal oracle differs: ${path.relative(root, fixturePath)}`);
+      failed = true;
+    } else {
+      console.log(`PASS deal oracle: puzzles 1..${last} are byte-identical`);
+    }
+  } else {
+    await mkdir(path.dirname(fixturePath), { recursive: true });
+    await writeFile(fixturePath, serialized, 'utf8');
+    console.log(`Captured ${path.relative(root, fixturePath)}`);
+  }
+}
+if (failed) process.exitCode = 1;

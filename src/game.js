@@ -34,6 +34,7 @@ const POOL_TIERS = [
   { upToPuzzle: 6, size: 276 }, // through Jul 27, 2026
   { upToPuzzle: 33, size: 332 }, // through Aug 23, 2026 (waterways pack lands on #34)
   // (the v3.8 waterways and v3.9 Jewish packs both shipped on #33 — one tier covers both)
+  { upToPuzzle: 47, size: 453 }, // through Sep 6, 2026 (v4.1 world pack lands on #48)
 ];
 
 function poolForPuzzle(seed) {
@@ -96,6 +97,15 @@ export function dailySeed() { return puzzleNumberForToday(); }
 // it is fully deterministic - every player derives the identical sequence.
 const NO_REPEAT_WINDOW = 30;      // days in the rolling window (incl. today)
 const NO_REPEAT_START = 7;        // puzzle #7 = Jul 28, 2026 (earlier days stay as dealt)
+// v4.1 (feedback: "Pyramids of Giza three times"): from #48 the window is a full
+// year. That only works with a pool comfortably above 5*365 names — the
+// year-window Node gate asserts the margin on every run. Gated by puzzle number
+// so no already-dealt day changes.
+const YEAR_WINDOW = 365;
+const YEAR_WINDOW_START = 48;     // puzzle #48 = Sep 7, 2026
+// The exclusion pass covers (days - 1) prior deals, so the year regime passes
+// YEAR_WINDOW + 1 to exclude a full 365 previous days (min repeat gap: 366).
+const windowDaysFor = (k) => (k >= YEAR_WINDOW_START ? YEAR_WINDOW + 1 : NO_REPEAT_WINDOW);
 const dailyPickCache = new Map(); // puzzle number -> picks (avoids re-walking the chain)
 
 // From puzzle #34 the window also excludes anything within NEAR_KM of a recent
@@ -106,7 +116,10 @@ const PROXIMITY_START = 34;
 const NEAR_KM = 100;
 
 function nearAny(loc, picks) {
-  for (const q of picks) if (distanceKm(loc.lat, loc.lng, q.lat, q.lng) < NEAR_KM) return true;
+  for (const q of picks) {
+    if (Math.abs(loc.lat - q.lat) > 0.91) continue; // > ~101km of latitude alone: can't be near
+    if (distanceKm(loc.lat, loc.lng, q.lat, q.lng) < NEAR_KM) return true;
+  }
   return false;
 }
 
@@ -144,13 +157,24 @@ export function dailyPicksFor(n) {
     if (dailyPickCache.has(k)) {
       picks = dailyPickCache.get(k);
     } else {
+      const days = windowDaysFor(k);
       const exclude = new Set();
       const recent = [];
       for (const w of window) {
-        if (w.n >= k - (NO_REPEAT_WINDOW - 1)) for (const l of w.picks) { exclude.add(l.name); recent.push(l); }
+        if (w.n >= k - (days - 1)) for (const l of w.picks) { exclude.add(l.name); recent.push(l); }
       }
-      if (k >= PROXIMITY_START) {
+      if (k >= PROXIMITY_START && k < YEAR_WINDOW_START) {
         for (const l of poolForPuzzle(k)) if (!exclude.has(l.name) && nearAny(l, recent)) exclude.add(l.name);
+      } else if (k >= YEAR_WINDOW_START) {
+        // Name exclusions are the hard no-repeat contract; the proximity pass is
+        // best-effort on top and is skipped (or discarded) whenever it would
+        // starve pickLocations into dropping the whole exclusion set.
+        const pool = poolForPuzzle(k);
+        if (pool.length - exclude.size >= 140) {
+          const withProx = new Set(exclude);
+          for (const l of pool) if (!withProx.has(l.name) && nearAny(l, recent)) withProx.add(l.name);
+          if (pool.length - withProx.size >= 40) for (const name of withProx) exclude.add(name);
+        }
       }
       let theme = themeForPuzzle(k);
       if (theme) {
@@ -164,7 +188,7 @@ export function dailyPicksFor(n) {
       dailyThemeCache.set(k, theme);
     }
     window.push({ n: k, picks });
-    if (window.length > NO_REPEAT_WINDOW) window.shift();
+    while (window.length > YEAR_WINDOW) window.shift();
   }
   return picks;
 }
@@ -308,8 +332,16 @@ export function loadSettings() {
     stored.v = 2;
     saveJSON('settings', stored);
   }
+  // v3 migration (2026-09-05): the family voted day/night lighting off. Wipe the
+  // value once so devices that stored the old ON default flip back to daytime;
+  // anyone who re-enables it afterward saves v3 and keeps their choice.
+  if (stored.v < 3) {
+    delete stored.realisticLighting;
+    stored.v = 3;
+    saveJSON('settings', stored);
+  }
   return Object.assign(
-    { miles: false, sound: true, music: true, musicStyle: 'auto', autoRotate: true, realisticLighting: true, v: 2 },
+    { miles: false, sound: true, music: true, musicStyle: 'auto', autoRotate: true, realisticLighting: false, v: 3 },
     stored
   );
 }
