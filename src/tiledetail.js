@@ -13,15 +13,17 @@ import { toRad, toDeg } from './geo.js';
 const TILE_SIZE = 256;
 const MAX_Z = 12;
 const MIN_Z = 3;
-const PATCH_W = 1792;          // patch canvas width (px)
 const PATCH_LEVELS = [1792, 1280, 896];
 const CACHE_BYTES = 32 * 1024 * 1024;
 const ENGAGE_DISTANCE = 2.1;   // start streaming below this camera distance
 const FULL_DISTANCE = 1.55;    // fully opaque below this
 const MERC_LAT_LIMIT = 85.05;
 const SETTLE_S = 0.12;         // camera must rest this long before a rebuild (s, frame-time based)
-const FADE_S = 0.25;           // a new patch crossfades in over the old one
-const REBUILD_ALT_RATIO = 2;   // ...or rebuild mid-motion once altitude halves/doubles (one zoom level)
+const FADE_S = 0.45;
+const REBUILD_ALT_RATIO = 1.6;
+const FETCH_CONCURRENCY = 6;
+
+export const detailFade = (t) => THREE.MathUtils.smoothstep(t, 0, 1);
 
 const TILE_HOSTS = [
   'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g',
@@ -32,6 +34,22 @@ function mercY(lat) {
   // Latitude -> normalized web-mercator y in [0,1]
   const s = Math.sin(toRad(Math.max(-MERC_LAT_LIMIT, Math.min(MERC_LAT_LIMIT, lat))));
   return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI);
+}
+
+async function fetchTileBitmap(url, signal) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  const timeout = setTimeout(abort, 12000);
+  try {
+    const response = await fetch(url, { mode: 'cors', signal: controller.signal });
+    if (!response.ok) throw new Error(`tile ${response.status}`);
+    return await createImageBitmap(await response.blob());
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
+  }
 }
 
 function geometryBBox(geometry) {
@@ -71,6 +89,7 @@ export class TileDetail {
     this.fadeT = 0;
     this.builtAlt = null;      // altitude the current patch was built for
     this.lastRegionKey = '';
+    this.lastBuildStarted = -Infinity;
     this._probe();
   }
 
@@ -100,10 +119,7 @@ export class TileDetail {
       return hit;
     }
     const p = (typeof createImageBitmap === 'function' && typeof fetch === 'function' ?
-      fetch(`${TILE_HOSTS[hostIdx]}/${z}/${y}/${xm}.jpg`, { mode: 'cors', signal }).then((r) => {
-        if (!r.ok) throw new Error(`tile ${r.status}`);
-        return r.blob();
-      }).then(createImageBitmap) : new Promise((resolve, reject) => {
+      fetchTileBitmap(`${TILE_HOSTS[hostIdx]}/${z}/${y}/${xm}.jpg`, signal) : new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous'; // required or the WebGL upload is blocked
       const timer = setTimeout(() => { img.src = ''; reject(new Error('tile timeout')); }, 12000);
@@ -111,7 +127,12 @@ export class TileDetail {
       img.onerror = () => { clearTimeout(timer); reject(new Error('tile error')); };
       img.src = `${TILE_HOSTS[hostIdx]}/${z}/${y}/${xm}.jpg`;
     }));
-    p.catch(() => this.cache.delete(key));
+    p.catch(() => {
+      if (this.cache.get(key) === p) {
+        this.cache.delete(key);
+        this.cacheBytes -= TILE_SIZE * TILE_SIZE * 4;
+      }
+    });
     this.cache.set(key, p);
     this.cacheBytes += TILE_SIZE * TILE_SIZE * 4;
     while (this.cacheBytes > CACHE_BYTES) {
@@ -130,16 +151,22 @@ export class TileDetail {
     for (const p of this._retired.splice(0)) p?.then((img) => img.close?.()).catch(() => {});
   }
 
-  gestureStart() { this.gestureActive = true; this.cancel(); }
+  gestureStart() { this.gestureActive = true; }
   gestureEnd() { this.gestureActive = false; }
-  cancel() { this.generation++; this._abortController?.abort(); this._abortController = null; this.building = false; this.pendingFinal?.release?.(); this.pendingFinal = null; }
+  cancel() {
+    this.generation++;
+    this._abortController?.abort();
+    this._abortController = null;
+    // The running build releases its canvas in finally before another can start.
+    this.pendingFinal?.release?.(); this.pendingFinal = null;
+  }
   setLighting(on) { if (this.mesh) this.globe.applySunShader(this.mesh.material); if (this.prev) this.globe.applySunShader(this.prev.material); }
   debugInfo() { return { timings: this.timings, lastFailure: this.lastFailure, generation: this.generation, cacheBytes: this.cacheBytes, patchWidth: PATCH_LEVELS[this.patchLevel] }; }
 
   // Called every frame from the globe's tick.
   update(dt) {
     if (this.enabled === false) return;
-    if (!this.gestureActive && this.pendingFinal) {
+    if (this.pendingFinal && !this.prev) {
       const finish = this.pendingFinal; this.pendingFinal = null;
       const t = performance.now();
       finish();
@@ -156,13 +183,14 @@ export class TileDetail {
     if (this.mesh) {
       if (this.prev) {
         this.fadeT += dt;
-        const a = Math.min(1, this.fadeT / FADE_S);
+        const a = detailFade(this.fadeT / FADE_S);
         this.mesh.material.opacity = zoomOp * a;
         this.prev.material.opacity = zoomOp;
         this.prev.visible = zoomOp > 0.02;
         if (a >= 1) { this._dispose(this.prev); this.prev = null; this.mesh.renderOrder = 1; }
       } else {
-        this.mesh.material.opacity = zoomOp;
+        this.fadeT += dt;
+        this.mesh.material.opacity = zoomOp * detailFade(this.fadeT / FADE_S);
       }
       this.mesh.visible = this.mesh.material.opacity > 0.02;
     }
@@ -176,21 +204,28 @@ export class TileDetail {
     const alt = Math.max(d - 1, 1e-4);
     const levelJump = this.builtAlt !== null &&
       Math.max(alt / this.builtAlt, this.builtAlt / alt) >= REBUILD_ALT_RATIO;
-    if (this.gestureActive || this.building || (this.stillFor < SETTLE_S && !levelJump)) return;
+    if (this.building || this.pendingFinal || this.prev) return;
+    // Refresh during a sustained pinch, but rate-limit work while moving.
+    if (this.stillFor < SETTLE_S && !levelJump && this.mesh) return;
+    if (performance.now() - this.lastBuildStarted < 350) return;
 
     const region = this._visibleRegion();
     if (!region) return;
     const key = [region.west.toFixed(2), region.east.toFixed(2), region.south.toFixed(2), region.north.toFixed(2)].join('|');
     if (key === this.lastRegionKey) return;
     this.building = true;
-    this.builtAlt = alt;
+    this.lastBuildStarted = performance.now();
     this._drainRetired(); // no build is mid-draw right here, so closing is safe
     const token = ++this.generation;
     this._abortController = new AbortController();
-    this._buildPatch(region, token)
-      .then(() => { this.lastRegionKey = key; })
-      .catch((err) => { if (err.message !== 'cancelled') this.lastFailure = err.message; })
-      .finally(() => { this.building = false; });
+    this._buildPatch(region, token, { key, alt })
+      .catch((err) => {
+        if (token === this.generation && err.message !== 'cancelled') {
+          this.lastFailure = err.message;
+          this.lastBuildStarted = performance.now() + 1500;
+        }
+      })
+      .finally(() => { this.building = false; this._drainRetired(); });
   }
 
   // Lat/lng bounds of what the camera can see, via boundary raycasts
@@ -202,12 +237,13 @@ export class TileDetail {
     if (!center) return null;
     const capDeg = toDeg(Math.acos(1 / d)); // angular radius of the visible cap
     const ray = new THREE.Raycaster();
+    cam.updateMatrixWorld();
+    const surface = new THREE.Sphere(new THREE.Vector3(), 1);
     const pts = [];
     for (const [nx, ny] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
       ray.setFromCamera({ x: nx, y: ny }, cam);
-      const hits = ray.intersectObject(this.globe.sphere, false);
-      if (hits.length) {
-        const v = hits[0].point;
+      const v = ray.ray.intersectSphere(surface, new THREE.Vector3());
+      if (v) {
         const lat = toDeg(Math.asin(v.y / v.length()));
         const lng = toDeg(Math.atan2(-v.z, v.x));
         pts.push({ lat, lng });
@@ -230,7 +266,7 @@ export class TileDetail {
     return { west: center.lng - lngHalf, east: center.lng + lngHalf, south, north };
   }
 
-  async _buildPatch(region, token) {
+  async _buildPatch(region, token, metadata = {}) {
     const phase = async (name, fn) => { const t = performance.now(); const value = await fn(); this.timings[name] = performance.now() - t; return value; };
     const check = () => { if (token !== this.generation) throw new Error('cancelled'); };
     const patchW = PATCH_LEVELS[this.patchLevel];
@@ -251,19 +287,27 @@ export class TileDetail {
       z--;
     }
 
-    // Fetch everything (tolerate a few gaps)
+    // Six workers bound network/decode pressure; retain successfully cached tiles.
     const jobs = [];
     for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
-      jobs.push(this._loadTile(z, x, y, this.hostIdx, this._abortController?.signal).then((img) => ({ x, y, img })).catch(() => null));
+      jobs.push({ x, y });
     }
     const tiles = [];
     await phase('mosaic', async () => {
-      for (let i = 0; i < jobs.length; i += 6) { check(); tiles.push(...(await Promise.all(jobs.slice(i, i + 6))).filter(Boolean)); }
+      let next = 0;
+      const worker = async () => {
+        while (next < jobs.length && token === this.generation) {
+          const { x, y } = jobs[next++];
+          try {
+            const img = await this._loadTile(z, x, y, this.hostIdx, this._abortController?.signal);
+            tiles.push({ x, y, img });
+          } catch { /* transparent gaps show the previous imagery underneath */ }
+        }
+      };
+      await Promise.all(Array.from({ length: FETCH_CONCURRENCY }, worker));
     });
     if (!tiles.length) throw new Error('no tiles');
     check(); // a cancel during the last fetch chunk must not reach the paste
-
-
 
     // 1) paste tiles onto a mercator-space canvas
     const mercCanvas = document.createElement('canvas');
@@ -275,76 +319,109 @@ export class TileDetail {
     }
 
     // 2) resample rows into an equirectangular patch (linear in latitude)
-    const patchH = Math.max(256, Math.round(patchW * (latSpan / lonSpan)));
+    const patchH = Math.min(patchW, Math.max(256, Math.round(patchW * (latSpan / lonSpan))));
     const poolItem = this.canvasPool.find((item) => !item.owned);
     if (!poolItem) throw new Error('canvas pool busy');
     poolItem.owned = true;
-    const patch = poolItem.canvas;
-    patch.width = patchW;
-    patch.height = patchH;
-    const pctx = patch.getContext('2d');
-    const mercTop = y0 / n;                       // normalized merc y at canvas top
-    const mercPxPerUnit = n * TILE_SIZE;          // merc canvas px per normalized unit
-    const srcXOffset = (((region.west + 180) / 360) * n - x0) * TILE_SIZE;
-    const srcWidth = (lonSpan / 360) * n * TILE_SIZE;
-    let sliceStart = performance.now();
-    const resampleStart = sliceStart;
-    for (let row = 0; row < patchH; row++) {
-      check();
-      const lat = region.north - (latSpan * (row + 0.5)) / patchH;
-      const sy = (mercY(lat) - mercTop) * mercPxPerUnit;
-      pctx.drawImage(mercCanvas, srcXOffset, sy - 0.5, srcWidth, 1, 0, row, patchW, 1);
-      if (performance.now() - sliceStart >= 6) { await new Promise(requestAnimationFrame); sliceStart = performance.now(); }
-    }
-    this.timings.resample = performance.now() - resampleStart;
-
-    // 3) country borders, same style as the base texture
-    const px = (lng) => ((lng - region.west) / lonSpan) * patchW;
-    const py = (lat) => ((region.north - lat) / latSpan) * patchH;
-    const stroke = (color, width) => {
-      pctx.strokeStyle = color;
-      pctx.lineWidth = width;
-      for (const feature of this.geojson.features) {
-        const b = feature.bbox;
-        if (b && (b[2] < region.west || b[0] > region.east || b[3] < region.south || b[1] > region.north)) continue;
-        const geom = feature.geometry;
-        const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
-        for (const poly of polys) for (const ring of poly) {
-          pctx.beginPath();
-          let prev = null;
-          for (const [lng0, lat0] of ring) {
-            // unwrap ring longitudes into the (possibly >180) region frame
-            let lng = lng0;
-            while (lng < region.west - 180) lng += 360;
-            while (lng > region.west + 180 + lonSpan) lng -= 360;
-            const x = px(lng), y = py(lat0);
-            if (prev === null || Math.abs(x - prev) > patchW / 2) pctx.moveTo(x, y);
-            else pctx.lineTo(x, y);
-            prev = x;
-          }
-          pctx.stroke();
-        }
+    let handedOff = false;
+    try {
+      const patch = poolItem.canvas;
+      patch.width = patchW;
+      patch.height = patchH;
+      const pctx = patch.getContext('2d');
+      pctx.imageSmoothingEnabled = true;
+      pctx.imageSmoothingQuality = 'high';
+      const mercTop = y0 / n;                       // normalized merc y at canvas top
+      const mercPxPerUnit = n * TILE_SIZE;          // merc canvas px per normalized unit
+      const srcXOffset = (((region.west + 180) / 360) * n - x0) * TILE_SIZE;
+      const srcWidth = (lonSpan / 360) * n * TILE_SIZE;
+      let sliceStart = performance.now();
+      const resampleStart = sliceStart;
+      for (let row = 0; row < patchH; row++) {
+        check();
+        const sy = (mercY(region.north - latSpan * row / patchH) - mercTop) * mercPxPerUnit;
+        const bottom = (mercY(region.north - latSpan * (row + 1) / patchH) - mercTop) * mercPxPerUnit;
+        pctx.drawImage(mercCanvas, srcXOffset, sy, srcWidth, bottom - sy, 0, row, patchW, 1);
+        if (performance.now() - sliceStart >= 3) { await new Promise((resolve) => setTimeout(resolve, 0)); sliceStart = performance.now(); }
       }
-    };
-    const borderStart = performance.now();
-    stroke('rgba(0, 0, 0, 0.3)', 2.4);
-    stroke('rgba(255, 255, 255, 0.5)', 1.1);
-    this.timings.borders = performance.now() - borderStart;
+      this.timings.resample = performance.now() - resampleStart;
 
-    // 4) drape on a sphere segment matching the region exactly
-    this.pendingFinal = () => {
-      if (token !== this.generation || this.gestureActive) { poolItem.owned = false; return; }
-      const geoStart = performance.now();
-      const tex = new THREE.CanvasTexture(patch);
-      tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-      const geo = new THREE.SphereGeometry(1.0006, 96, 96, toRad(region.west + 180), toRad(lonSpan), toRad(90 - region.north), toRad(latSpan));
-      this.timings.geometry = performance.now() - geoStart;
-      const mat = new THREE.MeshPhongMaterial({ map: tex, transparent: true, opacity: 0, shininess: 8, specular: new THREE.Color(0x222c3a), depthWrite: false });
-      this.globe.applySunShader(mat);
-      const mesh = new THREE.Mesh(geo, mat); mesh.userData.poolItem = poolItem;
-      this._swapIn(mesh);
-    };
-    this.pendingFinal.release = () => { poolItem.owned = false; };
+      // 3) country borders, same style as the base texture
+      const px = (lng) => ((lng - region.west) / lonSpan) * patchW;
+      const py = (lat) => ((region.north - lat) / latSpan) * patchH;
+      const stroke = async (color, width) => {
+        let borderSlice = performance.now(), points = 0;
+        pctx.strokeStyle = color;
+        pctx.lineWidth = width;
+        for (const feature of this.geojson.features) {
+          const b = feature.bbox;
+          if (b && (b[3] < region.south || b[1] > region.north ||
+            ![-360, 0, 360].some((shift) => b[2] + shift >= region.west && b[0] + shift <= region.east))) continue;
+          const geom = feature.geometry;
+          const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+          for (const poly of polys) for (const ring of poly) {
+            pctx.beginPath();
+            let prev = null;
+            for (const [lng0, lat0] of ring) {
+              // unwrap ring longitudes into the (possibly >180) region frame
+              let lng = lng0;
+              while (lng < region.west - 180) lng += 360;
+              while (lng > region.west + 180 + lonSpan) lng -= 360;
+              const x = px(lng), y = py(lat0);
+              if (prev === null || Math.abs(x - prev) > patchW / 2) pctx.moveTo(x, y);
+              else pctx.lineTo(x, y);
+              prev = x;
+              if (++points % 256 === 0 && performance.now() - borderSlice >= 3) {
+                await new Promise((resolve) => setTimeout(resolve, 0));
+                check(); borderSlice = performance.now();
+              }
+            }
+            pctx.stroke();
+          }
+        }
+      };
+      const borderStart = performance.now();
+      await stroke('rgba(0, 0, 0, 0.3)', 2.4);
+      await stroke('rgba(255, 255, 255, 0.5)', 1.1);
+      this.timings.borders = performance.now() - borderStart;
+
+      // Feather the patch perimeter so panning never exposes a hard tile seam.
+      pctx.globalCompositeOperation = 'destination-in';
+      for (const horizontal of [true, false]) {
+        const gradient = pctx.createLinearGradient(0, 0, horizontal ? patchW : 0, horizontal ? 0 : patchH);
+        gradient.addColorStop(0, 'transparent'); gradient.addColorStop(0.035, '#fff');
+        gradient.addColorStop(0.965, '#fff'); gradient.addColorStop(1, 'transparent');
+        pctx.fillStyle = gradient; pctx.fillRect(0, 0, patchW, patchH);
+      }
+      pctx.globalCompositeOperation = 'source-over';
+      check();
+
+      // 4) drape on a sphere segment matching the region exactly
+      this.pendingFinal = () => {
+        if (token !== this.generation) { poolItem.owned = false; return; }
+        const geoStart = performance.now();
+        const tex = new THREE.CanvasTexture(patch);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = Math.min(8, this.globe.renderer.capabilities.getMaxAnisotropy());
+        // Upload explicitly so the timing includes GPU transfer, not just allocation.
+        this.globe.renderer.initTexture(tex);
+        const segments = (span) => THREE.MathUtils.clamp(Math.ceil(span * 2), 16, 96);
+        const geo = new THREE.SphereGeometry(1.0006, segments(lonSpan), segments(latSpan), toRad(region.west + 180), toRad(lonSpan), toRad(90 - region.north), toRad(latSpan));
+        this.timings.geometry = performance.now() - geoStart;
+        const mat = new THREE.MeshPhongMaterial({ map: tex, transparent: true, opacity: 0, shininess: 8, specular: new THREE.Color(0x222c3a), depthWrite: false });
+        this.globe.applySunShader(mat);
+        const mesh = new THREE.Mesh(geo, mat); mesh.userData.poolItem = poolItem;
+        this._swapIn(mesh);
+        this.lastRegionKey = metadata.key || '';
+        this.builtAlt = metadata.alt ?? null;
+        this.lastFailure = null;
+      };
+      this.pendingFinal.release = () => { poolItem.owned = false; };
+      handedOff = true;
+    } finally {
+      if (!handedOff) poolItem.owned = false;
+      mercCanvas.width = mercCanvas.height = 0;
+    }
   }
 
   // The new patch draws above the old one (renderOrder 2) while it fades in;

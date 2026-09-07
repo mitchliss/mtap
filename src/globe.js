@@ -714,7 +714,6 @@ export class Globe {
     // per-event read sees a momentarily diagonal pair — a transient that is
     // always positive and therefore biases any smoothing into a slow creep.
     const startPinch = () => {
-      this.tileDetail?.cancel();
       const p = pinchPair();
       this._pinch = { gap: p.gap, appliedGap: p.gap, moved: false };
       this._zoomAim = { x: p.mx, y: p.my, t: performance.now() };
@@ -842,6 +841,7 @@ export class Globe {
 
     el.addEventListener('pointercancel', (e) => {
       this._activePointers.delete(e.pointerId);
+      if (!this._activePointers.size) this.tileDetail?.gestureEnd();
       endPinch();
       endDrag(e);
     });
@@ -1672,7 +1672,7 @@ export class Globe {
     }
 
     this.renderer.render(this.scene, this.camera);
-    this._frameTimes.push({ t: performance.now(), ms: dt * 1000 });
+    this._frameTimes.push({ t: performance.now(), ms: (this._dtOverride ?? rawDt) * 1000 });
     while (this._frameTimes.length && this._frameTimes[0].t < performance.now() - 10000) this._frameTimes.shift();
     if (!this._tierBenchmarked && this._frameTimes.length > 120 && this._frameTimes.at(-1).t - this._frameTimes[0].t > 9000) {
       this._tierBenchmarked = true;
