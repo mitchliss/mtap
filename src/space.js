@@ -68,11 +68,15 @@ export class SpaceScenery {
       this.group.add(item); return item;
     };
     this.planets = [
-      ['Jupiter', -0.7, 0.42, 0.17], ['Saturn', 0.65, -0.42, 0.24],
-      ['Mars', 0.76, 0.56, 0.075], ['Neptune', -0.68, -0.61, 0.09],
-    ].map(([name, x, y, size]) => {
+      ['Jupiter', 215, 38, 3.0], ['Saturn', 290, 46, 4.2],
+      ['Mars', 35, 34, 1.3], ['Neptune', 125, 55, 1.8],
+    ].map(([name, longitude, radius, size]) => {
       const item = sprite(planetTexture(name)); item.name = name;
-      return { item, x, y, size };
+      const angle = THREE.MathUtils.degToRad(longitude);
+      item.position.set(radius * Math.cos(angle), radius * Math.sin(angle) * Math.sin(0.41),
+        radius * Math.sin(angle) * Math.cos(0.41));
+      item.scale.setScalar(size);
+      return { item };
     });
     const cometMap = texture((g, w, h) => {
       const tail = g.createLinearGradient(0, 0, w, 0);
@@ -85,8 +89,13 @@ export class SpaceScenery {
       glow.addColorStop(0, '#fff'); glow.addColorStop(0.2, '#d4f5ff'); glow.addColorStop(1, 'rgba(116,200,255,0)');
       g.fillStyle = glow; g.fillRect(w - 34, 0, 34, h);
     }, 256, 64);
-    this.comets = [sprite(cometMap, 0.85, true), sprite(cometMap, 0.65, true)];
-    this.comets.forEach((item, i) => { item.name = 'Comet'; item.material.rotation = i ? -0.3 : 0.3; });
+    this.comets = [0.85, 0.65].map((opacity) => {
+      const material = new THREE.MeshBasicMaterial({ map: cometMap, transparent: true,
+        depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+      material.userData.maxOpacity = opacity; this.materials.push(material);
+      const item = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 1.4), material);
+      item.name = 'Comet'; this.group.add(item); return item;
+    });
     // A single GPU instance batch for the entire scattered asteroid belt.
     const geo = new THREE.IcosahedronGeometry(1, 0);
     const mat = new THREE.MeshBasicMaterial({ color: '#9b8e7e', transparent: true, depthWrite: false, wireframe: false });
@@ -95,8 +104,8 @@ export class SpaceScenery {
     this.asteroids.name = 'Asteroid belt';
     this.group.add(this.asteroids);
     const rng = mulberry32(8721);
-    this.rocks = Array.from({ length: 110 }, () => ({ x: rng() * 2.4 - 1.2,
-      y: rng() * 0.18 - 0.09, size: 0.0015 + rng() ** 3 * 0.006,
+    this.rocks = Array.from({ length: 110 }, () => ({ angle: rng() * Math.PI * 2, radius: 39 + rng() * 7,
+      y: rng() * 2 - 1, size: 0.035 + rng() ** 3 * 0.13,
       rotation: rng() * 6.28, color: new THREE.Color().setHSL(0.09, 0.12, 0.24 + rng() * 0.3) }));
     this.dummy = new THREE.Object3D();
     this.rocks.forEach((rock, i) => this.asteroids.setColorAt(i, rock.color));
@@ -109,29 +118,27 @@ export class SpaceScenery {
     if (!this.group.visible) return;
     if (!this.reducedMotion?.matches) this.time += dt;
     this.materials.forEach((mat) => { mat.opacity = opacity * mat.userData.maxOpacity; });
-    // Camera-oriented scenery keeps planets in the margins on narrow phones.
-    // Everything is 35 units behind Earth, so Earth always occludes the scenery.
-    this.group.quaternion.copy(camera.quaternion);
-    const h = (35 + camera.position.length()) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const w = h * camera.aspect;
-    const unit = Math.min(w, h);
-    this.planets.forEach(({ item, x, y, size }) => {
-      item.position.set(x * w, y * h, -35); item.scale.setScalar(size * unit);
-    });
+    // Fixed Earth-centered world coordinates, shared with the star field and
+    // Moon. Orbiting the camera reveals different parts of the surrounding sky.
     this.comets.forEach((item, i) => {
-      const phase = ((this.time + i * 31) % 64) / 64;
-      item.position.set((-1.25 + phase * 2.5) * w, (i ? -0.76 + phase * 0.2 : 0.64 + phase * 0.22) * h, -35);
-      item.scale.set(0.32 * unit, 0.08 * unit, 1);
+      const angle = this.time * 0.006 + i * Math.PI + 0.8;
+      const radius = 48 + i * 8;
+      item.position.set(radius * Math.cos(angle), radius * Math.sin(angle) * Math.sin(0.65),
+        radius * Math.sin(angle) * Math.cos(0.65));
+      // The tail follows the orbit's tangent in the same fixed orbital plane.
+      item.rotation.set(Math.PI / 2 - 0.65, 0, angle + Math.PI / 2);
     });
     this.rocks.forEach((rock, i) => {
-      const x = ((rock.x + this.time * 0.003 + 1.2) % 2.4) - 1.2;
-      this.dummy.position.set(x * w, (-0.55 + 0.21 * x + rock.y) * h, -35);
+      const angle = rock.angle + this.time * 0.0008;
+      this.dummy.position.set(rock.radius * Math.cos(angle),
+        rock.radius * Math.sin(angle) * Math.sin(0.41) + rock.y,
+        rock.radius * Math.sin(angle) * Math.cos(0.41));
       this.dummy.rotation.set(rock.rotation, rock.rotation + this.time * 0.025, rock.rotation);
-      this.dummy.scale.set(rock.size * unit, rock.size * unit * 0.65, rock.size * unit * 0.8);
+      this.dummy.scale.set(rock.size, rock.size * 0.65, rock.size * 0.8);
       this.dummy.updateMatrix(); this.asteroids.setMatrixAt(i, this.dummy.matrix);
     });
     this.asteroids.instanceMatrix.needsUpdate = true;
-    // Instances move with viewport dimensions; do not reuse an old bound.
+    // The belt slowly orbits; do not reuse an old instance bound.
     this.asteroids.frustumCulled = false;
   }
 

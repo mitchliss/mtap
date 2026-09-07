@@ -22,11 +22,23 @@ for (const aspect of [390 / 664, 664 / 390, 16 / 9]) {
   camera.position.set(2, 3, 4).setLength(8.5); camera.lookAt(0, 0, 0);
   camera.updateMatrixWorld();
   space.update(0.016, camera); scene.updateMatrixWorld(true);
-  for (const { item } of space.planets) {
-    const point = item.getWorldPosition(new THREE.Vector3()).project(camera);
-    assert.ok(Math.abs(point.x) < 0.85 && Math.abs(point.y) < 0.85);
-    assert.ok(point.z > 0 && point.z < 1, 'planet stays inside camera depth range');
-  }
+  const before = space.planets.map(({ item }) => item.getWorldPosition(new THREE.Vector3()));
+  const projected = before.map((point) => point.clone().project(camera));
+  const matrices = space.asteroids.instanceMatrix.array.slice();
+  const cometPositions = space.comets.map((item) => item.position.clone());
+  camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), 0.5);
+  camera.lookAt(0, 0, 0); camera.updateMatrixWorld();
+  camera.aspect *= 0.9; camera.updateProjectionMatrix();
+  space.update(0, camera); scene.updateMatrixWorld(true);
+  space.planets.forEach(({ item }, i) => {
+    const world = item.getWorldPosition(new THREE.Vector3());
+    assert.ok(world.distanceTo(before[i]) < 1e-9, 'orbit/resize cannot move a planet in world space');
+    assert.ok(world.clone().project(camera).distanceTo(projected[i]) > 0.05,
+      'spinning Earth must move planets across the screen');
+    assert.ok(world.length() > 30 && world.length() < 60);
+  });
+  assert.deepEqual(space.asteroids.instanceMatrix.array, matrices, 'camera cannot drag the asteroid belt');
+  space.comets.forEach((item, i) => assert.ok(item.position.equals(cometPositions[i]), 'camera cannot drag comets'));
   for (let i = 0; i < space.asteroids.count; i++) {
     const matrix = new THREE.Matrix4(); space.asteroids.getMatrixAt(i, matrix);
     assert.ok(matrix.elements.every(Number.isFinite));
@@ -42,4 +54,4 @@ space.materials.forEach((mat) => mat.addEventListener('dispose', () => disposed+
 space.dispose();
 assert.equal(disposed, space.materials.length);
 assert.equal(scene.children.length, 0);
-console.log('PASS space visibility, phone/landscape framing, finite instances, reduced motion and disposal');
+console.log('PASS space visibility, world anchoring and orbit parallax across phone/landscape viewports, finite instances, reduced motion and disposal');
