@@ -268,7 +268,11 @@ function makePinTexture(color, ringColor) {
   ctx.quadraticCurveTo(14, 84, 0, 116);
   ctx.quadraticCurveTo(-14, 84, -Math.cos(Math.PI * 0.2) * 32, 44 + Math.sin(Math.PI * 0.8) * 32);
   ctx.closePath();
-  ctx.fillStyle = color;
+  const enamel = ctx.createLinearGradient(-28, 16, 28, 116);
+  enamel.addColorStop(0, ringColor);
+  enamel.addColorStop(0.32, color);
+  enamel.addColorStop(1, new THREE.Color(color).multiplyScalar(0.55).getStyle());
+  ctx.fillStyle = enamel;
   ctx.fill();
   ctx.restore();
   // Head ring + inner dot.
@@ -434,7 +438,7 @@ export class Globe {
 
     // Atmosphere glow (backside shell)
     const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.045, 64, 48),
+      new THREE.SphereGeometry(GLOBE_RADIUS * 1.018, 64, 48),
       new THREE.ShaderMaterial({
         side: THREE.BackSide,
         transparent: true,
@@ -453,9 +457,9 @@ export class Globe {
           varying vec3 vWorldNormal;
           uniform vec3 sunDir;
           void main() {
-            float intensity = pow(0.76 - dot(vNormal, vec3(0.0, 0.0, -1.0)), 3.2);
+            float intensity = 0.65 * pow(max(0.0, 0.76 - dot(vNormal, vec3(0.0, 0.0, -1.0))), 3.2);
             float day = dot(normalize(vWorldNormal), normalize(sunDir));
-            vec3 color = mix(vec3(1.0, 0.34, 0.20), vec3(0.32, 0.62, 1.0), smoothstep(-0.08, 0.18, day));
+            vec3 color = mix(vec3(0.12, 0.23, 0.55), vec3(0.32, 0.68, 1.0), smoothstep(-0.15, 0.3, day));
             gl_FragColor = vec4(color, 1.0) * intensity;
           }`,
         blending: THREE.AdditiveBlending,
@@ -519,6 +523,8 @@ export class Globe {
     this._bindPointerEvents();
     this._onResize = () => this.resize();
     window.addEventListener('resize', this._onResize);
+    this._resizeObserver = new ResizeObserver(this._onResize);
+    this._resizeObserver.observe(this.container);
     this.resize();
 
     this._clock = new THREE.Clock();
@@ -619,7 +625,7 @@ export class Globe {
   // Analytic ray/sphere aim point (never the faceted mesh, never null): a miss
   // projects the ray's closest approach onto the sphere inside the visible cap.
   _aimDirAnalytic(clientX, clientY) {
-    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
+    const rect = this.renderer.domElement.getBoundingClientRect();
     if (!(rect.width > 0 && rect.height > 0)) return this.camera.position.clone().normalize();
     const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
     const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
@@ -639,19 +645,20 @@ export class Globe {
   // ---------- picking ----------
 
   _setPointerFromEvent(e) {
-    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
+    const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }
 
   _globeHitXY(clientX, clientY) {
-    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
-    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    this._setPointerFromEvent({ clientX, clientY });
+    this.camera.updateMatrixWorld();
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hits = this.raycaster.intersectObject(this.sphere, false);
-    if (!hits.length) return null;
-    return vec3ToLatLng(hits[0].point);
+    // Pick the geographic surface, not a triangle chord below it. At deep
+    // zoom, normalizing a mesh hit moves the resulting pin away from the tap.
+    const hit = this.raycaster.ray.intersectSphere(
+      new THREE.Sphere(new THREE.Vector3(), GLOBE_RADIUS), new THREE.Vector3());
+    return hit ? vec3ToLatLng(hit) : null;
   }
 
   _globeHit(e) { return this._globeHitXY(e.clientX, e.clientY); }
@@ -679,7 +686,7 @@ export class Globe {
     this._setPointerFromEvent(e);
     this.raycaster.setFromCamera(this.pointer, this.camera);
     if (this.raycaster.intersectObject(this.pin, false).length > 0) return true;
-    const rect = this._rect || this.renderer.domElement.getBoundingClientRect();
+    const rect = this.renderer.domElement.getBoundingClientRect();
     if (!rect.height || !rect.width) return false;
     const ndc = this.pin.position.clone().project(this.camera);
     if (ndc.z > 1) return false; // behind the camera
@@ -862,13 +869,13 @@ export class Globe {
 
   _placePin(lat, lng) {
     this.pinLatLng = { lat, lng };
-    const surface = latLngToVec3(lat, lng, GLOBE_RADIUS * 1.002);
+    const surface = latLngToVec3(lat, lng);
     if (!this.pin) {
       // depthTest OFF + high renderOrder: the guess pin must NEVER hide behind
       // terrain/tile geometry, no matter how close the camera is.
       const mat = new THREE.SpriteMaterial({ map: this.pinTexGuess, depthTest: false, sizeAttenuation: true });
       this.pin = new THREE.Sprite(mat);
-      this.pin.center.set(0.5, 0.06); // anchor at the pin's tip
+      this.pin.center.set(0.5, 12 / 128); // drawn tip is at y=116 of 128
       this.pin.renderOrder = 999;
       this.markerRoot.add(this.pin);
 
@@ -881,7 +888,8 @@ export class Globe {
     this.pin.position.copy(surface);
     const s = this._spriteScaleForDistance(surface);
     this.pin.scale.set(s, s, 1);
-    this.pinDot.position.copy(latLngToVec3(lat, lng, GLOBE_RADIUS * 1.004));
+    this.pinDot.position.copy(surface);
+    this.pinDot.scale.setScalar(s * 0.08 / 0.006);
     this.pinDot.lookAt(this.pinDot.position.clone().multiplyScalar(2));
   }
 
@@ -1440,7 +1448,17 @@ export class Globe {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geo.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
-    const mat = new THREE.PointsMaterial({ color: 0xcfe0ff, size: 0.13, sizeAttenuation: true, transparent: true, opacity: 0.85 });
+    const starCanvas = document.createElement('canvas');
+    starCanvas.width = starCanvas.height = 32;
+    const ctx = starCanvas.getContext('2d');
+    const glow = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    glow.addColorStop(0, '#ffffff');
+    glow.addColorStop(0.18, 'rgba(225,239,255,0.95)');
+    glow.addColorStop(0.5, 'rgba(160,195,255,0.25)');
+    glow.addColorStop(1, 'rgba(160,195,255,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 32, 32);
+    const mat = new THREE.PointsMaterial({ map: new THREE.CanvasTexture(starCanvas), color: 0xcfe0ff, size: 0.16, sizeAttenuation: true, transparent: true, opacity: 0.85, depthWrite: false });
     if (GFX.starTwinkle) {
       mat.onBeforeCompile = (shader) => {
         shader.uniforms.uTime = { value: 0 };
@@ -1551,7 +1569,11 @@ export class Globe {
 
     // Keep marker sprites a steady SCREEN size while zooming - each measured
     // from its own position, so a marker near the horizon doesn't shrink away.
-    if (this.pin) { const s = this._spriteScaleForDistance(this.pin.position); this.pin.scale.set(s, s, 1); }
+    if (this.pin) {
+      const s = this._spriteScaleForDistance(this.pin.position);
+      this.pin.scale.set(s, s, 1);
+      this.pinDot.scale.setScalar(s * 0.08 / 0.006);
+    }
     if (this._answerPin) { const s = this._spriteScaleForDistance(this._answerPin.position); this._answerPin.scale.set(s, s, 1); }
     for (const o of this._overviewMarkers) {
       if (o.userData && o.userData.overviewIndex !== undefined) {
@@ -1674,6 +1696,7 @@ export class Globe {
 
   dispose() {
     window.removeEventListener('resize', this._onResize);
+    this._resizeObserver?.disconnect();
     document.removeEventListener('visibilitychange', this._onVisibility);
     this._longTaskObserver?.disconnect();
     this.stopLoop();

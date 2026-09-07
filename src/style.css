@@ -1,8 +1,8 @@
 /* ============ MarcTap styles ============ */
 :root {
   --bg: #060a18;
-  --panel: rgba(13, 20, 41, 0.82);
-  --panel-border: rgba(120, 160, 255, 0.18);
+  --panel: rgba(12, 24, 43, 0.92);
+  --panel-border: rgba(142, 194, 237, 0.25);
   --text: #e8eefc;
   --text-dim: #93a3c4;
   --accent: #4da3ff;
@@ -11,6 +11,7 @@
   --danger: #f87171;
   --radius: 16px;
   --shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  --safe-top: env(safe-area-inset-top, 0px);
   font-size: 16px;
 }
 
@@ -33,6 +34,9 @@ html, body {
      bottom confirm bar. dvh tracks the VISIBLE viewport. */
   height: 100vh;
   height: 100dvh;
+  height: var(--viewport-height, 100dvh);
+  top: var(--viewport-top, 0px);
+  bottom: auto;
 }
 
 #globe-container {
@@ -42,12 +46,13 @@ html, body {
 }
 #globe-container.dragging-pin { cursor: crosshair; }
 #globe-container:active { cursor: grabbing; }
+#globe-container canvas { display: block; }
 
 .hidden { display: none !important; }
 
 /* ============ Top bar ============ */
 #topbar {
-  position: absolute; top: 0; left: 0; right: 0;
+  position: absolute; top: var(--safe-top); left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px);
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 14px;
   z-index: 30;
@@ -99,7 +104,7 @@ html, body {
 
 /* ============ Prompt card ============ */
 .prompt-card {
-  position: absolute; top: 62px; left: 50%; transform: translateX(-50%);
+  position: absolute; top: calc(var(--safe-top) + 76px); left: 50%; transform: translateX(-50%);
   z-index: 25;
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -108,18 +113,22 @@ html, body {
   text-align: center;
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
+  width: min(92vw, 440px);
   max-width: min(92vw, 520px);
+  background: linear-gradient(145deg, rgba(26, 48, 72, 0.96), rgba(9, 19, 37, 0.96));
+  border-top-color: rgba(151, 217, 255, 0.55);
+  box-shadow: 0 12px 32px #0006, inset 0 1px 0 #ffffff0c;
   animation: dropIn .35s cubic-bezier(.2,.9,.3,1.2);
 }
 @keyframes dropIn { from { opacity: 0; transform: translate(-50%, -14px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 .prompt-progress { display: flex; gap: 6px; justify-content: center; margin-bottom: 7px; }
 .round-dot {
-  width: 9px; height: 9px; border-radius: 50%;
+  width: 22px; height: 4px; border-radius: 999px;
   background: rgba(147, 163, 196, 0.35);
   transition: background .3s, transform .3s;
 }
-.round-dot.current { background: var(--accent); transform: scale(1.3); box-shadow: 0 0 8px var(--accent); }
+.round-dot.current { background: #87d6ff; transform: scaleY(1.3); box-shadow: 0 0 8px #4da3ff66; }
 .round-dot.done-good { background: var(--accent-2); }
 .round-dot.done-ok { background: var(--gold); }
 .round-dot.done-bad { background: var(--danger); }
@@ -194,11 +203,12 @@ html, body {
 }
 .btn:active { transform: scale(0.97); }
 .btn.primary {
-  background: linear-gradient(135deg, #2563eb, #4da3ff);
+  background: linear-gradient(135deg, #176bd5, #187f99);
   color: #fff;
   box-shadow: 0 4px 18px rgba(37, 99, 235, 0.45);
 }
 .btn.primary:hover { box-shadow: 0 6px 24px rgba(77, 163, 255, 0.6); }
+button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
 .btn.ghost {
   background: rgba(147, 163, 196, 0.12);
   color: var(--text-dim);
@@ -248,6 +258,14 @@ html, body {
   width: 92vw;
 }
 .start-logo { font-size: 4rem; filter: drop-shadow(0 0 24px rgba(77, 163, 255, 0.7)); animation: float 5s ease-in-out infinite; }
+.start-inner {
+  background: linear-gradient(150deg, #152c44eb, #071121e8);
+  border: 1px solid var(--panel-border);
+  border-radius: 28px;
+  box-shadow: 0 24px 80px #0007, inset 0 1px 0 #ffffff14;
+  max-height: calc(100% - 32px - var(--safe-top));
+  overflow-y: auto;
+}
 @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 .start-title { font-size: 3rem; font-weight: 900; letter-spacing: 1px; margin-top: 8px; text-shadow: 0 4px 30px rgba(0,0,0,.6); }
 .start-tag { color: var(--text-dim); margin: 8px 0 4px; font-size: 1.02rem; }
@@ -767,7 +785,7 @@ html, body {
   .icon-btn { width: 34px; height: 34px; }
 
   .prompt-card {
-    top: 54px;
+    top: calc(var(--safe-top) + 72px);
     padding: 8px 12px 10px;
     max-width: 94vw;
   }
@@ -809,7 +827,7 @@ html, body {
 
 /* Short screens (landscape phones): shrink vertical chrome hard */
 @media (max-height: 500px) {
-  .prompt-card { top: 50px; padding: 6px 10px; }
+  .prompt-card { top: calc(var(--safe-top) + 76px); padding: 6px 10px; }
   .prompt-progress { display: none; }
   .confirm-hint { display: none; }
   .confirm-bar { padding: 6px 10px; }

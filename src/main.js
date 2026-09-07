@@ -1,6 +1,8 @@
 // MarcTap entry point: wires the globe, game logic, and UI together.
 
 import './style.css';
+import { trackViewport } from './viewport.js';
+trackViewport();
 import { Globe } from './globe.js';
 import { loadCountries, formatDistance } from './geo.js';
 import {
