@@ -1,4 +1,4 @@
-import { isLandmark, precisionTotal } from './landmarks.js';
+import { isLandmark, precisionTotal, precisionMessage } from './landmarks.js';
 // MarcTap entry point: wires the globe, game logic, and UI together.
 
 import './style.css';
@@ -324,6 +324,7 @@ function beginRound() {
   globe.clearPin();
   globe.clearResults();
   globe.setInteractive(true);
+  globe.resetRoundView();
   awaitingConfirm = false;
   roundLocked = false;
 }
@@ -401,6 +402,9 @@ function confirmGuess(lat, lng) {
         : `+${result.points}`;
     if (result.precisionBonus) els.resultPoints.textContent += ` · +${result.precisionBonus} landmark precision`;
     els.resultVerdict.textContent = verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
+    if (isLandmark(result.target) && !result.precisionBonus) {
+      els.resultVerdict.textContent += ' ' + precisionMessage(result.target, 0);
+    }
     els.resultFact.textContent = result.target.fact || '';
     // Population line (async, MapTap-style): only shown when a confident
     // near-target match comes back; the curated fact always shows regardless.
@@ -437,6 +441,7 @@ function nextRound() {
 
 function endGame() {
   document.getElementById('app').classList.remove('discovering'); globe.resize();
+  globe.resetRoundView();
   experience.active = false;
   hide($('aim-tools'));
   hide($('discovery-labels'));

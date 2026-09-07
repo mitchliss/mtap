@@ -1,6 +1,7 @@
 // Explicitly classified point/site landmarks in the curated game catalogue.
 // Precision is measured against the game's designated destination coordinate.
 export const LANDMARK_NAMES = new Set([
+  "Red Square, Moscow",
   "Eiffel Tower, Paris",
   "Colosseum, Rome",
   "Big Ben, London",
@@ -124,4 +125,9 @@ export function landmarkBonus(target, distanceKm) {
 }
 export function precisionTotal(rounds) {
   return rounds.reduce((sum, round) => sum + (round.precisionBonus || 0), 0);
+}
+
+export function precisionMessage(target, bonus) {
+  if (!isLandmark(target)) return '';
+  return bonus ? `+${bonus} landmark precision` : 'No precision bonus — get within 100 m for +10 or 25 m for +25.';
 }

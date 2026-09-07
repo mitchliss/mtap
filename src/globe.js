@@ -617,6 +617,12 @@ export class Globe {
     const rect = this.renderer.domElement.getBoundingClientRect();
     return { x: (point.x + 1) * rect.width / 2, y: (1 - point.y) * rect.height / 2 };
   }
+  resetRoundView() {
+    // Leave the answer comparison close until the player advances, then give
+    // the next search a whole-Earth view without revealing its destination.
+    const center = this.cameraLatLng() || { lat: 20, lng: 0 };
+    this.flyTo(center.lat, center.lng, 2.9, 850);
+  }
   framePoints(a, b) {
     const mid = this._midpointOnSphere(a, b);
     const halfAngle = this._angularDistance(a, b) / 2;

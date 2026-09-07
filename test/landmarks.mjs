@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import { LOCATIONS } from '../src/locations.js';
-import { LANDMARK_NAMES, landmarkBonus, precisionTotal } from '../src/landmarks.js';
+import { LANDMARK_NAMES, landmarkBonus, precisionTotal, precisionMessage } from '../src/landmarks.js';
 import { GameSession } from '../src/game.js';
 import { formatDistance } from '../src/geo.js';
 assert.equal(formatDistance(0.025, false), '25 m');
 assert.equal(formatDistance(0.1, true), '328 ft');
+const redSquare = LOCATIONS.find((place) => place.name === 'Red Square, Moscow');
+assert.equal(landmarkBonus(redSquare, 19), 0, '19 km is outside landmark precision range');
+assert.equal(landmarkBonus(redSquare, 0.019), 25, '19 metres earns the top bonus');
+assert.match(precisionMessage(redSquare, 0), /within 100 m/);
 for (const name of LANDMARK_NAMES) {
   const target = LOCATIONS.find((place) => place.name === name);
   assert.ok(target, `registered landmark exists: ${name}`);

@@ -58,3 +58,10 @@ for (const aspect of [390 / 250, 375 / 180, 380 / 300]) {
   }
 }
 console.log('PASS result framing keeps both pins in the visible globe area');
+const transition = Object.create(Globe.prototype);
+transition.cameraLatLng = () => ({ lat: 55.754, lng: 37.621 });
+let flight;
+transition.flyTo = (...args) => { flight = args; };
+transition.resetRoundView();
+assert.deepEqual(flight, [55.754, 37.621, 2.9, 850], 'next round zooms out without aiming at the next answer');
+console.log('PASS round transition restores whole-Earth view');
