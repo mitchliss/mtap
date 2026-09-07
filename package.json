@@ -5,7 +5,7 @@
   "type": "module",
   "description": "MTap - daily 3D globe geography guessing game",
   "scripts": {
-    "test": "node test/run.mjs && node test/mobile.mjs && node test/detail.mjs && node test/experience.mjs",
+    "test": "node test/run.mjs && node test/mobile.mjs && node test/detail.mjs && node test/experience.mjs && node test/space.mjs",
     "dev": "vite --port 5210",
     "build": "vite build",
     "preview": "vite preview --port 5210"

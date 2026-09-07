@@ -21,6 +21,7 @@ document.querySelector('#near').onclick = () => {
 document.querySelector('#far').onclick = () => {
   clearInterval(zoomTimer); globe.tileDetail.gestureEnd(); globe._setTargetD(1.7);
 };
+document.querySelector('#space').onclick = () => { clearInterval(zoomTimer); globe.tileDetail.gestureEnd(); globe._setTargetD(8.5); };
 document.querySelector('#cancel').onclick = () => globe.tileDetail.cancel();
 document.querySelectorAll('button').forEach((button) => { button.disabled = false; });
 setInterval(() => {
@@ -30,7 +31,7 @@ setInterval(() => {
     lastMesh = detail.mesh;
   }
   status.textContent = JSON.stringify({distance:+globe.camera.position.length().toFixed(3),
-    enabled:detail.enabled, gesture:detail.gestureActive, building:detail.building,
+    spaceVisible:globe.spaceScenery.group.visible, planets:globe.spaceScenery.planets.length, asteroids:globe.spaceScenery.asteroids.count, drawCalls:globe.renderer.info.render.calls, enabled:detail.enabled, gesture:detail.gestureActive, building:detail.building,
     gestureUpdates,
     patches:detail.meshCount(), patchWidth:detail.debugInfo().patchWidth,
     canvases:detail.canvasPool.filter((item) => item.owned).length,

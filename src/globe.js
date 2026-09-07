@@ -7,6 +7,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { toRad, toDeg } from './geo.js';
 import { mulberry32 } from './rng.js';
 import { TileDetail } from './tiledetail.js';
+import { SpaceScenery } from './space.js';
 import { GFX, K_ROT, applySunShader, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from './graphics.js';
 
 const GLOBE_RADIUS = 1;
@@ -1307,8 +1308,8 @@ export class Globe {
   // ---------- background ----------
 
   // Deep-space scenery, visible when fully zoomed out: the Moon at (roughly)
-  // its real current position with sun-lit phases, bright planet sprites along
-  // the ecliptic, a sun glare, and a Milky Way band. All painted procedurally.
+  // its approximate current position, a sun glare, and a Milky Way band.
+  // Stylized planets, comets and asteroids fade in beyond the whole-Earth view.
   _makeSpaceScenery(sunPos) {
     const space = new THREE.Group();
     this.scene.add(space);
@@ -1316,7 +1317,7 @@ export class Globe {
     // --- Milky Way: a dense band of faint stars on a tilted plane ---
     {
       const rng = mulberry32(777);
-      const count = 3200;
+      const count = 6200;
       const positions = new Float32Array(count * 3);
       const tilt = 1.05; // radians - band crosses the sky diagonally
       for (let i = 0; i < count; i++) {
@@ -1361,48 +1362,7 @@ export class Globe {
       space.add(sunSprite);
     }
 
-    // --- Planets: bright tinted dots along the ecliptic (Saturn gets a ring) ---
-    {
-      const planets = [
-        { name: 'Venus', color: '#fff3d6', lonDeg: 55, size: 0.55, dist: 46 },
-        { name: 'Mars', color: '#ff9d7a', lonDeg: 130, size: 0.4, dist: 50 },
-        { name: 'Jupiter', color: '#ffd9a8', lonDeg: 235, size: 0.7, dist: 54 },
-        { name: 'Saturn', color: '#f2e0b8', lonDeg: 310, size: 0.55, dist: 58 },
-      ];
-      const dot = (color) => {
-        const S = 64;
-        const c = document.createElement('canvas');
-        c.width = S; c.height = S;
-        const g = c.getContext('2d');
-        const grad = g.createRadialGradient(S/2, S/2, 0, S/2, S/2, S/2);
-        grad.addColorStop(0, '#ffffff');
-        grad.addColorStop(0.3, color);
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        g.fillStyle = grad;
-        g.fillRect(0, 0, S, S);
-        return new THREE.CanvasTexture(c);
-      };
-      for (const p of planets) {
-        const mat = new THREE.SpriteMaterial({
-          map: dot(p.color), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
-        });
-        const s = new THREE.Sprite(mat);
-        const lon = (p.lonDeg * Math.PI) / 180;
-        s.position.set(p.dist * Math.cos(lon), p.dist * 0.08 * Math.sin(lon * 2), p.dist * Math.sin(lon));
-        s.scale.set(p.size, p.size, 1);
-        space.add(s);
-        if (p.name === 'Saturn') {
-          const ring = new THREE.Mesh(
-            new THREE.RingGeometry(0.5, 0.85, 32),
-            new THREE.MeshBasicMaterial({ color: 0xd8c9a0, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-          );
-          ring.position.copy(s.position);
-          ring.lookAt(0, 0, 0);
-          ring.rotateX(0.5);
-          space.add(ring);
-        }
-      }
-    }
+    this.spaceScenery = new SpaceScenery(this.scene);
 
     // --- The Moon: real size ratio, painted craters, positioned by today's
     //     mean orbital longitude, lit by the same sun so phases are right ---
@@ -1462,7 +1422,7 @@ export class Globe {
 
   _makeStars() {
     const rng = mulberry32(99);
-    const count = 2200;
+    const count = 6500;
     const positions = new Float32Array(count * 3);
     const phases = new Float32Array(count);
     for (let i = 0; i < count; i++) {
@@ -1680,6 +1640,8 @@ export class Globe {
       this.clouds.rotation.y += dt * 0.0015;
       this.clouds.material.opacity = GFX.clouds && !this._gameplayActive && this.camera.position.length() >= 1.7 ? 0.32 : 0;
     }
+    this.spaceScenery?.update(dt, this.camera);
+    if (this._starMaterial) this._starMaterial.opacity = 0.48 + 0.37 * Math.min(1, Math.max(0, (this.camera.position.length() - 2.9) / 4));
     if (this._starMaterial?.userData.shader) this._starMaterial.userData.shader.uniforms.uTime.value += dt;
 
     // The Moon creeps along its orbit in real time (13.18°/day - correct, and
@@ -1733,6 +1695,7 @@ export class Globe {
     document.removeEventListener('visibilitychange', this._onVisibility);
     this._longTaskObserver?.disconnect();
     this.stopLoop();
+    this.spaceScenery?.dispose();
     this.renderer.dispose();
   }
 }
