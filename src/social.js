@@ -238,12 +238,24 @@ export function notePlayedFamilyPlace(name, puzzleNumber) {
   saveJSON('social.placesPlayed', played);
 }
 
+export function skipFamilyPlace(name) {
+  const skipped = loadJSON('social.placesSkipped', []);
+  saveJSON('social.placesSkipped', [...new Set([...skipped, String(name).trim().toLowerCase()])]);
+}
+
+export function resetSkippedFamilyPlaces() {
+  saveJSON('social.placesSkipped', []);
+}
+
 export function familyPlaceForPuzzle(puzzleNumber, excludeAuthor = null) {
   const places = getFamilyPlaces();
   if (!places.length) return null;
   const played = loadJSON('social.placesPlayed', {});
+  const skipped = new Set(loadJSON('social.placesSkipped', []));
   const eligible = places.filter((p) =>
-    !excludeAuthor || !p.by || p.by.toLowerCase() !== excludeAuthor.toLowerCase()
+    (!excludeAuthor || !p.by || p.by.toLowerCase() !== excludeAuthor.toLowerCase()) &&
+    !skipped.has(p.name.trim().toLowerCase()) &&
+    (typeof played[p.name.toLowerCase()] !== 'number' || puzzleNumber - played[p.name.toLowerCase()] >= 30)
   );
   if (!eligible.length) return null;
   const lastPlayed = (p) => {

@@ -29,6 +29,7 @@ import {
   recordPlayerResult, importResultPayload, buildResultPayload, leaderboardRows,
   setChallenge, getChallenge,
   getFamilyPlaces, addFamilyPlace, buildPlacePayload, importPlacePayload, familyPlaceForPuzzle, attachPhotoToPlace, notePlayedFamilyPlace,
+  skipFamilyPlace, resetSkippedFamilyPlaces,
   getCrew, saveCrew, toggleCrewMember, isCrewMember, buildCrewPayload, importCrewPayload,
 } from './social.js';
 
@@ -1540,9 +1541,10 @@ async function boot() {
   els.btnFamilySkip.addEventListener('click', () => {
     const loc = session && session.currentLocation;
     if (!loc || !loc.isFamily || roundLocked) return;
-    // Skipping still rotates the pack so tomorrow brings a different place.
+    // Remember the skipped question even when the pack contains only one place.
+    skipFamilyPlace(loc.name);
     notePlayedFamilyPlace(loc.name, puzzleNumberForToday());
-    toast('Family round skipped — see you tomorrow 🏠', 2200);
+    toast('Skipped — this question won’t return on this device. Restore it in Settings.', 2200);
     hide(els.familyActions);
     hide(els.familyHintText);
     hide(els.confirmBar);
@@ -1599,6 +1601,10 @@ async function boot() {
 
   // Modals
   els.btnHelp.addEventListener('click', () => show(els.helpModal));
+  $('btn-restore-family').addEventListener('click', () => {
+    resetSkippedFamilyPlaces();
+    toast('Skipped questions restored. Recently played places still have a 30-day break.', 4000);
+  });
   els.btnSettings.addEventListener('click', () => show(els.settingsModal));
   document.querySelectorAll('[data-close]').forEach((b) => {
     b.addEventListener('click', () => hide($(b.dataset.close)));
