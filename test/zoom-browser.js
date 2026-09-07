@@ -7,6 +7,14 @@ globe.setAutoRotate(false); globe.setGameplayActive(true); globe.setRealisticLig
 globe.camera.position.copy(latLngToVec3(46.6, 9.5, 1.7));
 globe.camera.lookAt(0, 0, 0); globe._targetD = 1.7;
 let zoomTimer;
+const landmark = document.createElement('button'); landmark.textContent = 'Landmark close-up';
+document.querySelector('nav').append(landmark);
+landmark.onclick = () => {
+  clearInterval(zoomTimer); globe.tileDetail.gestureEnd();
+  globe.camera.position.copy(latLngToVec3(48.8584, 2.2945, 1.0001));
+  globe.camera.lookAt(0, 0, 0); globe._setTargetD(1.0001);
+  globe._placePin(48.8584, 2.2945);
+};
 let lastMesh = null, gestureUpdates = 0;
 document.querySelector('#near').onclick = () => {
   clearInterval(zoomTimer);

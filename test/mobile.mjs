@@ -7,7 +7,7 @@ import { trackViewport } from '../src/viewport.js';
 // rendered tip must project back onto the finger, including after toolbar moves.
 let checks = 0;
 for (const [width, height, top] of [[390, 664, 0], [390, 844, 47], [375, 548, 80], [844, 390, 0]]) {
-  for (const distance of [1.04, 1.1, 2.9]) {
+  for (const distance of [1.0001, 1.001, 1.04, 1.1, 2.9]) {
     for (const [lat, lng] of [[0, 0], [41, -87], [-33, 151], [78, 30]]) {
       const globe = Object.create(Globe.prototype);
       const rect = { left: 9, top, width, height };
@@ -16,7 +16,7 @@ for (const [width, height, top] of [[390, 664, 0], [390, 844, 47], [375, 548, 80
       canvas.setPointerCapture = canvas.releasePointerCapture = () => {};
       globe.renderer = { domElement: canvas };
       globe._rect = { left: 0, top: 0, width: 390, height: 844 }; // deliberately stale
-      globe.camera = new THREE.PerspectiveCamera(45, width / height, 0.001, 100);
+      globe.camera = new THREE.PerspectiveCamera(45, width / height, 0.000001, 100);
       globe.camera.position.copy(latLngToVec3(lat, lng, distance));
       globe.camera.lookAt(0, 0, 0);
       globe.pointer = new THREE.Vector2();

@@ -12,6 +12,7 @@
   <div id="app">
     <!-- 3D globe canvas mounts here -->
     <div id="globe-container"></div>
+    <div id="imagery-credit">Imagery: Esri, Maxar, Earthstar Geographics, GIS User Community · EOX</div>
     <div id="precision-crosshair" class="precision-crosshair hidden" aria-hidden="true"></div>
     <div id="precision-loupe" class="precision-loupe hidden" aria-label="Magnified aiming point"><canvas width="192" height="192"></canvas><span></span></div>
     <div id="aim-tools" class="aim-tools hidden"><button id="btn-precision" class="btn ghost small" aria-pressed="false">◎ Precision</button><span id="aim-help" class="hidden">Move the map under the crosshair</span></div>
@@ -165,7 +166,8 @@
           <span id="end-score-value">0</span><span class="end-score-max">/1000</span>
         </div>
         <div id="end-emoji" class="end-emoji"></div>
-        <div id="end-bonus" class="end-bonus hidden"></div>
+        <div id="end-precision" class="end-bonus"></div>
+      <div id="end-bonus" class="end-bonus hidden"></div>
         <div id="end-challenge" class="end-challenge hidden"></div>
         <div id="end-rounds" class="end-rounds"></div>
         <div class="end-actions">

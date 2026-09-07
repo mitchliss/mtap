@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { toRad, toDeg } from './geo.js';
 
 const TILE_SIZE = 256;
-const MAX_Z = 12;
+const MAX_Z = 19;
 const MIN_Z = 3;
 const PATCH_LEVELS = [1792, 1280, 896];
 const CACHE_BYTES = 32 * 1024 * 1024;
@@ -118,14 +118,17 @@ export class TileDetail {
       this.cache.delete(key); this.cache.set(key, hit);
       return hit;
     }
+    const url = z > 12
+      ? `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${xm}`
+      : `${TILE_HOSTS[hostIdx]}/${z}/${y}/${xm}.jpg`;
     const p = (typeof createImageBitmap === 'function' && typeof fetch === 'function' ?
-      fetchTileBitmap(`${TILE_HOSTS[hostIdx]}/${z}/${y}/${xm}.jpg`, signal) : new Promise((resolve, reject) => {
+      fetchTileBitmap(url, signal) : new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous'; // required or the WebGL upload is blocked
       const timer = setTimeout(() => { img.src = ''; reject(new Error('tile timeout')); }, 12000);
       img.onload = () => { clearTimeout(timer); resolve(img); };
       img.onerror = () => { clearTimeout(timer); reject(new Error('tile error')); };
-      img.src = `${TILE_HOSTS[hostIdx]}/${z}/${y}/${xm}.jpg`;
+      img.src = url;
     }));
     p.catch(() => {
       if (this.cache.get(key) === p) {
@@ -211,7 +214,7 @@ export class TileDetail {
 
     const region = this._visibleRegion();
     if (!region) return;
-    const key = [region.west.toFixed(2), region.east.toFixed(2), region.south.toFixed(2), region.north.toFixed(2)].join('|');
+    const key = [region.west.toFixed(5), region.east.toFixed(5), region.south.toFixed(5), region.north.toFixed(5)].join('|');
     if (key === this.lastRegionKey) return;
     this.building = true;
     this.lastBuildStarted = performance.now();
@@ -258,11 +261,12 @@ export class TileDetail {
       latHalf = capDeg;
       lngHalf = Math.min(120, capDeg / Math.max(0.2, Math.cos(toRad(center.lat))));
     }
-    latHalf = Math.min(latHalf * 1.15 + 0.5, capDeg + 1);      // margin
-    lngHalf = Math.min(lngHalf * 1.15 + 0.5, 150);
+    const margin = Math.min(0.5, (d - 1) * 10);
+    latHalf = Math.min(latHalf * 1.15 + margin, capDeg + 1);      // margin
+    lngHalf = Math.min(lngHalf * 1.15 + margin, 150);
     const north = Math.min(MERC_LAT_LIMIT, center.lat + latHalf);
     const south = Math.max(-MERC_LAT_LIMIT, center.lat - latHalf);
-    if (north - south < 0.05) return null;
+    if (north - south < 0.00001) return null;
     return { west: center.lng - lngHalf, east: center.lng + lngHalf, south, north };
   }
 
@@ -406,7 +410,7 @@ export class TileDetail {
         // Upload explicitly so the timing includes GPU transfer, not just allocation.
         this.globe.renderer.initTexture(tex);
         const segments = (span) => THREE.MathUtils.clamp(Math.ceil(span * 2), 16, 96);
-        const geo = new THREE.SphereGeometry(1.0006, segments(lonSpan), segments(latSpan), toRad(region.west + 180), toRad(lonSpan), toRad(90 - region.north), toRad(latSpan));
+        const geo = new THREE.SphereGeometry(1.0000001, segments(lonSpan), segments(latSpan), toRad(region.west + 180), toRad(lonSpan), toRad(90 - region.north), toRad(latSpan));
         this.timings.geometry = performance.now() - geoStart;
         const mat = new THREE.MeshPhongMaterial({ map: tex, transparent: true, opacity: 0, shininess: 8, specular: new THREE.Color(0x222c3a), depthWrite: false });
         this.globe.applySunShader(mat);

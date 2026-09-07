@@ -16,6 +16,7 @@ export function distanceKm(lat1, lon1, lat2, lon2) {
 }
 
 export function formatDistance(km, useMiles) {
+  if (km < 1) return useMiles ? `${Math.round(km * 3280.84)} ft` : `${Math.round(km * 1000)} m`;
   if (useMiles) {
     const mi = km * 0.621371;
     if (mi < 10) return `${mi.toFixed(1)} mi`;

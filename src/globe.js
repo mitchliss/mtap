@@ -479,7 +479,7 @@ export class Globe {
     this.controls.enablePan = false;
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 1.04; // ~255 km altitude; tile streaming keeps it sharp
+    this.controls.minDistance = 1.0001; // ~637 m altitude for landmark placement
     // Starts loose so the intro can begin in deep space; cinematicIntro()
     // tightens it to the play range (4.2) when the swoop lands.
     this.controls.maxDistance = 9;
@@ -900,7 +900,7 @@ export class Globe {
     const t = THREE.MathUtils.smoothstep(alt, SPRITE_NEAR_ALT, SPRITE_FAR_ALT);
     const k = THREE.MathUtils.lerp(SPRITE_K_NEAR, SPRITE_K_FAR, t);
     const d = worldPos ? this.camera.position.distanceTo(worldPos) : alt;
-    return THREE.MathUtils.clamp(d * k, 0.0004, 0.16);
+    return THREE.MathUtils.clamp(d * k, 0.0000005, 0.16);
   }
 
   _placePin(lat, lng) {
@@ -951,7 +951,7 @@ export class Globe {
   nudgePin(direction) {
     if (!this.pinLatLng) return null;
     const d = this.camera.position.length() - GLOBE_RADIUS;
-    const step = THREE.MathUtils.clamp(d * 0.5, 0.05, 1.6);
+    const step = THREE.MathUtils.clamp(d * 0.5, 0.000025, 1.6);
     let { lat, lng } = this.pinLatLng;
     if (direction === 'up') lat = Math.min(89.5, lat + step);
     if (direction === 'down') lat = Math.max(-89.5, lat - step);
@@ -1636,6 +1636,10 @@ export class Globe {
     }
 
     // Zoom-detail tile streaming.
+    // Keep normal globe depth precision while allowing a camera hundreds of
+    // metres above a landmark without clipping away the ground.
+    const near = THREE.MathUtils.clamp((this.camera.position.length() - 1) * 0.01, 0.000001, 0.01);
+    if (this.camera.near !== near) { this.camera.near = near; this.camera.updateProjectionMatrix(); }
     if (this.tileDetail) this.tileDetail.update(dt);
     if (this.clouds) {
       this.clouds.rotation.y += dt * 0.0015;

@@ -1,3 +1,4 @@
+import { landmarkBonus } from './landmarks.js';
 // MarcTap game logic: daily round selection, scoring, persistence, share text.
 
 import { LOCATIONS } from './locations.js';
@@ -451,6 +452,7 @@ export class GameSession {
     result.multiplier = this.currentMultiplier;
     result.points = result.score * result.multiplier;
     result.isBonus = !!target.isFamily;
+    result.precisionBonus = landmarkBonus(target, result.distanceKm);
     this.results.push(result);
     return result;
   }

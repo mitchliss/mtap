@@ -1,3 +1,4 @@
+import { isLandmark, precisionTotal } from './landmarks.js';
 // MarcTap entry point: wires the globe, game logic, and UI together.
 
 import './style.css';
@@ -315,6 +316,7 @@ function beginRound() {
       (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '') +
       (loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
   }
+  if (isLandmark(loc)) els.promptSub.innerHTML += '<br>Landmark precision: +10 within 100 m · +25 within 25 m';
   renderRoundDots();
   show(els.promptCard);
   hide(els.resultPanel);
@@ -397,6 +399,7 @@ function confirmGuess(lat, lng) {
       : result.multiplier > 1
         ? `+${result.points} (${result.score}×${result.multiplier})`
         : `+${result.points}`;
+    if (result.precisionBonus) els.resultPoints.textContent += ` · +${result.precisionBonus} landmark precision`;
     els.resultVerdict.textContent = verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
     els.resultFact.textContent = result.target.fact || '';
     // Population line (async, MapTap-style): only shown when a confident
@@ -453,7 +456,8 @@ function endGame() {
     score: r.score,
     points: r.points,
     multiplier: r.multiplier,
-    distanceKm: Math.round(r.distanceKm),
+    distanceKm: r.distanceKm,
+    precisionBonus: r.precisionBonus || 0,
     guess: { lat: r.guess.lat, lng: r.guess.lng },
     b: r.isBonus ? 1 : 0,
   }));
@@ -475,6 +479,7 @@ function endGame() {
     hide(els.nextCountdown);
   }
 
+  $('end-precision').textContent = precisionTotal(session.results) ? `Landmark precision bonus: +${precisionTotal(session.results)} · separate from /1000` : '';
   // Family bonus line
   if (bonus > 0) {
     els.endBonus.textContent = `🏠 Family round bonus: +${bonus}`;
@@ -552,6 +557,7 @@ function showEndScreenForRecorded(record) {
   els.endTitle.textContent = `MTap #${puzzleNumberForToday()} — already played today!`;
   els.endScoreValue.textContent = record.total;
   hide(els.endChallenge);
+  $('end-precision').textContent = precisionTotal(record.rounds || []) ? `Landmark precision bonus: +${precisionTotal(record.rounds)} · separate from /1000` : '';
   const recBonus = (record.rounds || []).filter((r) => r.b).reduce((a, r) => a + (r.points || 0), 0);
   if (recBonus > 0) {
     els.endBonus.textContent = `🏠 Family round bonus: +${recBonus}`;
@@ -1276,6 +1282,8 @@ async function shareScore() {
       (bonus ? `\n🏠 +${bonus} homefield points (family round — doesn't count in the ${MAX_GAME_SCORE})` : '') +
       `\nThink you can beat it? ${link}`;
   }
+  const precision = precisionTotal(session && session.results.length >= ROUNDS_PER_GAME ? session.results : (dailyAlreadyPlayed(pn)?.rounds || []));
+  if (precision) text += `\n🎯 +${precision} landmark precision bonus (separate from /1000)`;
   await shareOrCopy(text, 'Copied! Paste it in the family chat 📣');
 }
 
@@ -1292,7 +1300,7 @@ function saveDailyProgress() {
     gen: DAILY_GENERATION,
     rounds: session.results.map((r) => ({
       name: r.target.name, score: r.score, points: r.points, multiplier: r.multiplier,
-      distanceKm: r.distanceKm, guess: r.guess, b: r.isBonus ? 1 : 0,
+      distanceKm: r.distanceKm, precisionBonus: r.precisionBonus || 0, guess: r.guess, b: r.isBonus ? 1 : 0,
     })),
   });
 }
@@ -1316,7 +1324,7 @@ function resumeDaily(saved) {
     s.results.push({
       target: r.b && target.name !== r.name ? { ...target, name: r.name } : target,
       guess: r.guess, score: r.score, points: r.points,
-      multiplier: r.multiplier, distanceKm: r.distanceKm, isBonus: !!r.b,
+      multiplier: r.multiplier, distanceKm: r.distanceKm, isBonus: !!r.b, precisionBonus: r.precisionBonus || 0,
     });
     s.roundIndex++;
   }
