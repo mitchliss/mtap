@@ -49,5 +49,12 @@ for (const aspect of [390 / 250, 375 / 180, 380 / 300]) {
     assert.ok(globe.screenPoint(a.lat, a.lng), 'guess remains visible');
     assert.ok(globe.screenPoint(b.lat, b.lng), 'destination remains visible');
   }
+  const munich = { lat: 48.137, lng: 11.576 };
+  for (const guess of [munich, { lat: 48.17, lng: 11.62 }, { lat: 48.4, lng: 11.9 }]) {
+    globe.framePoints(guess, munich);
+    assert.ok(globe.camera.position.length() <= 1.041, 'Munich-area answers retain close zoom');
+    assert.ok(globe.screenPoint(guess.lat, guess.lng), 'close guess remains visible');
+    assert.ok(globe.screenPoint(munich.lat, munich.lng), 'Munich destination remains visible');
+  }
 }
 console.log('PASS result framing keeps both pins in the visible globe area');

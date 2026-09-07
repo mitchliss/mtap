@@ -623,7 +623,11 @@ export class Globe {
     const vertical = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const horizontal = Math.atan(Math.tan(vertical) * this.camera.aspect);
     const field = Math.min(vertical, horizontal) * 0.7;
-    const d = Math.max(1.28, 1.05 / Math.max(0.01, Math.cos(halfAngle)), Math.cos(halfAngle) + Math.sin(halfAngle) / Math.tan(field));
+    // Fit the separation itself. A fixed 1.28 floor pulled city-level answers
+    // back roughly 1,800 km above Earth even when the pins were neighbours.
+    const d = Math.max(this.controls?.minDistance ?? 1.04,
+      1.0005 / Math.max(0.01, Math.cos(halfAngle)),
+      Math.cos(halfAngle) + Math.sin(halfAngle) / Math.tan(field));
     this.flyTo(mid.lat, mid.lng, Math.min(8, d), 850);
   }
   setGameplayActive(on) { this._gameplayActive = !!on; }
@@ -1155,10 +1159,7 @@ export class Globe {
     }
 
     // Fly the camera to frame both points, close enough for tile detail.
-    const mid = this._midpointOnSphere(guess || answer, answer);
-    const dist = guess ? this._angularDistance(guess, answer) : 0;
-    const camDist = THREE.MathUtils.clamp(1.18 + dist * 1.7, 1.28, 3.6);
-    this.flyTo(mid.lat, mid.lng, camDist);
+    this.framePoints(guess || answer, answer);
   }
 
   // Second act of the reveal: answer beam + pulsing ring + neon label.
