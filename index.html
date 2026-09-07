@@ -12,6 +12,15 @@
   <div id="app">
     <!-- 3D globe canvas mounts here -->
     <div id="globe-container"></div>
+    <div id="precision-crosshair" class="precision-crosshair hidden" aria-hidden="true"></div>
+    <div id="precision-loupe" class="precision-loupe hidden" aria-label="Magnified aiming point"><canvas width="192" height="192"></canvas><span></span></div>
+    <div id="aim-tools" class="aim-tools hidden"><button id="btn-precision" class="btn ghost small" aria-pressed="false">◎ Precision</button><span id="aim-help" class="hidden">Move the map under the crosshair</span></div>
+    <div id="tutorial-target" class="tutorial-target hidden" aria-hidden="true"></div>
+    <section id="tutorial-card" class="tutorial-card hidden" aria-live="polite">
+      <strong id="tutorial-title"></strong><p id="tutorial-instruction"></p>
+      <button id="tutorial-skip" class="btn ghost small">Skip introduction</button>
+    </section>
+    <div id="discovery-labels" class="discovery-labels hidden" aria-hidden="true"></div>
 
     <!-- ======= Top HUD ======= -->
     <header id="topbar">
@@ -49,9 +58,10 @@
 
     <!-- ======= Pin adjust / confirm bar (the MarcTap improvement) ======= -->
     <div id="confirm-bar" class="confirm-bar hidden">
-      <div class="confirm-hint">Drag the pin or nudge it, then confirm. <span class="kbd-hint">Double-tap the map to zoom in.</span></div>
+      <div class="confirm-hint">Adjust your pin, then confirm.</div>
       <div class="confirm-controls">
-        <div class="nudge-pad" aria-label="Nudge pin">
+        <button id="btn-adjust" class="btn ghost small" aria-expanded="false" aria-controls="nudge-controls">Adjust</button>
+        <div id="nudge-controls" class="nudge-pad hidden" aria-label="Nudge pin">
           <button class="nudge n-up" data-nudge="up" title="Nudge north">▲</button>
           <button class="nudge n-left" data-nudge="left" title="Nudge west">◀</button>
           <button class="nudge n-right" data-nudge="right" title="Nudge east">▶</button>
@@ -77,9 +87,20 @@
           <div class="stat-label">points</div>
         </div>
       </div>
+      <div id="guest-invite" class="guest-invite hidden"><span>Nice first round! Add your name for family scores?</span><button id="guest-name" class="btn ghost small">Add my name</button><button id="guest-later" class="btn ghost small">Stay a guest</button></div>
       <div class="result-verdict" id="result-verdict"></div>
       <div class="result-pop hidden" id="result-pop"></div>
       <div class="result-fact" id="result-fact"></div>
+      <div id="discovery-card" class="discovery-card">
+        <p id="discovery-relation"></p>
+        <figure id="discovery-world" class="hidden"><canvas width="360" height="180" aria-label="World overview with your pin in pink and destination in green"></canvas><figcaption>Opposite sides of Earth · your pin in pink, destination in green</figcaption></figure>
+        <div class="discovery-actions"><button id="discovery-compare" class="btn ghost small">Both pins</button><button id="discovery-explore" class="btn ghost small">Explore destination</button></div>
+        <p id="discovery-nearby"></p>
+        <a class="discovery-credit" href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">City geography: Natural Earth</a>
+        <figure id="discovery-photo" class="hidden"><img id="discovery-image" alt="" /><figcaption><a id="discovery-photo-source" target="_blank" rel="noopener noreferrer">Photo and credits</a></figcaption></figure>
+        <p id="discovery-story"></p><a id="discovery-source" class="hidden" target="_blank" rel="noopener noreferrer">Read the story on Wikipedia ↗</a>
+      </div>
+
       <button id="btn-next" class="btn primary big">Next →</button>
     </div>
 
@@ -117,7 +138,10 @@
         </div>
         <div id="start-theme" class="start-theme hidden"></div>
         <div id="challenge-banner" class="challenge-banner hidden"></div>
-        <button id="btn-play" class="btn primary huge">▶ Play today's game</button>
+        <button id="btn-play" class="btn primary huge" disabled>Loading globe…</button>
+        <p class="guest-note">No account needed. Just play.</p>
+        <details class="start-more"><summary>More ways to play</summary>
+        <button id="btn-introduction" class="btn ghost small">Practice the controls</button>
         <button id="btn-practice" class="btn ghost">🎲 Practice round</button>
         <div class="start-social-row">
           <button id="btn-leaderboard" class="btn ghost small">🏆 Leaderboard</button>
@@ -127,6 +151,7 @@
           <button id="btn-archive" class="btn ghost small">📅 Prior days</button>
           <button id="btn-globe" class="btn ghost small">🌍 My globe</button>
         </div>
+        </details>
         <div id="start-streak" class="start-streak"></div>
         <div id="start-player" class="start-player"></div>
       </div>
@@ -188,7 +213,8 @@
         <p class="name-sub">Your name goes on the family leaderboard and your shared scores.</p>
         <input id="name-input" type="text" maxlength="24" placeholder="Your first name" autocomplete="off" />
         <div id="name-known" class="name-known"></div>
-        <button id="name-save" class="btn primary big">Let's play!</button>
+        <button id="name-save" class="btn primary big">Save name</button>
+        <button class="btn ghost" data-close="name-modal">Not now</button>
       </div>
     </div>
 

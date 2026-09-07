@@ -4,6 +4,7 @@ import './style.css';
 import { trackViewport } from './viewport.js';
 trackViewport();
 import { Globe } from './globe.js';
+import { Experience } from './experience.js';
 import { loadCountries, formatDistance } from './geo.js';
 import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
@@ -84,6 +85,7 @@ const els = {
 let settings = loadSettings();
 let session = null;
 let globe = null;
+let experience = null;
 let awaitingConfirm = false;
 let roundLocked = false; // true between confirm and "Next"
 
@@ -222,6 +224,10 @@ function startChallenge(c) {
 }
 
 function startGame(isPractice) {
+  if (!localStorage.getItem('marctap.introDone') && !localStorage.getItem('marctap.seenHelp')) {
+    experience.startIntro(() => startGame(isPractice));
+    return;
+  }
   const seed = isPractice ? practiceSeed() : dailySeed();
   beginSession(new GameSession(seed, isPractice, isPractice ? practiceExcludeSet() : null));
 }
@@ -260,6 +266,7 @@ function resolveMusicStyle() {
 let familyHintUsed = false;
 
 function beginRound() {
+  experience?.round();
   clearTimeout(resultPanelTimer); // a stale reveal timer must never fire mid-round
   familyHintUsed = false;
   hide(els.familyHintText);
@@ -319,6 +326,7 @@ function beginRound() {
 }
 
 function onGlobeTap() {
+  if (experience?.candidate()) return;
   if (roundLocked) return;
   sounds.tap();
   if (!awaitingConfirm) {
@@ -329,6 +337,7 @@ function onGlobeTap() {
 
 // Double-tap ON the pin = fast confirm (the taught gesture).
 function onPinDoubleTap(lat, lng) {
+  if (experience?.intro) return;
   if (roundLocked) return;
   confirmGuess(lat, lng);
 }
@@ -348,9 +357,11 @@ let resultPanelTimer = null;
 function confirmGuess(lat, lng) {
   if (placingPlace) { finalizePlace(); return; }
   if (roundLocked) return;
+  if (!experience.beforeConfirm()) return;
+  if (!session) return;
   const pin = globe.getPin();
   const g = pin || { lat, lng };
-  if (!g) return;
+  if (!Number.isFinite(g.lat) || !Number.isFinite(g.lng)) return;
   roundLocked = true;
   awaitingConfirm = false;
   globe.setInteractive(false);
@@ -369,16 +380,11 @@ function confirmGuess(lat, lng) {
   }
   saveDailyProgress(); // a reload resumes at the NEXT round - answered ones are settled
 
-  // Neon label floating in the 3D scene at the answer (MapTap-style).
-  const labelLines = [
-    { text: result.target.name, bold: true, color: '#ffffff' },
-    {
-      text: `Score: ${result.score}${result.multiplier > 1 ? ` × ${result.multiplier}` : ''} · ${formatDistance(result.distanceKm, settings.miles)}`,
-      color: '#7dffb5',
-    },
-  ];
+  // Compact DOM labels keep both points readable on narrow screens.
   globe.clearPin();
-  globe.showAnswer(result.guess, { lat: result.target.lat, lng: result.target.lng }, labelLines);
+  globe.showAnswer(result.guess, { lat: result.target.lat, lng: result.target.lng }, []);
+  hide(els.promptCard);
+  experience.reveal(result, settings.miles);
 
   // DOM panel enters after the 3D show (beams + comet ≈ 950ms + label fade).
   clearTimeout(resultPanelTimer);
@@ -404,6 +410,10 @@ function confirmGuess(lat, lng) {
     });
     els.btnNext.textContent = session.roundIndex + 1 >= ROUNDS_PER_GAME ? 'See results →' : 'Next →';
     show(els.resultPanel);
+    if (!getActivePlayer() && !localStorage.getItem('marctap.guestAsked')) {
+      show($('guest-invite'));
+      localStorage.setItem('marctap.guestAsked', '1');
+    }
     renderRoundDots();
     flyPoints(`+${result.points}`);
     setScoreDisplay(prevTotal + result.points, prevTotal);
@@ -422,6 +432,10 @@ function nextRound() {
 }
 
 function endGame() {
+  document.getElementById('app').classList.remove('discovering'); globe.resize();
+  experience.active = false;
+  hide($('aim-tools'));
+  hide($('discovery-labels'));
   hide(els.resultPanel);
   hide(els.promptCard);
   globe.clearPin();
@@ -878,6 +892,7 @@ function saveName(raw) {
   const name = setActivePlayer(raw);
   if (!name) { toast('Type a name first 🙂'); return; }
   hide(els.nameModal);
+  hide($('guest-invite'));
   migrateHistoryToPlayer(name);
   refreshPlayerUI();
   toast(`Welcome, ${name}! 🌍`);
@@ -1398,12 +1413,15 @@ async function boot() {
     onTap: onGlobeTap,
     onPinDoubleTap,
     onDoubleTapZoom,
+    onPinDragged: () => experience?.pinChanged(),
+    onFrame: () => experience?.frame(),
     onOverviewSelect: (i) => selectOverviewIndex(i),
   });
   globe.setAutoRotate(settings.autoRotate);
 
   const geojson = await loadCountries(`${import.meta.env.BASE_URL}data/countries-50m.geojson`);
   await globe.init(geojson);
+  experience = new Experience(globe, { onCandidate: onGlobeTap });
   globe.setRealisticLighting(settings.realisticLighting !== false);
   globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
 
@@ -1414,9 +1432,6 @@ async function boot() {
   // iOS: every tap re-blesses audio (silent-switch bypass + resume after calls/
   // interruptions). Cheap no-op when already unlocked.
   window.addEventListener('pointerdown', unlockIosAudio, { passive: true });
-  if (!getActivePlayer()) {
-    setTimeout(() => openNameModal(false), 400);
-  }
   refreshPlayerUI();
 
   els.btnLeaderboard.addEventListener('click', openLeaderboard);
@@ -1463,6 +1478,8 @@ async function boot() {
   els.btnSwitchPlayer.addEventListener('click', () => { hide(els.settingsModal); openNameModal(true); });
   els.nameSave.addEventListener('click', () => saveName(els.nameInput.value));
   els.nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(els.nameInput.value); });
+  $('guest-name').addEventListener('click', () => openNameModal(false));
+  $('guest-later').addEventListener('click', () => hide($('guest-invite')));
   initAccountUI();
 
   // If today's daily is already done, let the player know on Play.
@@ -1475,11 +1492,14 @@ async function boot() {
       if (saved) resumeDaily(saved); else startGame(false);
     }
   });
+  els.btnPlay.disabled = false;
+  els.btnPlay.textContent = "▶ Play today's game";
   // Say so on the button when there is a game to pick back up.
   if (!dailyAlreadyPlayed(puzzleNumberForToday()) && loadDailyProgress()) {
     els.btnPlay.textContent = `▶ Resume today's game (round ${Math.min(loadDailyProgress().rounds.length + 1, ROUNDS_PER_GAME)} of ${ROUNDS_PER_GAME})`;
   }
   els.btnPractice.addEventListener('click', () => startGame(true));
+  $('btn-introduction').addEventListener('click', () => experience.startIntro(() => startGame(true)));
   els.btnArchive.addEventListener('click', openArchive);
   els.btnEndArchive.addEventListener('click', openArchive);
   els.btnGlobe.addEventListener('click', enterVisited);
@@ -1491,11 +1511,14 @@ async function boot() {
   els.ovBack.addEventListener('click', exitOverview);
 
   els.btnConfirm.addEventListener('click', () => {
+    globe.updatePrecisionPin();
     const pin = globe.getPin();
     if (!pin) { toast('Tap the globe first to drop a pin 📍'); return; }
     confirmGuess(pin.lat, pin.lng);
   });
   els.btnClear.addEventListener('click', () => {
+    if (experience.intro) { toast('Adjust your practice pin, then confirm.'); return; }
+    experience.precision(false);
     globe.clearPin();
     awaitingConfirm = false;
     hide(els.confirmBar);
@@ -1533,7 +1556,8 @@ async function boot() {
   document.querySelectorAll('.nudge').forEach((btn) => {
     const dir = btn.dataset.nudge;
     let holdTimer = null, repeatTimer = null;
-    const doNudge = () => { globe.nudgePin(dir); };
+    const doNudge = () => { globe.nudgePin(dir); experience.pinChanged(); };
+    btn.addEventListener('click', (e) => { if (e.detail === 0) doNudge(); });
     btn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       doNudge();
@@ -1547,6 +1571,8 @@ async function boot() {
 
   // Keyboard shortcuts: arrows nudge, Enter confirms; in overview, arrows browse.
   window.addEventListener('keydown', (e) => {
+    if (e.target?.closest?.('input, textarea, select, button, summary, [contenteditable="true"]') || document.querySelector('.modal:not(.hidden)')) return;
+    if (experience.intro && e.key === 'Enter') { e.preventDefault(); if (!els.btnConfirm.disabled) confirmGuess(); return; }
     if (overviewItems && !els.overviewPanel.classList.contains('hidden')) {
       if (e.key === 'ArrowLeft') { e.preventDefault(); selectOverviewIndex(overviewIndex - 1); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); selectOverviewIndex(overviewIndex + 1); }
@@ -1557,11 +1583,14 @@ async function boot() {
     const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
     if (map[e.key] && globe.getPin()) {
       e.preventDefault();
+      experience.precision(false);
       globe.nudgePin(map[e.key]);
+      experience.pinChanged();
     } else if (e.key === 'Enter' && awaitingConfirm) {
       const pin = globe.getPin();
       if (pin) confirmGuess(pin.lat, pin.lng);
     } else if (e.key === 'Escape' && awaitingConfirm) {
+      experience.precision(false);
       globe.clearPin();
       awaitingConfirm = false;
       hide(els.confirmBar);
@@ -1610,11 +1639,6 @@ async function boot() {
     setInterval(() => { overlay.textContent = JSON.stringify({ ...globe.debugInfo(), news: newsDecisionFor(puzzleNumberForToday()) }, null, 2); }, 500);
   }
 
-  // First-visit help
-  if (!localStorage.getItem('marctap.seenHelp')) {
-    localStorage.setItem('marctap.seenHelp', '1');
-    setTimeout(() => show(els.helpModal), 600);
-  }
 }
 
 boot();

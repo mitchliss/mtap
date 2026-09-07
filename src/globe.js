@@ -594,6 +594,37 @@ export class Globe {
 
   setAutoRotate(on) { this.controls.autoRotate = on; }
   setInteractive(on) { this.interactive = on; }
+  setPrecisionMode(on) {
+    this.precisionMode = !!on;
+    if (on) this.updatePrecisionPin();
+    if (this.pin) this.pin.visible = !on;
+    if (this.pinDot) this.pinDot.visible = !on;
+  }
+  updatePrecisionPin() {
+    if (!this.precisionMode) return;
+    const aim = this.cameraLatLng();
+    if (aim) this._placePin(aim.lat, aim.lng);
+    if (this.pin) this.pin.visible = false;
+    if (this.pinDot) this.pinDot.visible = false;
+  }
+  screenPoint(lat, lng) {
+    this.camera.updateMatrixWorld();
+    const point = latLngToVec3(lat, lng);
+    if (point.dot(this.camera.position) <= 1) return null;
+    point.project(this.camera);
+    if (point.z > 1 || Math.abs(point.x) > 1 || Math.abs(point.y) > 1) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return { x: (point.x + 1) * rect.width / 2, y: (1 - point.y) * rect.height / 2 };
+  }
+  framePoints(a, b) {
+    const mid = this._midpointOnSphere(a, b);
+    const halfAngle = this._angularDistance(a, b) / 2;
+    const vertical = THREE.MathUtils.degToRad(this.camera.fov / 2);
+    const horizontal = Math.atan(Math.tan(vertical) * this.camera.aspect);
+    const field = Math.min(vertical, horizontal) * 0.7;
+    const d = Math.max(1.28, 1.05 / Math.max(0.01, Math.cos(halfAngle)), Math.cos(halfAngle) + Math.sin(halfAngle) / Math.tan(field));
+    this.flyTo(mid.lat, mid.lng, Math.min(8, d), 850);
+  }
   setGameplayActive(on) { this._gameplayActive = !!on; }
   setRealisticLighting(on) {
     this._sunShaderState.enabled = !!on;
@@ -682,7 +713,7 @@ export class Globe {
   // counts as a hit too. Falls back to the geometric test when the canvas has
   // no measurable size (headless/hidden pane), where the projection is unsafe.
   _pinHit(e) {
-    if (!this.pin) return false;
+    if (!this.pin || this.precisionMode) return false;
     this._setPointerFromEvent(e);
     this.raycaster.setFromCamera(this.pointer, this.camera);
     if (this.raycaster.intersectObject(this.pin, false).length > 0) return true;
@@ -827,7 +858,7 @@ export class Globe {
           } else {
             lastTapTime = now;
             lastTapPos = { x: e.clientX, y: e.clientY };
-            if (this.interactive) {
+            if (this.interactive && !this.precisionMode) {
               // Snapshot the pin before moving it, so a double-tap can restore.
               this._prevPinSnapshot = this.pinLatLng ? { ...this.pinLatLng } : null;
               this._placePin(ll.lat, ll.lng);
@@ -1569,6 +1600,7 @@ export class Globe {
 
     // Keep marker sprites a steady SCREEN size while zooming - each measured
     // from its own position, so a marker near the horizon doesn't shrink away.
+    this.updatePrecisionPin();
     if (this.pin) {
       const s = this._spriteScaleForDistance(this.pin.position);
       this.pin.scale.set(s, s, 1);
@@ -1672,6 +1704,7 @@ export class Globe {
     }
 
     this.renderer.render(this.scene, this.camera);
+    this.cb.onFrame?.();
     this._frameTimes.push({ t: performance.now(), ms: (this._dtOverride ?? rawDt) * 1000 });
     while (this._frameTimes.length && this._frameTimes[0].t < performance.now() - 10000) this._frameTimes.shift();
     if (!this._tierBenchmarked && this._frameTimes.length > 120 && this._frameTimes.at(-1).t - this._frameTimes[0].t > 9000) {

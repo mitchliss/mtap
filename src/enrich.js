@@ -27,9 +27,12 @@ export async function fetchWikiSummary(locationName) {
   const title = wikiTitleForLocation(locationName);
   if (summaryCache.has(title)) return summaryCache.get(title);
   let result = null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(WIKI_SUMMARY + encodeURIComponent(title), {
       headers: { Accept: 'application/json' },
+      signal: controller.signal,
     });
     if (res.ok) {
       const j = await res.json();
@@ -38,12 +41,14 @@ export async function fetchWikiSummary(locationName) {
           title: j.title,
           extract: j.extract,
           thumbnail: j.thumbnail ? j.thumbnail.source : null,
+          coordinates: j.coordinates || null,
           url: j.content_urls && j.content_urls.desktop ? j.content_urls.desktop.page : null,
         };
       }
     }
   } catch { /* offline or blocked - caller hides the section */ }
-  summaryCache.set(title, result);
+  finally { clearTimeout(timer); }
+  if (result) summaryCache.set(title, result);
   return result;
 }
 
