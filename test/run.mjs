@@ -5,7 +5,8 @@ import { execFileSync } from 'node:child_process';
 
 import { NEWS, NEWS_START, newsRollFor } from '../src/news.js';
 import { LOCATIONS } from '../src/locations.js';
-import { dailyPicksFor, injectNewsIntoDeal, MAX_GAME_SCORE, ROUND_MULTIPLIERS } from '../src/game.js';
+import { dailyPicksFor, pickLocations, injectNewsIntoDeal, MAX_GAME_SCORE, ROUND_MULTIPLIERS } from '../src/game.js';
+import { tagsFor } from '../src/themes.js';
 import { countryAt, distanceKm, prepareCountries } from '../src/geo.js';
 import { K_ROT, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from '../src/graphics.js';
 import { validateNewsEntries } from '../scripts/validate-news.mjs';
@@ -131,4 +132,21 @@ test('immutable deal oracle remains byte-identical through puzzle 43', () => {
   assert.match(out, /PASS deal oracle/);
 });
 
+test('future daily games cap water at two across a full year', () => {
+  for (let n = 53; n <= 448; n++) {
+    const picks = dailyPicksFor(n);
+    assert.equal(picks.length, 5);
+    assert.ok(picks.filter((l) => tagsFor(l).has('water')).length <= 2, `water cap on #${n}`);
+  }
+});
+test('balanced selection prioritizes heritage and handles exhausted heritage pool', () => {
+  const heritage = LOCATIONS.filter((l) => tagsFor(l).has('jewish'));
+  for (const seed of [53, 54, 70, 100]) {
+    const picks = pickLocations(seed, null, { balanced: true });
+    assert.ok(picks.some((l) => tagsFor(l).has('jewish')));
+    const exhausted = pickLocations(seed, new Set(heritage.map((l) => l.name)), { balanced: true });
+    assert.equal(exhausted.length, 5);
+    assert.ok(exhausted.every((l) => !tagsFor(l).has('jewish')));
+  }
+});
 if (!process.exitCode) console.log(`PASS all ${passed} Node gates`);

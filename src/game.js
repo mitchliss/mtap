@@ -58,6 +58,9 @@ export function pickLocations(seed, excludeNames = null, opts = {}) {
   const shuffled = seededShuffle(pool, rng);
   const wantDiff = [1, 1, 2, 3, 3]; // ramp difficulty to match the x1/x1/x2/x3/x3 multipliers
   const picked = [];
+  const balanced = !!opts.balanced;
+  const waterCount = () => picked.filter((l) => tagsFor(l).has('water')).length;
+  const allowed = (l) => !balanced || !tagsFor(l).has('water') || waterCount() < 2;
   const usedCountries = new Set();
   const tag = opts.preferTag || null;
   const hasTag = (l) => tag && tagsFor(l).has(tag);
@@ -66,15 +69,18 @@ export function pickLocations(seed, excludeNames = null, opts = {}) {
   // strict one-per-country rule.
   const countryCount = new Map();
   const countOf = (l) => countryCount.get(l.country || l.name) || 0;
-  const okMixed = (l, d) => !picked.includes(l) && (d === null || l.diff === d) && countOf(l) === 0;
-  const okTag = (l, d) => !picked.includes(l) && (d === null || l.diff === d) && hasTag(l) && countOf(l) < THEME_MAX_PER_COUNTRY;
+  const okMixed = (l, d) => !picked.includes(l) && allowed(l) && (d === null || l.diff === d) && countOf(l) === 0;
+  const okTag = (l, d) => !picked.includes(l) && allowed(l) && (d === null || l.diff === d) && hasTag(l) && countOf(l) < THEME_MAX_PER_COUNTRY;
 
   for (const targetDiff of wantDiff) {
-    let choice =
+    // Reserve a heritage place before the other slots consume its country.
+    const heritage = balanced && picked.length === 0
+      ? shuffled.find((l) => tagsFor(l).has('jewish') && allowed(l)) : null;
+    let choice = heritage ||
       (tag && (shuffled.find((l) => okTag(l, targetDiff)) || shuffled.find((l) => okTag(l, null)))) ||
       shuffled.find((l) => okMixed(l, targetDiff)) ||
       shuffled.find((l) => okMixed(l, null)) ||
-      shuffled.find((l) => !picked.includes(l));
+      shuffled.find((l) => !picked.includes(l) && allowed(l));
     picked.push(choice);
     countryCount.set(choice.country || choice.name, countOf(choice) + 1);
   }
@@ -177,14 +183,20 @@ export function dailyPicksFor(n) {
           if (pool.length - withProx.size >= 40) for (const name of withProx) exclude.add(name);
         }
       }
-      let theme = themeForPuzzle(k);
+      // Starts Sep 12, 2026: preserve today's already-dealt game and history.
+      const balanced = k >= 53;
+      let theme = balanced ? null : themeForPuzzle(k);
       if (theme) {
         const avail = poolForPuzzle(k).filter((l) => !exclude.has(l.name) && tagsFor(l).has(theme.key)).length;
         if (avail < THEME_MIN_POOL) theme = null;
       }
-      picks = pickLocations(k, exclude, theme ? { preferTag: theme.key } : {});
+      picks = pickLocations(k, exclude, balanced ? { balanced: true } : theme ? { preferTag: theme.key } : {});
       const news = k >= NEWS_START ? NEWS.find((entry) => entry.pn === k) : null;
-      if (news && (news.force || newsRollFor(k))) picks = injectNewsIntoDeal(picks, news).picks;
+      if (news && (news.force || newsRollFor(k))) {
+        const candidate = injectNewsIntoDeal(picks, news).picks;
+        const losesHeritage = picks.some((l) => tagsFor(l).has('jewish')) && !candidate.some((l) => tagsFor(l).has('jewish'));
+        if (!balanced || (candidate.filter((l) => tagsFor(l).has('water')).length <= 2 && !losesHeritage)) picks = candidate;
+      }
       dailyPickCache.set(k, picks);
       dailyThemeCache.set(k, theme);
     }

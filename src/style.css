@@ -933,3 +933,8 @@ button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
 .end-vs b { color: var(--gold); }
 
 #imagery-credit{position:fixed;bottom:calc(3px + env(safe-area-inset-bottom));right:5px;max-width:80vw;font-size:9px;color:#d8e2ec;background:#061020b8;padding:2px 5px;z-index:3;pointer-events:none}
+
+/* Reserve extra room for iPhone browser chrome that can overlay the page. */
+@media (max-width: 600px) and (orientation: portrait) {
+  .prompt-card { top: calc(var(--safe-top) + 140px); }
+}
