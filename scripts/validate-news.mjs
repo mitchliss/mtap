@@ -22,13 +22,16 @@ export function validateNewsEntries(entries, { now = new Date(), currentPuzzle =
   const current = currentPuzzle ?? puzzleNumberInTimeZone(now);
   const names = new Set(LOCATIONS.map((l) => l.name));
   const seenPn = new Set();
+  // Only the most recently appended entry needs to land in the future: once a day passes,
+  // its already-committed entry is expected to be historical, not a validation failure.
+  const maxPn = Math.max(-Infinity, ...entries.map((e) => (e && Number.isInteger(e.pn) ? e.pn : -Infinity)));
   for (const [i, entry] of entries.entries()) {
     const at = `NEWS[${i}]`;
     if (!entry || typeof entry !== 'object') { errors.push(`${at}: entry must be an object`); continue; }
     for (const key of ['pn', 'slot', 'name', 'prompt', 'lat', 'lng', 'continent', 'diff', 'fact']) {
       if (entry[key] === undefined || entry[key] === null || entry[key] === '') errors.push(`${at}: missing ${key}`);
     }
-    if (!Number.isInteger(entry.pn) || entry.pn <= current) errors.push(`${at}: pn must be after #${current}`);
+    if (!Number.isInteger(entry.pn) || (entry.pn === maxPn && entry.pn <= current)) errors.push(`${at}: pn must be after #${current}`);
     if (seenPn.has(entry.pn)) errors.push(`${at}: duplicate pn`); else seenPn.add(entry.pn);
     if (!Number.isInteger(entry.slot) || entry.slot < 0 || entry.slot > 4) errors.push(`${at}: slot must be 0..4`);
     if (![1, 2, 3].includes(entry.diff)) errors.push(`${at}: diff must be 1, 2, or 3`);

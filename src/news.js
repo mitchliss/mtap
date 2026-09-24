@@ -15,6 +15,19 @@ export const NEWS = [
     diff: 2,
     fact: 'Mount Sinabung sent an ash column roughly 3,500 meters above its summit after lying quiet for five years, prompting the evacuation of hundreds of nearby residents.',
   },
+  {
+    pn: 66,
+    slot: 2,
+    name: 'Hurricane Polo',
+    prompt: "Category 5 hurricane churns off Mexico's Pacific coast",
+    lat: 15.3,
+    lng: -101.4,
+    country: null,
+    continent: 'North America',
+    diff: 2,
+    fact: 'Hurricane Polo rocketed to Category 5 strength with 180 mph winds while stalled off the coast of Zihuatanejo, ranking it among the strongest storms on Earth this year.',
+    offshore: true,
+  },
 ];
 
 export function newsRollFor(pn) {
