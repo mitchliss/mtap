@@ -28,6 +28,18 @@ export const NEWS = [
     fact: 'Hurricane Polo rocketed to Category 5 strength with 180 mph winds while stalled off the coast of Zihuatanejo, ranking it among the strongest storms on Earth this year.',
     offshore: true,
   },
+  {
+    pn: 67,
+    slot: 2,
+    name: 'Rodanthe, North Carolina',
+    prompt: "Powerful nor'easter breaches the Outer Banks' only highway",
+    lat: 35.5943,
+    lng: -75.4682,
+    country: 'United States of America',
+    continent: 'North America',
+    diff: 2,
+    fact: "A strengthening nor'easter drove waves as high as 18 feet into North Carolina's Outer Banks, breaching the dunes and washing out a stretch of Highway 12 near the Pea Island refuge.",
+  },
 ];
 
 export function newsRollFor(pn) {
