@@ -40,6 +40,19 @@ export const NEWS = [
     diff: 2,
     fact: "A strengthening nor'easter drove waves as high as 18 feet into North Carolina's Outer Banks, breaching the dunes and washing out a stretch of Highway 12 near the Pea Island refuge.",
   },
+  {
+    pn: 69,
+    slot: 2,
+    name: "Loyalty Islands, New Caledonia",
+    prompt: "Strong shallow earthquake shakes New Caledonia's Loyalty Islands",
+    lat: -21.298,
+    lng: 168.610,
+    country: null,
+    continent: 'Oceania',
+    diff: 2,
+    fact: 'A shallow magnitude 6.6 earthquake struck the Pacific seafloor about 68 kilometers east-northeast of Tadine, with officials warning of possible strong currents and unusual surges along nearby shorelines.',
+    offshore: true,
+  },
 ];
 
 export function newsRollFor(pn) {
