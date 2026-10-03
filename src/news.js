@@ -53,6 +53,18 @@ export const NEWS = [
     fact: 'A shallow magnitude 6.6 earthquake struck the Pacific seafloor about 68 kilometers east-northeast of Tadine, with officials warning of possible strong currents and unusual surges along nearby shorelines.',
     offshore: true,
   },
+  {
+    pn: 75,
+    slot: 2,
+    name: 'Lake Arendsee, Germany',
+    prompt: 'Divers pull 10,500-year-old worked timber from a sinking German lake',
+    lat: 52.8872,
+    lng: 11.4654,
+    country: 'Germany',
+    continent: 'Europe',
+    diff: 2,
+    fact: 'Divers recovered carved wooden posts and boards from the bed of Lake Arendsee dated to about 10,500 years ago, among the oldest worked timber found in Germany and evidence of building know-how that predates farming in the region.',
+  },
 ];
 
 export function newsRollFor(pn) {
