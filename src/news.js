@@ -65,6 +65,19 @@ export const NEWS = [
     diff: 2,
     fact: 'Divers recovered carved wooden posts and boards from the bed of Lake Arendsee dated to about 10,500 years ago, among the oldest worked timber found in Germany and evidence of building know-how that predates farming in the region.',
   },
+  {
+    pn: 76,
+    slot: 2,
+    name: 'Anak Krakatau, Indonesia',
+    prompt: 'New islands emerge after a volcano erupts in the Sunda Strait',
+    lat: -6.102,
+    lng: 105.423,
+    country: null,
+    continent: 'Asia',
+    diff: 2,
+    fact: "Satellite images showed two new islands forming inside the caldera around Anak Krakatau after the volcano's weeks-long eruption sent ash columns miles into the sky and disrupted thousands of flights across Java and Sumatra.",
+    offshore: true,
+  },
 ];
 
 export function newsRollFor(pn) {
