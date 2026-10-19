@@ -78,6 +78,18 @@ export const NEWS = [
     fact: "Satellite images showed two new islands forming inside the caldera around Anak Krakatau after the volcano's weeks-long eruption sent ash columns miles into the sky and disrupted thousands of flights across Java and Sumatra.",
     offshore: true,
   },
+  {
+    pn: 91,
+    slot: 2,
+    name: 'Humåtak, Guam',
+    prompt: 'Violent typhoon grazes the south coast of Guam',
+    lat: 13.3283,
+    lng: 144.6697,
+    country: 'Guam',
+    continent: 'Oceania',
+    diff: 2,
+    fact: "Super Typhoon Champi rapidly intensified and passed just miles south of Guam with sustained winds near 150 mph, prompting an extreme wind warning for the island's southern villages while narrowly sparing it a direct hit.",
+  },
 ];
 
 export function newsRollFor(pn) {
