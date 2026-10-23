@@ -90,6 +90,18 @@ export const NEWS = [
     diff: 2,
     fact: "Super Typhoon Champi rapidly intensified and passed just miles south of Guam with sustained winds near 150 mph, prompting an extreme wind warning for the island's southern villages while narrowly sparing it a direct hit.",
   },
+  {
+    pn: 95,
+    slot: 2,
+    name: 'Mount Semeru, Indonesia',
+    prompt: "Explosive eruption sends an ash plume miles above Java's tallest volcano",
+    lat: -8.1077,
+    lng: 112.9224,
+    country: 'Indonesia',
+    continent: 'Asia',
+    diff: 2,
+    fact: "Mount Semeru, Java's highest peak, sent an ash plume roughly 15,000 feet into the sky during a fresh round of explosive activity, prompting aviation authorities to warn pilots away from the area.",
+  },
 ];
 
 export function newsRollFor(pn) {
