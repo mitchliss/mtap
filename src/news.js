@@ -102,6 +102,19 @@ export const NEWS = [
     diff: 2,
     fact: "Mount Semeru, Java's highest peak, sent an ash plume roughly 15,000 feet into the sky during a fresh round of explosive activity, prompting aviation authorities to warn pilots away from the area.",
   },
+  {
+    pn: 97,
+    slot: 2,
+    name: 'Sola, Vanuatu',
+    prompt: 'Major earthquake off northern Vanuatu briefly triggers a tsunami warning',
+    lat: -13.87,
+    lng: 165.70,
+    country: null,
+    continent: 'Oceania',
+    diff: 2,
+    fact: 'A shallow magnitude 6.9 earthquake struck the Pacific seafloor roughly 200 kilometers west of the village of Sola, briefly triggering a tsunami warning for Vanuatu that was lifted within the hour with no reports of damage.',
+    offshore: true,
+  },
 ];
 
 export function newsRollFor(pn) {
