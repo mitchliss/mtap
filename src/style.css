@@ -298,6 +298,7 @@ button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
   gap: 10px;
 }
 .end-round-row .rr-name { text-align: left; flex: 1; }
+.end-round-row .rr-pin { color: #ff9db2; font-size: 0.74rem; margin-top: 1px; }
 .end-round-row .rr-dist { color: var(--text-dim); white-space: nowrap; }
 .end-round-row .rr-pts { color: var(--gold); font-weight: 800; white-space: nowrap; min-width: 44px; text-align: right; }
 .end-actions { display: flex; flex-direction: column; gap: 9px; }

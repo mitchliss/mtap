@@ -421,6 +421,7 @@ export class Globe {
     const subsolar = subsolarPoint();
     this.sun.position.copy(latLngToVec3(subsolar.lat, subsolar.lng, 5));
     this.sunDir = this.sun.position.clone().normalize();
+    this._sunHome = this.sun.position.clone(); // subsolar anchor for realistic mode
     this.scene.add(this.sun);
     const fill = new THREE.DirectionalLight(0x88aaff, 0.25);
     fill.position.set(-3, -1, -2);
@@ -639,8 +640,12 @@ export class Globe {
   setGameplayActive(on) { this._gameplayActive = !!on; }
   setRealisticLighting(on) {
     this._sunShaderState.enabled = !!on;
-    this.ambient.intensity = on ? 0.5 : 1.75;
+    // Realistic: real subsolar sun, dim ambient. Off ("daytime everywhere"):
+    // the sun RIDES THE CAMERA (see _tick) so whatever side you spin to is in
+    // full daylight — a fixed sun left the anti-solar hemisphere visibly dim.
+    this.ambient.intensity = on ? 0.5 : 1.45;
     this.sun.intensity = on ? 1.65 : 1.0;
+    if (on) this.sun.position.copy(this._sunHome);
     this.sphere.material.needsUpdate = true;
     if (this.tileDetail) this.tileDetail.setLighting(!!on);
   }
@@ -855,6 +860,7 @@ export class Globe {
             if (this.interactive && wasPinPress) {
               // Double-tap ON the pin = fast confirm (the taught gesture).
               this._placePin(ll.lat, ll.lng);
+              this._spawnPinRipple(ll.lat, ll.lng);
               if (this.cb.onPinDoubleTap) this.cb.onPinDoubleTap(ll.lat, ll.lng);
             } else {
               // Map navigation: undo the pin move that tap 1 caused, then zoom.
@@ -873,6 +879,7 @@ export class Globe {
               // Snapshot the pin before moving it, so a double-tap can restore.
               this._prevPinSnapshot = this.pinLatLng ? { ...this.pinLatLng } : null;
               this._placePin(ll.lat, ll.lng);
+              this._spawnPinRipple(ll.lat, ll.lng);
               if (this.cb.onTap) this.cb.onTap(ll.lat, ll.lng);
             }
           }
@@ -933,6 +940,24 @@ export class Globe {
     this.pinDot.position.copy(surface);
     this.pinDot.scale.setScalar(s * 0.08 / 0.006);
     this.pinDot.lookAt(this.pinDot.position.clone().multiplyScalar(2));
+  }
+
+  // A one-shot expanding ring where the tap landed — tactile feedback that the
+  // pin registered. Sized off the pin-dot basis so it reads the same at every
+  // zoom, and animated by the shared pulse loop (once: true = self-disposing).
+  _spawnPinRipple(lat, lng) {
+    if (!GFX.pinRipple) return;
+    const pos = latLngToVec3(lat, lng, GLOBE_RADIUS * 1.004);
+    const geo = new THREE.RingGeometry(0.009, 0.012, 36);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff7896, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthTest: false });
+    const ring = new THREE.Mesh(geo, mat);
+    ring.renderOrder = 997;
+    ring.position.copy(pos);
+    ring.lookAt(pos.clone().multiplyScalar(2));
+    const base = this._spriteScaleForDistance(pos) * 0.08 / 0.006; // same basis as the pin dot
+    ring.scale.setScalar(base);
+    this.markerRoot.add(ring);
+    this._pulses.push({ mesh: ring, t: 0, once: true, dur: 0.55, base });
   }
 
   movePin(lat, lng) { this._placePin(lat, lng); }
@@ -1254,6 +1279,12 @@ export class Globe {
       });
     }
     this._resultObjects = [];
+    // One-shot ripples own their meshes (not in _resultObjects) — tidy them up.
+    for (const p of this._pulses) if (p.once) {
+      this.markerRoot.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+    }
     this._pulses = [];
     this._arcAnim = null;
     this._answerPin = null;
@@ -1469,10 +1500,39 @@ export class Globe {
     return new THREE.Points(geo, mat);
   }
 
+  // One meteor: a short line streaking along a tangent of the star sphere,
+  // spawned in the hemisphere the camera is facing so it is actually seen.
+  _spawnMeteor() {
+    const camDir = this.camera.position.clone().normalize();
+    let p = new THREE.Vector3();
+    do { p.randomDirection(); } while (p.dot(camDir) < 0.3);
+    p.multiplyScalar(44 + Math.random() * 10);
+    const dir = new THREE.Vector3().randomDirection().cross(p).normalize();
+    const len = 2.2 + Math.random() * 1.4;
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, 0, 0),
+      dir.clone().multiplyScalar(-len),
+    ]);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xdcecff, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const line = new THREE.Line(geo, mat);
+    line.position.copy(p);
+    this.scene.add(line);
+    if (!this._meteors) this._meteors = [];
+    this._meteors.push({ line, dir, t: 0, dur: 0.85 + Math.random() * 0.4, speed: 9 + Math.random() * 5 });
+  }
+
   // ---------- frame loop ----------
 
   _tick() {
     const rawDt = this._clock.getDelta();
+    // Daytime-everywhere mode: keep the sun behind the camera so the visible
+    // hemisphere is always fully lit (specular/ocean glint stays alive).
+    if (this._sunShaderState && this._sunShaderState.enabled === false) {
+      this.sun.position.copy(this.camera.position).setLength(5);
+    }
     // Clamped so a tab switch can't teleport; the harness may pin it.
     const dt = this._dtOverride ?? THREE.MathUtils.clamp(rawDt, DT_MIN, DT_MAX);
     // Self-healing: if anything ever corrupts the camera (NaN), snap back to a
@@ -1668,12 +1728,53 @@ export class Globe {
       this._moon.lookAt(0, 0, 0);
     }
 
-    // Pulsing rings.
-    for (const p of this._pulses) {
+    // Pulsing rings. `once` entries (pin-drop ripples) run a single expanding
+    // sweep then dispose themselves; the rest loop until cleared with results.
+    this._pulses = this._pulses.filter((p) => {
       p.t += dt;
+      if (p.once) {
+        const f = Math.min(1, p.t / p.dur);
+        const k = p.base * (1 + 3 * f);
+        p.mesh.scale.set(k, k, k);
+        p.mesh.material.opacity = 0.85 * (1 - f);
+        if (f >= 1) {
+          this.markerRoot.remove(p.mesh);
+          p.mesh.geometry.dispose();
+          p.mesh.material.dispose();
+          return false;
+        }
+        return true;
+      }
       const k = 1 + 2.2 * (p.t % 1.4) / 1.4;
       p.mesh.scale.set(k, k, k);
       p.mesh.material.opacity = Math.max(0, 0.9 * (1 - (p.t % 1.4) / 1.4));
+      return true;
+    });
+
+    // Shooting stars: a brief additive streak across the far starfield every
+    // so often — menu/end screens only (same rule as clouds), never mid-round.
+    if (GFX.shootingStars) {
+      const nowT = performance.now();
+      if (!this._nextMeteorAt) this._nextMeteorAt = nowT + 4000 + Math.random() * 6000;
+      if (!this._gameplayActive && nowT >= this._nextMeteorAt) {
+        this._nextMeteorAt = nowT + 8000 + Math.random() * 10000;
+        this._spawnMeteor();
+      }
+      if (this._meteors && this._meteors.length) {
+        this._meteors = this._meteors.filter((m) => {
+          m.t += dt;
+          const f = m.t / m.dur;
+          m.line.position.addScaledVector(m.dir, m.speed * dt);
+          m.line.material.opacity = Math.max(0, Math.sin(Math.PI * Math.min(1, f)) * 0.85);
+          if (f >= 1) {
+            this.scene.remove(m.line);
+            m.line.geometry.dispose();
+            m.line.material.dispose();
+            return false;
+          }
+          return true;
+        });
+      }
     }
 
     this.renderer.render(this.scene, this.camera);

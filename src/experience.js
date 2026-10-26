@@ -151,7 +151,7 @@ export class Experience {
     $('app').classList.add('discovering'); this.globe.resize();
     this.globe.framePoints(result.guess, result.target);
     this.active = false; this.precision(false); visible('aim-tools', false);
-    $('discovery-relation').textContent = guessRelationship(result.guess, result.target, miles);
+    $('discovery-relation').textContent = guessRelationship(result.guess, result.target, miles, result.guessCountry ? result.guessCountry.name : null);
     visible('discovery-world', result.distanceKm > 17500);
     if (result.distanceKm > 17500) {
       const canvas = $('discovery-world').querySelector('canvas'), ctx = canvas.getContext('2d');
@@ -170,7 +170,10 @@ export class Experience {
       const el = document.createElement('span'); el.className = `discovery-map-label ${kind}`; el.textContent = name;
       $('discovery-labels').append(el); this.labels.push({ ...point, el, kind });
     };
-    addLabel(result.guess, 'Your pin', 'guess'); addLabel(result.target, 'Destination', 'destination');
+    // Name the tapped country on the pin label when it isn't the target's —
+    // the family wants to see which country they actually selected.
+    const pinLabel = result.guessCountry && !result.countryMatch ? `Your pin · ${result.guessCountry.name}` : 'Your pin';
+    addLabel(result.guess, pinLabel, 'guess'); addLabel(result.target, 'Destination', 'destination');
     this.cities.then((cities) => {
       if (token !== this.serial) return;
       const nearby = nearbyCities(result.target, cities);

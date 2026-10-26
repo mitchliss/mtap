@@ -8,6 +8,8 @@ export const GFX = {
   clouds: true,
   starTwinkle: true,
   toneMapping: true,
+  pinRipple: true,      // expanding ring where a tap drops the pin
+  shootingStars: true,  // occasional meteors on menu/end screens (never mid-round)
 };
 
 export const K_ROT = 1.1 * 2 * Math.tan(THREE.MathUtils.degToRad(45 / 2)) / (2 * Math.PI);

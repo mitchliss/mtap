@@ -127,6 +127,26 @@ test('year-window deals stay deterministic and well-formed', () => {
     assert.equal(new Set(a.map((p) => p.country)).size, 5, `country dupe on #${k}`);
   }
 });
+test('every music style composes a deterministic, well-formed song', async () => {
+  const { composeSong, MUSIC_STYLES } = await import('../src/music.js');
+  assert.equal(MUSIC_STYLES.length, 6);
+  for (const style of MUSIC_STYLES) {
+    const a = composeSong(style, 97), b = composeSong(style, 97);
+    assert.deepEqual(a, b, `${style} not deterministic`);
+    assert.ok(a.bpm >= 90 && a.bpm <= 180, `${style} bpm=${a.bpm}`);
+    assert.equal(a.totalSteps, 24 * 16);
+    assert.equal(a.bars.length, 4);
+    for (const bar of a.bars) assert.ok(bar.tones.length >= 3);
+  }
+});
+test('reveal headline names the country the pin landed in', async () => {
+  const { guessRelationship } = await import('../src/discovery.js');
+  const target = { lat: 48.8566, lng: 2.3522 };
+  const withCountry = guessRelationship({ lat: 52.52, lng: 13.405 }, target, false, 'Germany');
+  assert.ok(withCountry.includes('landed in Germany'), withCountry);
+  const noCountry = guessRelationship({ lat: 52.52, lng: 13.405 }, target, false, null);
+  assert.ok(!noCountry.includes('landed in') && noCountry.includes('of the destination'), noCountry);
+});
 test('immutable deal oracle remains byte-identical through puzzle 43', () => {
   const out = execFileSync(process.execPath, ['scripts/capture-deal-oracle.mjs', '--check'], { cwd: process.cwd(), encoding: 'utf8' });
   assert.match(out, /PASS deal oracle/);

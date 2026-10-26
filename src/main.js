@@ -6,7 +6,7 @@ import { trackViewport } from './viewport.js';
 trackViewport();
 import { Globe } from './globe.js';
 import { Experience } from './experience.js';
-import { loadCountries, formatDistance } from './geo.js';
+import { loadCountries, countryAt, formatDistance } from './geo.js';
 import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
   dailySeed, practiceSeed, dailyAlreadyPlayed, recordDailyResult,
@@ -543,6 +543,7 @@ function endGame() {
       <span class="rr-dist"></span>
       <span class="rr-pts">+${r.points}</span>`;
     row.querySelector('.rr-name').textContent = r.target.name;
+    appendPinNote(row, r.countryMatch ? null : r.guessCountry, !r.guessCountry && !r.bullseye);
     row.querySelector('.rr-dist').textContent = `${r.score}% · ${formatDistance(r.distanceKm, settings.miles)}`;
     row.addEventListener('click', () => enterOverview(i));
     els.endRounds.appendChild(row);
@@ -555,6 +556,19 @@ function endGame() {
 
   show(els.endScreen);
   renderOnThisDay();
+}
+
+// Small dim note under the round's place name saying where the pin actually
+// landed — the family wants to know which country they really selected.
+// pinCountry: country object/name for a wrong-country land pin (null = skip);
+// openWater: true when the pin missed land entirely.
+function appendPinNote(row, pinCountry, openWater) {
+  const text = pinCountry ? `📍 you pinned ${pinCountry.name || pinCountry}` : openWater ? '📍 you pinned open water' : null;
+  if (!text) return;
+  const note = document.createElement('div');
+  note.className = 'rr-pin';
+  note.textContent = text;
+  row.querySelector('.rr-name').appendChild(note);
 }
 
 function showEndScreenForRecorded(record) {
@@ -572,6 +586,9 @@ function showEndScreenForRecorded(record) {
   }
   els.endEmoji.textContent = record.rounds.map((r) => emojiForScore(r.score)).join(' ');
   els.endRounds.innerHTML = '';
+  // Older records only stored guess coords; resolve the pinned country and the
+  // target country (via the deterministic daily deal) on the fly.
+  const recLocs = dailyPicksFor(puzzleNumberForToday());
   record.rounds.forEach((r, i) => {
     const pts = r.points != null ? r.points : r.score; // old records predate multipliers
     const row = document.createElement('div');
@@ -583,6 +600,11 @@ function showEndScreenForRecorded(record) {
       <span class="rr-dist"></span>
       <span class="rr-pts">+${pts}</span>`;
     row.querySelector('.rr-name').textContent = r.name;
+    if (r.guess && !r.b) {
+      const pin = countryAt(r.guess.lat, r.guess.lng);
+      const targetCountry = recLocs[i] ? recLocs[i].country : null;
+      appendPinNote(row, pin && pin.name !== targetCountry ? pin : null, !pin && r.score < 100);
+    }
     row.querySelector('.rr-dist').textContent = `${r.score}% · ${formatDistance(r.distanceKm, settings.miles)}`;
     row.addEventListener('click', () => enterOverview(i));
     els.endRounds.appendChild(row);
@@ -610,8 +632,16 @@ function overviewCardLines(item) {
     { text: item.name, bold: true, color: '#ffffff' },
     { text: `${item.score}% · ${formatDistance(item.distanceKm, settings.miles)} · +${item.points}`, color: '#fbbf24' },
   ];
+  if (item.pinned) lines.push({ text: `📍 You pinned ${item.pinned}`, color: '#ff9db2' });
   if (fact) lines.push({ text: fact, color: '#9fb2d8' });
   return lines;
+}
+
+// The country the stored guess actually landed in, when it isn't the target's.
+function pinnedCountryFor(guess, targetCountry) {
+  if (!guess) return null;
+  const pin = countryAt(guess.lat, guess.lng);
+  return pin && pin.name !== targetCountry ? pin.name : null;
 }
 
 function buildOverviewItems() {
@@ -623,6 +653,7 @@ function buildOverviewItems() {
       lat: r.target.lat, lng: r.target.lng, name: r.target.name, fact: r.target.fact || '',
       guess: r.guess, distanceKm: r.distanceKm,
       score: r.score, points: r.points, multiplier: r.multiplier,
+      pinned: r.countryMatch ? null : r.guessCountry ? r.guessCountry.name : null,
     }));
   } else {
     const record = dailyAlreadyPlayed(puzzleNumberForToday());
@@ -635,6 +666,7 @@ function buildOverviewItems() {
       guess: r.guess || null, distanceKm: r.distanceKm,
       score: r.score, points: r.points != null ? r.points : r.score,
       multiplier: r.multiplier || multiplierForRound(i),
+      pinned: pinnedCountryFor(r.guess, locs[i].country),
     }));
   }
   for (const item of items) item.lines = overviewCardLines(item);
