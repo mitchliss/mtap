@@ -115,6 +115,18 @@ export const NEWS = [
     fact: 'A shallow magnitude 6.9 earthquake struck the Pacific seafloor roughly 200 kilometers west of the village of Sola, briefly triggering a tsunami warning for Vanuatu that was lifted within the hour with no reports of damage.',
     offshore: true,
   },
+  {
+    pn: 103,
+    slot: 2,
+    name: 'Legazpi City, Philippines',
+    prompt: 'Ash plume rises over the Philippines’ most famous volcano',
+    lat: 13.1391,
+    lng: 123.7438,
+    country: 'Philippines',
+    continent: 'Asia',
+    diff: 2,
+    fact: 'Philippine volcanologists raised Mayon Volcano to Alert Level 3 on October 30, 2026, after a moderately explosive eruption sent an ash plume several kilometers above the crater, dusting the city of Legazpi at its base.',
+  },
 ];
 
 export function newsRollFor(pn) {
