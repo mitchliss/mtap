@@ -127,6 +127,18 @@ export const NEWS = [
     diff: 2,
     fact: 'Philippine volcanologists raised Mayon Volcano to Alert Level 3 on October 30, 2026, after a moderately explosive eruption sent an ash plume several kilometers above the crater, dusting the city of Legazpi at its base.',
   },
+  {
+    pn: 104,
+    slot: 2,
+    name: 'Tonosí, Panama',
+    prompt: "Fresh quake rattles Panama's Azuero Peninsula weeks after a major earthquake",
+    lat: 7.59,
+    lng: -80.29,
+    country: 'Panama',
+    continent: 'North America',
+    diff: 2,
+    fact: 'A strong earthquake shook the Azuero Peninsula near Tonosí on October 31, 2026, sending residents into the streets amid an ongoing aftershock sequence from the magnitude 7.7 mainshock that struck the same region on October 9, with no casualties reported.',
+  },
 ];
 
 export function newsRollFor(pn) {
