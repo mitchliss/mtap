@@ -139,6 +139,18 @@ export const NEWS = [
     diff: 2,
     fact: 'A strong earthquake shook the Azuero Peninsula near Tonosí on October 31, 2026, sending residents into the streets amid an ongoing aftershock sequence from the magnitude 7.7 mainshock that struck the same region on October 9, with no casualties reported.',
   },
+  {
+    pn: 105,
+    slot: 2,
+    name: 'Milwaukee, Wisconsin',
+    prompt: 'A Midwest baseball team wins its first-ever championship',
+    lat: 43.0280,
+    lng: -87.9712,
+    country: 'United States of America',
+    continent: 'North America',
+    diff: 2,
+    fact: "The Milwaukee Brewers won the 2026 World Series, the franchise's first championship in its history, and fans packed Wisconsin Avenue for a victory parade days later.",
+  },
 ];
 
 export function newsRollFor(pn) {
