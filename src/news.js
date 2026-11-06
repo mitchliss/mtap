@@ -151,6 +151,18 @@ export const NEWS = [
     diff: 2,
     fact: "The Milwaukee Brewers won the 2026 World Series, the franchise's first championship in its history, and fans packed Wisconsin Avenue for a victory parade days later.",
   },
+  {
+    pn: 109,
+    slot: 2,
+    name: 'Volcano, Hawaii',
+    prompt: 'Lava fountains soar again at an ongoing Hawaiian eruption',
+    lat: 19.4497,
+    lng: -155.2356,
+    country: 'United States of America',
+    continent: 'North America',
+    diff: 2,
+    fact: 'On November 5, 2026, episode 56 of the ongoing Halemaʻumaʻu eruption sent lava fountains over 100 feet high before ending abruptly after about six hours, according to the US Geological Survey.',
+  },
 ];
 
 export function newsRollFor(pn) {
