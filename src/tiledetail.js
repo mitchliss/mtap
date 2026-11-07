@@ -102,6 +102,7 @@ export class TileDetail {
     this.enabled = null;         // null = not probed yet
     this.hostIdx = 0;
     this.cache = new Map();      // "z/x/y" -> Promise<Image>
+    this.missing = new Set();    // keys with no imagery at that zoom (404)
     this.cacheBytes = 0;
     this._retired = [];          // evicted bitmap promises awaiting a safe close
     this.generation = 0;
@@ -140,6 +141,7 @@ export class TileDetail {
     const xm = ((x % n) + n) % n; // wrap across the antimeridian
     if (y < 0 || y >= n) return Promise.reject(new Error('tile row out of range'));
     const key = `${hostIdx}:${z}/${xm}/${y}`;
+    if (this.missing.has(key)) return Promise.reject(new Error('tile 404'));
     if (this.cache.has(key)) {
       // Touch on hit: Map iteration is insertion order, so re-inserting makes
       // eviction true-LRU instead of FIFO (a FIFO evicts the very tiles the
@@ -149,7 +151,7 @@ export class TileDetail {
       return hit;
     }
     const url = z > 12
-      ? `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${xm}`
+      ? `https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${xm}?blankTile=false`
       : `${TILE_HOSTS[hostIdx]}/${z}/${y}/${xm}.jpg`;
     const p = (typeof createImageBitmap === 'function' && typeof fetch === 'function' ?
       fetchTileBitmap(url, signal) : new Promise((resolve, reject) => {
@@ -160,7 +162,13 @@ export class TileDetail {
       img.onerror = () => { clearTimeout(timer); reject(new Error('tile error')); };
       img.src = url;
     }));
-    p.catch(() => {
+    p.catch((err) => {
+      // Esri has no imagery here at this zoom (blankTile=false turns its gray
+      // "Map data not yet available" placeholder into a 404). Remember it so
+      // rebuilds go straight to the parent-tile fallback.
+      // Esri's 404 carries no CORS header, so the browser reports it as a
+      // plain network failure; treat any non-aborted Esri failure as missing.
+      if (z > 12 && err?.name !== 'AbortError' && !signal?.aborted) this.missing.add(key);
       if (this.cache.get(key) === p) {
         this.cache.delete(key);
         this.cacheBytes -= TILE_SIZE * TILE_SIZE * 4;
@@ -332,10 +340,19 @@ export class TileDetail {
       const worker = async () => {
         while (next < jobs.length && token === this.generation) {
           const { x, y } = jobs[next++];
-          try {
-            const img = await this._loadTile(z, x, y, this.hostIdx, this._abortController?.signal);
-            tiles.push({ x, y, img });
-          } catch { /* transparent gaps show the previous imagery underneath */ }
+          // No imagery at this zoom (deserts, open sea, remote areas)? Crop the
+          // matching quarter/sixteenth/... out of the nearest ancestor tile
+          // instead of leaving a hole (the old placeholder showed gray squares).
+          for (let up = 0; up <= 6 && z - up >= MIN_Z && token === this.generation; up++) {
+            const scale = 1 << up;
+            const ax = Math.floor(x / scale), ay = Math.floor(y / scale);
+            try {
+              const img = await this._loadTile(z - up, ax, ay, this.hostIdx, this._abortController?.signal);
+              const sw = TILE_SIZE / scale;
+              tiles.push({ x, y, img, sx: (x - ax * scale) * sw, sy: (y - ay * scale) * sw, sw });
+              break;
+            } catch { /* try the parent; a total miss leaves a transparent gap */ }
+          }
         }
       };
       await Promise.all(Array.from({ length: FETCH_CONCURRENCY }, worker));
@@ -349,7 +366,7 @@ export class TileDetail {
     mercCanvas.height = (y1 - y0 + 1) * TILE_SIZE;
     const mctx = mercCanvas.getContext('2d');
     for (const t of tiles) {
-      mctx.drawImage(t.img, (t.x - x0) * TILE_SIZE, (t.y - y0) * TILE_SIZE);
+      mctx.drawImage(t.img, t.sx, t.sy, t.sw, t.sw, (t.x - x0) * TILE_SIZE, (t.y - y0) * TILE_SIZE, TILE_SIZE, TILE_SIZE);
     }
 
     // 2) resample rows into an equirectangular patch (linear in latitude)

@@ -22,6 +22,7 @@ let currentPadKey = -1;
 let song = null; // the composed arrangement for this session
 let echo = null;          // tempo-synced feedback delay (the lead/arp send)
 let echoFeedback = null;
+let echoOut = null;        // echo return level (muted for the pre-drop gap)
 
 const STEPS_PER_BAR = 16;
 
@@ -85,7 +86,7 @@ function ensureCtx() {
     echoTone.type = 'lowpass';
     echoTone.frequency.value = 2400;
     echo.connect(echoTone).connect(echoFeedback).connect(echo);
-    const echoOut = ctx.createGain();
+    echoOut = ctx.createGain();
     echoOut.gain.value = 0.5;
     echo.connect(echoOut).connect(master);
   }
@@ -470,14 +471,17 @@ const HK_CHORDS = [
 const HK_BARS = 20;
 export const HATIKVAH_SCORE = { melody: HK_MELODY, chords: HK_CHORDS, bars: HK_BARS };
 
-// v4.4 "Hatikvah — festival remix" (family request: much more upbeat, EDM
-// vibe). The tune is untouched; it now rides a 124 BPM house groove. Each pass:
-// verse (bars 0-7) on a pluck over four-on-the-floor, a snare-roll build, the
-// refrain DROPS (bar 8) as a supersaw anthem, a second build lifts the repeated
-// last line (bar 16), then a 2-bar breakdown rolls back into the top.
-const HK_BPM = 124;
-const HK_INTRO_BARS = 2;  // played once, before the first pass
-const HK_BREAK_BARS = 2;  // breakdown between passes
+// v4.5 "Hatikvah — big-room remix" (family request: more upbeat, straight into
+// the song, a real drop, more instruments). 128 BPM, no intro, no breakdown —
+// the melody starts on beat one and every bar is the anthem:
+//   bars 0-5   verse on piano + vocal chops, snaps & shaker; kick/bass/pad join
+//   bars 6-7   build: snare roll, riser, pad opens, kick drops out, a beat of silence
+//   bars 8-15  DROP 1: supersaw + vocal-chop lead, offbeat brass stabs,
+//              pumping pad, rolling bass, full drums
+//   bar  15    mini build (half-bar roll + gap)
+//   bars 16-19 DROP 2: the repeated last line, biggest — adds bells and a high arp
+// then straight back to bar 0.
+const HK_BPM = 128;
 function composeHatikvah() {
   const melody = new Map();
   let at = 0;
@@ -487,41 +491,98 @@ function composeHatikvah() {
     bpm: HK_BPM,
     stepDur: 60 / HK_BPM / 4,
     melody,
-    introSteps: HK_INTRO_BARS * STEPS_PER_BAR,
-    totalSteps: (HK_BARS + HK_BREAK_BARS) * STEPS_PER_BAR,
+    totalSteps: HK_BARS * STEPS_PER_BAR,
   };
 }
 
-// Bright saw/square pluck that sustains through the melody note and feeds the
-// echo — the festival-lead voice.
-function hkLead(t, semis, dur, peak) {
+// Pop piano: triangle fundamental + sine overtones, fast decay.
+function piano(t, semis, dur, peak) {
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.setValueAtTime(4600, t);
-  lp.frequency.exponentialRampToValueAtTime(1500, t + 0.22);
-  lp.Q.value = 3;
+  lp.frequency.setValueAtTime(3600, t);
+  lp.frequency.exponentialRampToValueAtTime(1100, t + 0.5);
   const g = ctx.createGain();
-  const hold = peak * 0.55;
+  const ring = Math.max(0.3, Math.min(dur, 1.4));
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(peak, t + 0.005);
-  g.gain.exponentialRampToValueAtTime(hold, t + 0.12);
-  g.gain.setValueAtTime(hold, t + Math.max(0.13, dur - 0.04));
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.1);
+  g.gain.linearRampToValueAtTime(peak, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(peak * 0.35, t + 0.22);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + ring + 0.25);
   lp.connect(g).connect(master);
   const send = ctx.createGain();
-  send.gain.value = 0.3;
+  send.gain.value = 0.12;
   g.connect(send).connect(echo);
-  for (const [type, detune, mult] of [['sawtooth', -9, 1], ['sawtooth', 9, 1], ['square', 0, 0.5]]) {
+  for (const [type, mult, amp, detune] of [['triangle', 1, 1, 0], ['sine', 1, 0.5, 6], ['sine', 2, 0.35, 0], ['sine', 3, 0.12, 0]]) {
     const o = ctx.createOscillator();
     o.type = type;
     o.frequency.value = f(semis) * mult;
     o.detune.value = detune;
-    o.connect(lp);
-    o.start(t); o.stop(t + dur + 0.15);
+    const a = ctx.createGain();
+    a.gain.value = amp;
+    o.connect(a).connect(lp);
+    o.start(t); o.stop(t + ring + 0.3);
   }
 }
 
-// Glockenspiel sparkle doubling the tune on alternate passes.
+// Pop-EDM vocal chop: saws through "ah" formant filters with a little pitch
+// scoop into each note.
+function vocalChop(t, semis, dur, peak) {
+  const len = Math.min(dur * 0.92, 0.55);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + 0.012);
+  g.gain.setValueAtTime(peak, t + Math.max(0.02, len - 0.05));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.04);
+  g.connect(master);
+  const send = ctx.createGain();
+  send.gain.value = 0.28;
+  g.connect(send).connect(echo);
+  const formants = [[760, 7, 1], [1180, 9, 0.6], [2700, 12, 0.25]].map(([freq, q, amp]) => {
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = freq;
+    bp.Q.value = q;
+    const a = ctx.createGain();
+    a.gain.value = amp * 3.2;
+    bp.connect(a).connect(g);
+    return bp;
+  });
+  for (const detune of [-7, 7]) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f(semis - 0.8), t);
+    o.frequency.exponentialRampToValueAtTime(f(semis), t + 0.045);
+    o.detune.value = detune;
+    for (const bp of formants) o.connect(bp);
+    o.start(t); o.stop(t + len + 0.08);
+  }
+}
+
+// Short brassy chord stab: saws with a snapping filter envelope.
+function brassStab(t, tones, peak) {
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.Q.value = 2;
+  lp.frequency.setValueAtTime(700, t);
+  lp.frequency.linearRampToValueAtTime(3400, t + 0.025);
+  lp.frequency.exponentialRampToValueAtTime(900, t + 0.2);
+  const g = env(t, 0.006, peak, 0.2);
+  lp.connect(g);
+  for (const semis of tones) {
+    for (const detune of [-10, 10]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f(semis);
+      o.detune.value = detune;
+      o.connect(lp);
+      o.start(t); o.stop(t + 0.25);
+    }
+  }
+}
+
+const shaker = (t, g = 0.035) => noiseBurst(t, 0.05, 'highpass', 6500, g);
+const snap = (t, g = 0.14) => { noiseBurst(t, 0.07, 'bandpass', 2800, g); noiseBurst(t, 0.02, 'highpass', 7500, g * 0.6); };
+
+// Glockenspiel sparkle doubling the tune on the last drop.
 function bell(t, semis, peak) {
   const o = ctx.createOscillator();
   o.type = 'sine';
@@ -543,96 +604,94 @@ function padLevel(t, level, ramp) {
 
 const hkSemis = (chord) => HK_CHORD_TONES[chord].map((m) => m - 69);
 const HK_ARP = [0, 1, 2, 1];
-
-// A snare roll over the second half of a bar: 8ths, then 16ths, getting louder.
-function hkRoll(x, t) {
-  if (x < 8) return;
-  if (x < 12 ? x % 2 === 0 : true) snare(t, 0.08 + (x - 8) * 0.02);
-}
+const HK_PIANO_HITS = new Set([0, 3, 6, 8, 11, 14]); // syncopated pop-piano comp
 
 function scheduleHatikvah(globalStep, t) {
   const SPB = STEPS_PER_BAR;
-  const x = globalStep % SPB;
-
-  // Intro: filtered pad + arp, kick joins on bar 2 and rolls into the verse.
-  if (globalStep < song.introSteps) {
-    const bar = Math.floor(globalStep / SPB);
-    padChord('intro', hkSemis('Dm'), t);
-    if (globalStep === 0) { padLevel(t, 0.22, song.stepDur * SPB); riser(t, song.stepDur * (SPB * 2 - 2)); }
-    if (x % 2 === 0) arpNote(t, hkSemis('Dm')[HK_ARP[(x >> 1) % 4]] + 24, 0.022 + bar * 0.01);
-    if (bar === 1) {
-      if (x % 4 === 0 && x < 8) kick(t, 0.45);
-      if (x % 4 === 2) hatClosed(t, 0.05);
-      if (x < 14) hkRoll(x, t);
-    }
-    return;
-  }
-
-  const g = globalStep - song.introSteps;
-  const pass = Math.floor(g / song.totalSteps);
-  const s = g % song.totalSteps;
+  const pass = Math.floor(globalStep / song.totalSteps);
+  const s = globalStep % song.totalSteps;
   const bar = Math.floor(s / SPB);
-
-  // Breakdown: pad and a soft arp, then the kick and a roll bring it back.
-  if (bar >= HK_BARS) {
-    const b = bar - HK_BARS;
-    padChord('break', hkSemis('Dm'), t);
-    if (b === 0 && x === 0) { padLevel(t, 0.26, 0.4); riser(t, song.stepDur * (SPB * 2 - 2)); }
-    if (x % 2 === 0) arpNote(t, hkSemis(b === 0 ? 'Dm' : 'A')[HK_ARP[(x >> 1) % 4]] + 24, 0.028);
-    if (b === 1) {
-      if (x % 4 === 0 && x < 8) kick(t, 0.45);
-      if (x < 14) hkRoll(x, t);
-    }
-    return;
-  }
-
+  const x = s % SPB;
   const half = Math.floor(s / 8);
   const chord = HK_CHORDS[half];
   const tones = hkSemis(chord);
   const root = HK_BASS[chord] - 69 + 12;
-  const drop = bar >= 8;
-  const buildBar = bar === 7 || bar === 15;
-  if (buildBar && x >= 14) return; // THE GAP before each drop
 
-  // Punctuation: impact on each drop, crash on the top, risers into the drops.
+  const drop = bar >= 8;
+  const drop2 = bar >= 16;
+  const build = bar === 6 || bar === 7;             // the big build into drop 1
+  const miniBuild = bar === 15 && x >= 8;           // the lift into drop 2
+  const gap = (bar === 7 && x >= 12) || (bar === 15 && x >= 14);
+  const kickFrom = pass === 0 ? 2 : 0;              // second time round it's straight in
+
+  // ---- punctuation ----
   if (x === 0) {
     if (bar === 8 || bar === 16) impact(t);
-    else if (bar === 0 || bar === 4 || bar === 12) crash(t, 0.09);
-    if (bar === 6 || bar === 14) riser(t, song.stepDur * (SPB * 2 - 2));
+    if (bar === 0 && pass > 0) crash(t, 0.1);
+    if (bar === 6) riser(t, song.stepDur * (SPB * 2 - 4));
+    if (bar === 15) riser(t, song.stepDur * (SPB - 2));
+    if (bar === 0) padLevel(t, 0.1, 0.3);
+    if (bar === 6) padLevel(t, 0.2, song.stepDur * SPB * 2); // opens up through the build
   }
+  if (bar === 15 && x === 8) crash(t, 0.06);
 
-  padChord(half, tones, t); // pumped by the kick (sidechain)
-
-  // Drums: four-on-the-floor, claps on 2 & 4, offbeat hats; the build bar
-  // swaps its second half for a snare roll.
-  const rolling = buildBar && x >= 8;
-  if (x % 4 === 0 && !rolling) kick(t, drop ? 0.56 : 0.48);
-  if ((x === 4 || x === 12) && !rolling) clap(t, drop ? 0.2 : 0.16);
-  if (buildBar) hkRoll(x, t);
-  if (x % 4 === 2) (drop ? hatOpen : hatClosed)(t, drop ? 0.055 : 0.06);
-  if (drop && x % 2 === 1) hatClosed(t, 0.035);
-
-  // Bass: offbeat house bass in the verse; rolling trance bass + sub on the drop.
-  if (!rolling) {
-    if (drop) {
-      if (x % 4 !== 0) bassNote(t, root, 0.11, 0.22, 1400);
-      else subNote(t, root, 0.2, 0.26);
-    } else if (x % 4 === 2) bassNote(t, root, 0.16, 0.22, 900);
-  }
-
-  // Arp sparkle above the tune: 8ths in the verse, 16ths on the drop.
-  if (drop || x % 2 === 0) {
-    const i = drop ? HK_ARP[x % 4] : HK_ARP[(x >> 1) % 4];
-    arpNote(t, tones[i] + 24 + (drop && x % 8 >= 4 ? 12 : 0), drop ? 0.022 : 0.02);
-  }
-
-  // The melody: pluck lead in the verse; supersaw anthem an octave up on the drop.
+  // ---- melody (every bar) ----
   const note = song.melody.get(s);
   if (note) {
-    const dur = note.len * song.stepDur;
-    hkLead(t, note.semis, dur, drop ? 0.1 : 0.12);
-    if (drop) supersaw(t, note.semis + 12, dur, bar >= 16 ? 0.07 : 0.06);
-    if (pass % 2 === 1 || bar >= 16) bell(t, note.semis, 0.03);
+    // Notes in a build bar stop at the gap so the silence is real.
+    const gapAt = bar === 7 ? 12 : bar === 15 ? 14 : SPB;
+    const dur = Math.min(note.len, gapAt - x) * song.stepDur;
+    if (!drop) {
+      piano(t, note.semis + 12, dur, 0.13);
+      if (bar >= 4) vocalChop(t, note.semis, dur, 0.05); // the hook creeps in
+    } else {
+      supersaw(t, note.semis + 12, dur, drop2 ? 0.075 : 0.065);
+      vocalChop(t, note.semis, dur, drop2 ? 0.09 : 0.08);
+      if (drop2) bell(t, note.semis + 12, 0.03);
+    }
+  }
+  if (gap) { // THE GAP: one beat of nothing, then the drop
+    if ((bar === 7 && x === 12) || (bar === 15 && x === 14)) { padLevel(t, 0.0001, 0.03); echoOut.gain.setTargetAtTime(0, t, 0.015); echoOut.gain.setTargetAtTime(0.5, t + (SPB - x) * song.stepDur, 0.005); }
+    return;
+  }
+
+  // ---- harmony ----
+  padChord(half, tones, t);
+  if (!drop && HK_PIANO_HITS.has(x)) {
+    const v = x === 0 || x === 8 ? 0.06 : 0.04;
+    for (const semis of tones) piano(t, semis, song.stepDur * 3, v);
+    if (x === 0 || x === 8) piano(t, root - 12, song.stepDur * 8, 0.07);
+  }
+  if (drop && x % 4 === 2) brassStab(t, tones.map((m) => m + 12), drop2 ? 0.05 : 0.042);
+  if (drop && x % 2 === 0 && (drop2 || x % 4 === 0)) {
+    arpNote(t, tones[HK_ARP[(x >> 1) % 4]] + 24 + (x % 8 >= 4 ? 12 : 0), 0.02);
+  }
+
+  // ---- drums ----
+  const kicking = drop ? !miniBuild : bar >= kickFrom && bar < 7;
+  if (kicking && x % 4 === 0) kick(t, drop ? 0.58 : 0.48);
+  if (drop && !miniBuild && (x === 4 || x === 12)) clap(t, 0.2);
+  if (!drop && !build && (x === 4 || x === 12)) snap(t, 0.13);
+  if (!build && !miniBuild) shaker(t, x % 4 === 2 ? 0.045 : 0.025);
+  if (drop && x % 4 === 2) hatOpen(t, 0.05);
+  if (drop && x % 2 === 1) hatClosed(t, 0.03);
+  // Snare roll: 4ths -> 8ths -> 16ths across the build, rising in level.
+  if (build) {
+    const k = (bar - 6) * SPB + x; // 0..27
+    const every = k < 8 ? 4 : k < 16 ? 2 : 1;
+    if (k % every === 0) snare(t, 0.06 + k * 0.005);
+    if (bar === 7 && x >= 8 && x % 2 === 0) tom(t, 90 + (x - 8) * 22, 0.12);
+  }
+  if (miniBuild && x < 14) snare(t, 0.1 + (x - 8) * 0.02);
+
+  // ---- bass ----
+  if (drop && !miniBuild) {
+    if (x % 4 === 0) subNote(t, root, 0.2, 0.28);
+    else bassNote(t, root, 0.11, 0.2, 1500);
+  } else if (!drop && bar >= kickFrom && !build && x % 4 === 2) {
+    bassNote(t, root, 0.16, 0.2, 800);
+  } else if (!drop && bar < kickFrom && (x === 0 || x === 8)) {
+    subNote(t, root, song.stepDur * 7, 0.18);
   }
 }
 
