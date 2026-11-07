@@ -36,6 +36,7 @@ const POOL_TIERS = [
   { upToPuzzle: 33, size: 332 }, // through Aug 23, 2026 (waterways pack lands on #34)
   // (the v3.8 waterways and v3.9 Jewish packs both shipped on #33 — one tier covers both)
   { upToPuzzle: 47, size: 453 }, // through Sep 6, 2026 (v4.1 world pack lands on #48)
+  { upToPuzzle: 109, size: 1891 }, // through Nov 7, 2026 (v4.3 heritage pack lands on #110)
 ];
 
 function poolForPuzzle(seed) {
@@ -72,9 +73,16 @@ export function pickLocations(seed, excludeNames = null, opts = {}) {
   const okMixed = (l, d) => !picked.includes(l) && allowed(l) && (d === null || l.diff === d) && countOf(l) === 0;
   const okTag = (l, d) => !picked.includes(l) && allowed(l) && (d === null || l.diff === d) && hasTag(l) && countOf(l) < THEME_MAX_PER_COUNTRY;
 
-  for (const targetDiff of wantDiff) {
-    // Reserve a heritage place before the other slots consume its country.
-    const heritage = balanced && picked.length === 0
+  // opts.reserved (v4.3 heritage days): a pre-chosen place that takes the slot
+  // matching its difficulty; its country is claimed before the others fill.
+  const reserved = opts.reserved || null;
+  const reservedSlot = reserved ? Math.max(0, wantDiff.indexOf(reserved.diff)) : -1;
+  if (reserved) countryCount.set(reserved.country || reserved.name, 1);
+  for (const [slot, targetDiff] of wantDiff.entries()) {
+    if (slot === reservedSlot) { picked.push(reserved); continue; }
+    // Reserve a heritage place before the other slots consume its country
+    // (the pre-v4.3 every-day rule; scheduled days pass `reserved` instead).
+    const heritage = balanced && !opts.scheduled && picked.length === 0
       ? shuffled.find((l) => tagsFor(l).has('jewish') && allowed(l)) : null;
     let choice = heritage ||
       (tag && (shuffled.find((l) => okTag(l, targetDiff)) || shuffled.find((l) => okTag(l, null)))) ||
@@ -114,6 +122,36 @@ const YEAR_WINDOW_START = 48;     // puzzle #48 = Sep 7, 2026
 // YEAR_WINDOW + 1 to exclude a full 365 previous days (min repeat gap: 366).
 const windowDaysFor = (k) => (k >= YEAR_WINDOW_START ? YEAR_WINDOW + 1 : NO_REPEAT_WINDOW);
 const dailyPickCache = new Map(); // puzzle number -> picks (avoids re-walking the chain)
+
+// v4.3 (family request: "at least 3 Jewish-related locations each week"). The
+// old rule reserved one heritage place EVERY day, which drained the pool under
+// the year-long no-repeat window (none were dealt from #86 on). From #110 a
+// fixed schedule deals exactly one on Sunday, Tuesday and Friday — any 7
+// consecutive puzzles cover each weekday once, so every rolling week gets 3.
+// Puzzle #1 (Jul 22, 2026) was a Wednesday: pn % 7 → 5 = Sun, 0 = Tue, 3 = Fri.
+export const HERITAGE_SCHEDULE_START = 110; // Nov 8, 2026
+const HERITAGE_WEEKDAYS = new Set([5, 0, 3]);
+export const isHeritageDay = (k) => k >= HERITAGE_SCHEDULE_START && HERITAGE_WEEKDAYS.has(k % 7);
+
+// The heritage place for day k: never one dealt inside the no-repeat year
+// (by name — the 100km proximity rule is skipped here, since most heritage
+// sites cluster in Israel), preferring one not near anything from the last
+// 30 days. Seeded, so every player gets the same place.
+function pickHeritage(k, pool, window) {
+  const days = windowDaysFor(k);
+  const blocked = new Set();
+  const recent = [];
+  for (const w of window) {
+    if (w.n < k - (days - 1)) continue;
+    for (const l of w.picks) blocked.add(l.name);
+    if (w.n >= k - 29) recent.push(...w.picks);
+  }
+  const open = pool.filter((l) => tagsFor(l).has('jewish') && !blocked.has(l.name));
+  if (!open.length) return null;
+  const fresh = open.filter((l) => !nearAny(l, recent));
+  const from = fresh.length ? fresh : open;
+  return from[Math.floor(mulberry32(k * 7907 + 101)() * from.length)];
+}
 
 // From puzzle #34 the window also excludes anything within NEAR_KM of a recent
 // pick: "Bosporus Strait" and "Istanbul" are different names for the same spot
@@ -170,6 +208,12 @@ export function dailyPicksFor(n) {
       for (const w of window) {
         if (w.n >= k - (days - 1)) for (const l of w.picks) { exclude.add(l.name); recent.push(l); }
       }
+      // Heritage places leave the general pool (they are dealt only through the
+      // schedule below). This must happen BEFORE the proximity starvation guard,
+      // or the guard undercounts and pickLocations drops every exclusion.
+      if (k >= HERITAGE_SCHEDULE_START) {
+        for (const l of poolForPuzzle(k)) if (tagsFor(l).has('jewish')) exclude.add(l.name);
+      }
       if (k >= PROXIMITY_START && k < YEAR_WINDOW_START) {
         for (const l of poolForPuzzle(k)) if (!exclude.has(l.name) && nearAny(l, recent)) exclude.add(l.name);
       } else if (k >= YEAR_WINDOW_START) {
@@ -190,12 +234,28 @@ export function dailyPicksFor(n) {
         const avail = poolForPuzzle(k).filter((l) => !exclude.has(l.name) && tagsFor(l).has(theme.key)).length;
         if (avail < THEME_MIN_POOL) theme = null;
       }
-      picks = pickLocations(k, exclude, balanced ? { balanced: true } : theme ? { preferTag: theme.key } : {});
+      let opts = balanced ? { balanced: true } : theme ? { preferTag: theme.key } : {};
+      if (k >= HERITAGE_SCHEDULE_START) {
+        // Heritage places are dealt ONLY through the schedule, so the pool lasts
+        // the full no-repeat year instead of draining one-a-day.
+        const reserved = isHeritageDay(k) ? pickHeritage(k, poolForPuzzle(k), window) : null;
+        opts = { ...opts, scheduled: true, reserved };
+      }
+      picks = pickLocations(k, exclude, opts);
       const news = k >= NEWS_START ? NEWS.find((entry) => entry.pn === k) : null;
       if (news && (news.force || newsRollFor(k))) {
-        const candidate = injectNewsIntoDeal(picks, news).picks;
-        const losesHeritage = picks.some((l) => tagsFor(l).has('jewish')) && !candidate.some((l) => tagsFor(l).has('jewish'));
-        if (!balanced || (candidate.filter((l) => tagsFor(l).has('water')).length <= 2 && !losesHeritage)) picks = candidate;
+        const keepsHeritage = (c) => !picks.some((l) => tagsFor(l).has('jewish')) || c.some((l) => tagsFor(l).has('jewish'));
+        let candidate = injectNewsIntoDeal(picks, news).picks;
+        // A heritage day keeps its heritage slot: steer the news round into
+        // another slot rather than dropping the news (or the heritage place).
+        if (k >= HERITAGE_SCHEDULE_START && !keepsHeritage(candidate)) {
+          candidate = picks;
+          for (const slot of [news.slot, 0, 1, 2, 3, 4]) {
+            const r = injectNewsIntoDeal(picks, { ...news, slot });
+            if (r.slot !== null && keepsHeritage(r.picks)) { candidate = r.picks; break; }
+          }
+        }
+        if (!balanced || (candidate.filter((l) => tagsFor(l).has('water')).length <= 2 && keepsHeritage(candidate))) picks = candidate;
       }
       dailyPickCache.set(k, picks);
       dailyThemeCache.set(k, theme);
@@ -353,8 +413,16 @@ export function loadSettings() {
     stored.v = 3;
     saveJSON('settings', stored);
   }
+  // v4 migration (2026-11-07): the family asked for Hatikvah as the game music.
+  // Clear any old genre pick once so every device switches; a later manual
+  // pick saves v4 and sticks.
+  if (stored.v < 4) {
+    delete stored.musicStyle;
+    stored.v = 4;
+    saveJSON('settings', stored);
+  }
   return Object.assign(
-    { miles: false, sound: true, music: true, musicStyle: 'auto', autoRotate: true, realisticLighting: false, v: 3 },
+    { miles: false, sound: true, music: true, musicStyle: 'hatikvah', autoRotate: true, realisticLighting: false, v: 4 },
     stored
   );
 }

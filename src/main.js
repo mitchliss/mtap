@@ -1670,7 +1670,7 @@ async function boot() {
       musicStyle: els.setMusicStyle.value,
       autoRotate: els.setAutoRotate.checked,
       realisticLighting: els.setRealisticLighting.checked,
-      v: 3,
+      v: 4,
     };
     saveSettings(settings);
     if (!session || session.isOver) globe.setAutoRotate(settings.autoRotate);

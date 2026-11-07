@@ -429,7 +429,157 @@ function genLeadPattern(rng, density) {
   return p;
 }
 
+// ---- Hatikvah ----
+// Israel's national anthem: Samuel Cohen's 1888 setting of a 16th-century
+// melody (public domain). Transcribed from the D-minor LilyPond score on
+// Wikipedia's "Hatikvah" article. Each note is [midi, sixteenths]; the second
+// half of the refrain repeats, as sung.
+const HK_VERSE_A = [
+  [62, 2], [64, 2], [65, 2], [67, 2], [69, 4], [69, 4],
+  [70, 2], [69, 2], [70, 2], [74, 2], [69, 8],
+  [67, 4], [67, 2], [67, 2], [65, 4], [65, 4],
+];
+const HK_CADENCE_1 = [[64, 2], [62, 2], [64, 2], [65, 2], [62, 6], [57, 2]];
+const HK_CADENCE_2 = [[64, 2], [62, 2], [64, 2], [65, 2], [62, 8]];
+const HK_REFRAIN_A = [
+  [62, 4], [74, 4], [74, 4], [74, 4], [72, 2], [74, 2], [72, 2], [70, 2], [69, 8],
+  [62, 4], [74, 4], [74, 4], [74, 4], [72, 2], [74, 2], [72, 2], [70, 2], [69, 8],
+];
+const HK_REFRAIN_B = [
+  [72, 4], [72, 2], [72, 2], [65, 4], [65, 4],
+  [67, 2], [69, 2], [70, 2], [72, 2], [69, 4], [67, 2], [65, 2],
+  [67, 4], [67, 4], [65, 4], [65, 2], [65, 2],
+  [64, 2], [62, 2], [64, 2], [65, 2], [62, 8],
+];
+const HK_MELODY = [
+  ...HK_VERSE_A, ...HK_CADENCE_1, ...HK_VERSE_A, ...HK_CADENCE_2,
+  ...HK_REFRAIN_A, ...HK_REFRAIN_B, ...HK_REFRAIN_B,
+];
+// One chord per half bar (20 bars). Voicings sit below the melody.
+const HK_CHORD_TONES = {
+  Dm: [50, 53, 57], Gm: [55, 58, 62], A: [49, 52, 57], C: [48, 52, 55], F: [53, 57, 60], Bb: [50, 53, 58],
+};
+const HK_BASS = { Dm: 38, Gm: 43, A: 45, C: 36, F: 41, Bb: 46 };
+const HK_VERSE_CHORDS = ['Dm', 'Dm', 'Gm', 'Dm', 'Gm', 'Dm', 'A', 'Dm'];
+const HK_REFRAIN_B_CHORDS = ['F', 'F', 'Gm', 'F', 'Gm', 'Dm', 'A', 'Dm'];
+const HK_CHORDS = [
+  ...HK_VERSE_CHORDS, ...HK_VERSE_CHORDS,
+  'Dm', 'Dm', 'C', 'F', 'Bb', 'Bb', 'C', 'F',
+  ...HK_REFRAIN_B_CHORDS, ...HK_REFRAIN_B_CHORDS,
+];
+const HK_BARS = 20;
+export const HATIKVAH_SCORE = { melody: HK_MELODY, chords: HK_CHORDS, bars: HK_BARS };
+const HK_REST_BARS = 1; // a breath before the anthem starts over
+
+function composeHatikvah() {
+  const bpm = 72;
+  const melody = new Map();
+  let at = 0;
+  for (const [midi, len] of HK_MELODY) { melody.set(at, { semis: midi - 69, len }); at += len; }
+  return {
+    style: 'hatikvah',
+    bpm,
+    stepDur: 60 / bpm / 4,
+    melody,
+    totalSteps: (HK_BARS + HK_REST_BARS) * STEPS_PER_BAR,
+  };
+}
+
+// Bowed-string voice: detuned saws, slow bloom, gentle vibrato, echo send.
+function anthemLead(t, semis, dur, peak) {
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 2300;
+  lp.Q.value = 0.8;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + 0.06);
+  g.gain.setValueAtTime(peak, t + Math.max(0.07, dur - 0.08));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.18);
+  lp.connect(g).connect(master);
+  const send = ctx.createGain();
+  send.gain.value = 0.22;
+  g.connect(send).connect(echo);
+  const vib = ctx.createOscillator();
+  vib.frequency.value = 5.2;
+  const vibDepth = ctx.createGain();
+  vibDepth.gain.value = 6; // cents
+  vib.connect(vibDepth);
+  for (const [type, detune, mult] of [['sawtooth', -5, 1], ['sawtooth', 5, 1], ['triangle', 0, 0.5]]) {
+    const o = ctx.createOscillator();
+    o.type = type;
+    o.frequency.value = f(semis) * mult;
+    o.detune.value = detune;
+    vibDepth.connect(o.detune);
+    o.connect(lp);
+    o.start(t); o.stop(t + dur + 0.25);
+  }
+  vib.start(t); vib.stop(t + dur + 0.25);
+}
+
+// Soft string-section chord held for half a bar.
+function anthemPad(t, tones, dur, peak) {
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 1300;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + dur * 0.35);
+  g.gain.setValueAtTime(peak, t + dur * 0.8);
+  g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.12);
+  lp.connect(g).connect(master);
+  for (const midi of tones) {
+    for (const detune of [-7, 7]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = f(midi - 69);
+      o.detune.value = detune;
+      o.connect(lp);
+      o.start(t); o.stop(t + dur + 0.15);
+    }
+  }
+}
+
+// Glockenspiel sparkle doubling the tune on alternate passes.
+function bell(t, semis, peak) {
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  o.frequency.value = f(semis + 12);
+  const g = env(t, 0.003, peak, 0.9);
+  const send = ctx.createGain();
+  send.gain.value = 0.3;
+  g.connect(send).connect(echo);
+  o.connect(g);
+  o.start(t); o.stop(t + 1);
+}
+
+function scheduleHatikvah(globalStep, t) {
+  const pass = Math.floor(globalStep / song.totalSteps);
+  const s = globalStep % song.totalSteps;
+  if (s >= HK_BARS * STEPS_PER_BAR) return; // the breath between passes
+  const bar = Math.floor(s / STEPS_PER_BAR);
+  const inRefrain = bar >= 8;
+
+  const note = song.melody.get(s);
+  if (note) {
+    const dur = note.len * song.stepDur;
+    anthemLead(t, note.semis, dur, inRefrain ? 0.16 : 0.13);
+    if (pass % 2 === 1) bell(t, note.semis, 0.035);
+  }
+  if (s % 8 === 0) {
+    const chord = HK_CHORDS[s / 8];
+    anthemPad(t, HK_CHORD_TONES[chord], song.stepDur * 8, inRefrain ? 0.05 : 0.04);
+    subNote(t, HK_BASS[chord] - 69 + 12, song.stepDur * 7, inRefrain ? 0.22 : 0.17);
+  }
+  // Timpani roll-in to the refrain, and a soft roll on the first beat of each
+  // refrain phrase; a cymbal swell lifts into the last line.
+  if (bar === 7 && s % STEPS_PER_BAR >= 8 && s % 2 === 0) tom(t, 82, 0.05 + (s % STEPS_PER_BAR - 8) * 0.012);
+  if (inRefrain && s % STEPS_PER_BAR === 0 && (bar === 8 || bar === 12 || bar === 16)) { tom(t, 73, 0.2); crash(t, 0.05); }
+  if (bar === 15 && s % STEPS_PER_BAR === 0) riser(t, song.stepDur * STEPS_PER_BAR);
+}
+
 export function composeSong(styleName, daySeed) {
+  if (styleName === 'hatikvah') return composeHatikvah();
   const def = STYLE_DEFS[styleName] || STYLE_DEFS.house;
   const rng = mulberry32((daySeed * 2654435761 + styleName.length * 97) >>> 0);
   const keyShift = Math.floor(rng() * 5) - 2;                    // -2..+2 semitones
@@ -464,6 +614,7 @@ export function composeSong(styleName, daySeed) {
 // ---- the scheduler ----
 
 function scheduleStep(globalStep, t) {
+  if (song.style === 'hatikvah') { scheduleHatikvah(globalStep, t); return; }
   const s = globalStep % song.totalSteps;
   const bar = Math.floor(s / STEPS_PER_BAR);
   const sixteenth = s % STEPS_PER_BAR;

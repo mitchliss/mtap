@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 
 import { NEWS, NEWS_START, newsRollFor } from '../src/news.js';
 import { LOCATIONS } from '../src/locations.js';
-import { dailyPicksFor, pickLocations, injectNewsIntoDeal, MAX_GAME_SCORE, ROUND_MULTIPLIERS } from '../src/game.js';
+import { dailyPicksFor, isHeritageDay, HERITAGE_SCHEDULE_START, pickLocations, injectNewsIntoDeal, MAX_GAME_SCORE, ROUND_MULTIPLIERS } from '../src/game.js';
 import { tagsFor } from '../src/themes.js';
 import { countryAt, distanceKm, prepareCountries } from '../src/geo.js';
 import { K_ROT, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from '../src/graphics.js';
@@ -107,9 +107,11 @@ test('pool is large enough for the 365-day no-repeat window', () => {
   // 5 slots/day * 365-day window + margin for the country/diff filters.
   assert.ok(LOCATIONS.length >= 5 * 365 + 45, `pool=${LOCATIONS.length}`);
 });
+// Two-year horizon: starvation of the general pool only shows up after the
+// first full year of exclusions has accumulated.
 test('no location repeats within any 365-day span from puzzle 48 onward', function () {
   const lastSeen = new Map();
-  for (let k = 1; k <= 448; k++) {
+  for (let k = 1; k <= 840; k++) {
     for (const p of dailyPicksFor(k)) {
       const prev = lastSeen.get(p.name);
       if (prev !== undefined && k >= 48) {
@@ -117,6 +119,17 @@ test('no location repeats within any 365-day span from puzzle 48 onward', functi
       }
       lastSeen.set(p.name, k);
     }
+  }
+});
+test('every rolling week from the schedule start has at least 3 Jewish-heritage places', () => {
+  const count = (k) => dailyPicksFor(k).filter((l) => tagsFor(l).has('jewish')).length;
+  for (let k = HERITAGE_SCHEDULE_START; k <= 840; k++) {
+    if (isHeritageDay(k)) assert.ok(count(k) >= 1, `heritage day #${k} has none`);
+  }
+  for (let s = HERITAGE_SCHEDULE_START; s + 6 <= 840; s++) {
+    let c = 0;
+    for (let k = s; k < s + 7; k++) c += count(k);
+    assert.ok(c >= 3, `week starting #${s} has only ${c}`);
   }
 });
 test('year-window deals stay deterministic and well-formed', () => {
@@ -138,6 +151,20 @@ test('every music style composes a deterministic, well-formed song', async () =>
     assert.equal(a.bars.length, 4);
     for (const bar of a.bars) assert.ok(bar.tones.length >= 3);
   }
+});
+test('Hatikvah transcription is complete, bar-aligned and in D minor', async () => {
+  const { HATIKVAH_SCORE, composeSong } = await import('../src/music.js');
+  const { melody, chords, bars } = HATIKVAH_SCORE;
+  const total = melody.reduce((s, [, len]) => s + len, 0);
+  assert.equal(total, bars * 16, 'melody length must fill exactly ' + bars + ' bars');
+  let at = 0;
+  for (const [, len] of melody) { const end = at + len; assert.ok(Math.floor(at / 16) === Math.floor((end - 1) / 16), 'note crosses a barline at ' + at); at = end; }
+  const dMinor = new Set([2, 4, 5, 7, 9, 10, 0]);
+  for (const [midi] of melody) assert.ok(dMinor.has(midi % 12), 'out-of-key note ' + midi);
+  assert.equal(chords.length, bars * 2);
+  assert.equal(melody[0][0], 62); assert.equal(melody.at(-1)[0], 62); // starts and ends on D
+  const song = composeSong('hatikvah', 1);
+  assert.equal(song.style, 'hatikvah'); assert.equal(song.melody.size, melody.length);
 });
 test('reveal headline names the country the pin landed in', async () => {
   const { guessRelationship } = await import('../src/discovery.js');

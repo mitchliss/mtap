@@ -21,7 +21,7 @@ export const THEMES = {
 const RANGES = {
   // EXPANSION 5 (historical sites) + EXPANSION 6 (famous lives). Bounded, not
   // open-ended: an open upper edge silently tags whatever ships next.
-  jewish: [[256, 291], [379, 452]],
+  jewish: [[256, 291], [379, 452], [1891, 2046]], // + v4.3 heritage packs 1 & 2
   water: [[332, 378]],
   wonder: [[292, 331]],
 };
