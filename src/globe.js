@@ -1706,6 +1706,12 @@ export class Globe {
     // metres above a landmark without clipping away the ground.
     const near = THREE.MathUtils.clamp((this.camera.position.length() - 1) * 0.01, 0.000001, 0.01);
     if (this.camera.near !== near) { this.camera.near = near; this.camera.updateProjectionMatrix(); }
+    // Close in, push the low-res base sphere back in depth so it can never
+    // z-fight through the satellite patch where the two surfaces nearly touch
+    // (around the base mesh's vertices).
+    const lowAlt = this.camera.position.length() < 1.05;
+    const sm = this.sphere.material;
+    if (sm.polygonOffset !== lowAlt) { sm.polygonOffset = lowAlt; sm.polygonOffsetFactor = 1; sm.polygonOffsetUnits = 1000; }
     if (this.tileDetail) this.tileDetail.update(dt);
     if (this.clouds) {
       this.clouds.rotation.y += dt * 0.0015;

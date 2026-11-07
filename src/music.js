@@ -469,74 +469,55 @@ const HK_CHORDS = [
 ];
 const HK_BARS = 20;
 export const HATIKVAH_SCORE = { melody: HK_MELODY, chords: HK_CHORDS, bars: HK_BARS };
-const HK_REST_BARS = 1; // a breath before the anthem starts over
 
+// v4.4 "Hatikvah — festival remix" (family request: much more upbeat, EDM
+// vibe). The tune is untouched; it now rides a 124 BPM house groove. Each pass:
+// verse (bars 0-7) on a pluck over four-on-the-floor, a snare-roll build, the
+// refrain DROPS (bar 8) as a supersaw anthem, a second build lifts the repeated
+// last line (bar 16), then a 2-bar breakdown rolls back into the top.
+const HK_BPM = 124;
+const HK_INTRO_BARS = 2;  // played once, before the first pass
+const HK_BREAK_BARS = 2;  // breakdown between passes
 function composeHatikvah() {
-  const bpm = 72;
   const melody = new Map();
   let at = 0;
   for (const [midi, len] of HK_MELODY) { melody.set(at, { semis: midi - 69, len }); at += len; }
   return {
     style: 'hatikvah',
-    bpm,
-    stepDur: 60 / bpm / 4,
+    bpm: HK_BPM,
+    stepDur: 60 / HK_BPM / 4,
     melody,
-    totalSteps: (HK_BARS + HK_REST_BARS) * STEPS_PER_BAR,
+    introSteps: HK_INTRO_BARS * STEPS_PER_BAR,
+    totalSteps: (HK_BARS + HK_BREAK_BARS) * STEPS_PER_BAR,
   };
 }
 
-// Bowed-string voice: detuned saws, slow bloom, gentle vibrato, echo send.
-function anthemLead(t, semis, dur, peak) {
+// Bright saw/square pluck that sustains through the melody note and feeds the
+// echo — the festival-lead voice.
+function hkLead(t, semis, dur, peak) {
   const lp = ctx.createBiquadFilter();
   lp.type = 'lowpass';
-  lp.frequency.value = 2300;
-  lp.Q.value = 0.8;
+  lp.frequency.setValueAtTime(4600, t);
+  lp.frequency.exponentialRampToValueAtTime(1500, t + 0.22);
+  lp.Q.value = 3;
   const g = ctx.createGain();
+  const hold = peak * 0.55;
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(peak, t + 0.06);
-  g.gain.setValueAtTime(peak, t + Math.max(0.07, dur - 0.08));
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.18);
+  g.gain.linearRampToValueAtTime(peak, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(hold, t + 0.12);
+  g.gain.setValueAtTime(hold, t + Math.max(0.13, dur - 0.04));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.1);
   lp.connect(g).connect(master);
   const send = ctx.createGain();
-  send.gain.value = 0.22;
+  send.gain.value = 0.3;
   g.connect(send).connect(echo);
-  const vib = ctx.createOscillator();
-  vib.frequency.value = 5.2;
-  const vibDepth = ctx.createGain();
-  vibDepth.gain.value = 6; // cents
-  vib.connect(vibDepth);
-  for (const [type, detune, mult] of [['sawtooth', -5, 1], ['sawtooth', 5, 1], ['triangle', 0, 0.5]]) {
+  for (const [type, detune, mult] of [['sawtooth', -9, 1], ['sawtooth', 9, 1], ['square', 0, 0.5]]) {
     const o = ctx.createOscillator();
     o.type = type;
     o.frequency.value = f(semis) * mult;
     o.detune.value = detune;
-    vibDepth.connect(o.detune);
     o.connect(lp);
-    o.start(t); o.stop(t + dur + 0.25);
-  }
-  vib.start(t); vib.stop(t + dur + 0.25);
-}
-
-// Soft string-section chord held for half a bar.
-function anthemPad(t, tones, dur, peak) {
-  const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = 1300;
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(peak, t + dur * 0.35);
-  g.gain.setValueAtTime(peak, t + dur * 0.8);
-  g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.12);
-  lp.connect(g).connect(master);
-  for (const midi of tones) {
-    for (const detune of [-7, 7]) {
-      const o = ctx.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = f(midi - 69);
-      o.detune.value = detune;
-      o.connect(lp);
-      o.start(t); o.stop(t + dur + 0.15);
-    }
+    o.start(t); o.stop(t + dur + 0.15);
   }
 }
 
@@ -553,29 +534,106 @@ function bell(t, semis, peak) {
   o.start(t); o.stop(t + 1);
 }
 
-function scheduleHatikvah(globalStep, t) {
-  const pass = Math.floor(globalStep / song.totalSteps);
-  const s = globalStep % song.totalSteps;
-  if (s >= HK_BARS * STEPS_PER_BAR) return; // the breath between passes
-  const bar = Math.floor(s / STEPS_PER_BAR);
-  const inRefrain = bar >= 8;
+// Pad level for bars with no kick to pump it.
+function padLevel(t, level, ramp) {
+  padGain.gain.cancelScheduledValues(t);
+  padGain.gain.setValueAtTime(padGain.gain.value, t);
+  padGain.gain.linearRampToValueAtTime(level, t + ramp);
+}
 
+const hkSemis = (chord) => HK_CHORD_TONES[chord].map((m) => m - 69);
+const HK_ARP = [0, 1, 2, 1];
+
+// A snare roll over the second half of a bar: 8ths, then 16ths, getting louder.
+function hkRoll(x, t) {
+  if (x < 8) return;
+  if (x < 12 ? x % 2 === 0 : true) snare(t, 0.08 + (x - 8) * 0.02);
+}
+
+function scheduleHatikvah(globalStep, t) {
+  const SPB = STEPS_PER_BAR;
+  const x = globalStep % SPB;
+
+  // Intro: filtered pad + arp, kick joins on bar 2 and rolls into the verse.
+  if (globalStep < song.introSteps) {
+    const bar = Math.floor(globalStep / SPB);
+    padChord('intro', hkSemis('Dm'), t);
+    if (globalStep === 0) { padLevel(t, 0.22, song.stepDur * SPB); riser(t, song.stepDur * (SPB * 2 - 2)); }
+    if (x % 2 === 0) arpNote(t, hkSemis('Dm')[HK_ARP[(x >> 1) % 4]] + 24, 0.022 + bar * 0.01);
+    if (bar === 1) {
+      if (x % 4 === 0 && x < 8) kick(t, 0.45);
+      if (x % 4 === 2) hatClosed(t, 0.05);
+      if (x < 14) hkRoll(x, t);
+    }
+    return;
+  }
+
+  const g = globalStep - song.introSteps;
+  const pass = Math.floor(g / song.totalSteps);
+  const s = g % song.totalSteps;
+  const bar = Math.floor(s / SPB);
+
+  // Breakdown: pad and a soft arp, then the kick and a roll bring it back.
+  if (bar >= HK_BARS) {
+    const b = bar - HK_BARS;
+    padChord('break', hkSemis('Dm'), t);
+    if (b === 0 && x === 0) { padLevel(t, 0.26, 0.4); riser(t, song.stepDur * (SPB * 2 - 2)); }
+    if (x % 2 === 0) arpNote(t, hkSemis(b === 0 ? 'Dm' : 'A')[HK_ARP[(x >> 1) % 4]] + 24, 0.028);
+    if (b === 1) {
+      if (x % 4 === 0 && x < 8) kick(t, 0.45);
+      if (x < 14) hkRoll(x, t);
+    }
+    return;
+  }
+
+  const half = Math.floor(s / 8);
+  const chord = HK_CHORDS[half];
+  const tones = hkSemis(chord);
+  const root = HK_BASS[chord] - 69 + 12;
+  const drop = bar >= 8;
+  const buildBar = bar === 7 || bar === 15;
+  if (buildBar && x >= 14) return; // THE GAP before each drop
+
+  // Punctuation: impact on each drop, crash on the top, risers into the drops.
+  if (x === 0) {
+    if (bar === 8 || bar === 16) impact(t);
+    else if (bar === 0 || bar === 4 || bar === 12) crash(t, 0.09);
+    if (bar === 6 || bar === 14) riser(t, song.stepDur * (SPB * 2 - 2));
+  }
+
+  padChord(half, tones, t); // pumped by the kick (sidechain)
+
+  // Drums: four-on-the-floor, claps on 2 & 4, offbeat hats; the build bar
+  // swaps its second half for a snare roll.
+  const rolling = buildBar && x >= 8;
+  if (x % 4 === 0 && !rolling) kick(t, drop ? 0.56 : 0.48);
+  if ((x === 4 || x === 12) && !rolling) clap(t, drop ? 0.2 : 0.16);
+  if (buildBar) hkRoll(x, t);
+  if (x % 4 === 2) (drop ? hatOpen : hatClosed)(t, drop ? 0.055 : 0.06);
+  if (drop && x % 2 === 1) hatClosed(t, 0.035);
+
+  // Bass: offbeat house bass in the verse; rolling trance bass + sub on the drop.
+  if (!rolling) {
+    if (drop) {
+      if (x % 4 !== 0) bassNote(t, root, 0.11, 0.22, 1400);
+      else subNote(t, root, 0.2, 0.26);
+    } else if (x % 4 === 2) bassNote(t, root, 0.16, 0.22, 900);
+  }
+
+  // Arp sparkle above the tune: 8ths in the verse, 16ths on the drop.
+  if (drop || x % 2 === 0) {
+    const i = drop ? HK_ARP[x % 4] : HK_ARP[(x >> 1) % 4];
+    arpNote(t, tones[i] + 24 + (drop && x % 8 >= 4 ? 12 : 0), drop ? 0.022 : 0.02);
+  }
+
+  // The melody: pluck lead in the verse; supersaw anthem an octave up on the drop.
   const note = song.melody.get(s);
   if (note) {
     const dur = note.len * song.stepDur;
-    anthemLead(t, note.semis, dur, inRefrain ? 0.16 : 0.13);
-    if (pass % 2 === 1) bell(t, note.semis, 0.035);
+    hkLead(t, note.semis, dur, drop ? 0.1 : 0.12);
+    if (drop) supersaw(t, note.semis + 12, dur, bar >= 16 ? 0.07 : 0.06);
+    if (pass % 2 === 1 || bar >= 16) bell(t, note.semis, 0.03);
   }
-  if (s % 8 === 0) {
-    const chord = HK_CHORDS[s / 8];
-    anthemPad(t, HK_CHORD_TONES[chord], song.stepDur * 8, inRefrain ? 0.05 : 0.04);
-    subNote(t, HK_BASS[chord] - 69 + 12, song.stepDur * 7, inRefrain ? 0.22 : 0.17);
-  }
-  // Timpani roll-in to the refrain, and a soft roll on the first beat of each
-  // refrain phrase; a cymbal swell lifts into the last line.
-  if (bar === 7 && s % STEPS_PER_BAR >= 8 && s % 2 === 0) tom(t, 82, 0.05 + (s % STEPS_PER_BAR - 8) * 0.012);
-  if (inRefrain && s % STEPS_PER_BAR === 0 && (bar === 8 || bar === 12 || bar === 16)) { tom(t, 73, 0.2); crash(t, 0.05); }
-  if (bar === 15 && s % STEPS_PER_BAR === 0) riser(t, song.stepDur * STEPS_PER_BAR);
 }
 
 export function composeSong(styleName, daySeed) {

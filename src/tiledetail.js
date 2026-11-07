@@ -52,6 +52,36 @@ async function fetchTileBitmap(url, signal) {
   }
 }
 
+// Relative-to-center vertices (fixes the deep-zoom "shattered glass" glitch on
+// iPhone). SphereGeometry stores absolute positions (~1.0) as float32, whose
+// step is ~1e-7 globe units (~0.7 m). Fully zoomed in the camera is only ~600 m
+// up, and on mobile GPUs the rounding in the vertex transform tore the patch
+// into jittering shards showing the blurry base globe through the gaps.
+// Recomputing each vertex in float64 relative to the patch center keeps the
+// stored values tiny (sub-millimetre precision); the mesh is then positioned
+// at the center, and three.js combines the matrices on the CPU in float64.
+// The layout mirrors three.js SphereGeometry exactly (normals/uvs untouched).
+function toCenterRelative(geo, ws, hs, phiStart, phiLength, thetaStart, thetaLength) {
+  const r = 1.0000001;
+  const pm = phiStart + phiLength / 2, tm = thetaStart + thetaLength / 2;
+  const center = new THREE.Vector3(-r * Math.cos(pm) * Math.sin(tm), r * Math.cos(tm), r * Math.sin(pm) * Math.sin(tm));
+  const pos = geo.attributes.position;
+  let i = 0;
+  for (let iy = 0; iy <= hs; iy++) {
+    const theta = thetaStart + (iy / hs) * thetaLength;
+    for (let ix = 0; ix <= ws; ix++, i++) {
+      const phi = phiStart + (ix / ws) * phiLength;
+      pos.setXYZ(i,
+        -r * Math.cos(phi) * Math.sin(theta) - center.x,
+        r * Math.cos(theta) - center.y,
+        r * Math.sin(phi) * Math.sin(theta) - center.z);
+    }
+  }
+  pos.needsUpdate = true;
+  geo.computeBoundingSphere();
+  return center;
+}
+
 function geometryBBox(geometry) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const visit = (coords) => {
@@ -411,10 +441,12 @@ export class TileDetail {
         this.globe.renderer.initTexture(tex);
         const segments = (span) => THREE.MathUtils.clamp(Math.ceil(span * 2), 16, 96);
         const geo = new THREE.SphereGeometry(1.0000001, segments(lonSpan), segments(latSpan), toRad(region.west + 180), toRad(lonSpan), toRad(90 - region.north), toRad(latSpan));
+        const center = toCenterRelative(geo, segments(lonSpan), segments(latSpan), toRad(region.west + 180), toRad(lonSpan), toRad(90 - region.north), toRad(latSpan));
         this.timings.geometry = performance.now() - geoStart;
         const mat = new THREE.MeshPhongMaterial({ map: tex, transparent: true, opacity: 0, shininess: 8, specular: new THREE.Color(0x222c3a), depthWrite: false });
         this.globe.applySunShader(mat);
         const mesh = new THREE.Mesh(geo, mat); mesh.userData.poolItem = poolItem;
+        mesh.position.copy(center);
         this._swapIn(mesh);
         this.lastRegionKey = metadata.key || '';
         this.builtAlt = metadata.alt ?? null;
