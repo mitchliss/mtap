@@ -131,14 +131,20 @@ const dailyPickCache = new Map(); // puzzle number -> picks (avoids re-walking t
 // Puzzle #1 (Jul 22, 2026) was a Wednesday: pn % 7 → 5 = Sun, 0 = Tue, 3 = Fri.
 export const HERITAGE_SCHEDULE_START = 110; // Nov 8, 2026
 const HERITAGE_WEEKDAYS = new Set([5, 0, 3]);
-export const isHeritageDay = (k) => k >= HERITAGE_SCHEDULE_START && HERITAGE_WEEKDAYS.has(k % 7);
+// v4.6 (family: 'still not seeing so many Jewish places'): from #111 EVERY day
+// deals one. 267 heritage places can't fill a full no-repeat year at one a day,
+// so heritage places get their own shorter window: never repeated within
+// HERITAGE_WINDOW days (the rest of the pool keeps the 365-day rule).
+export const DAILY_HERITAGE_START = 111; // Nov 9, 2026
+export const HERITAGE_WINDOW = 240;
+export const isHeritageDay = (k) => k >= DAILY_HERITAGE_START || (k >= HERITAGE_SCHEDULE_START && HERITAGE_WEEKDAYS.has(k % 7));
 
 // The heritage place for day k: never one dealt inside the no-repeat year
 // (by name — the 100km proximity rule is skipped here, since most heritage
 // sites cluster in Israel), preferring one not near anything from the last
 // 30 days. Seeded, so every player gets the same place.
 function pickHeritage(k, pool, window) {
-  const days = windowDaysFor(k);
+  const days = k >= DAILY_HERITAGE_START ? HERITAGE_WINDOW : windowDaysFor(k);
   const blocked = new Set();
   const recent = [];
   for (const w of window) {

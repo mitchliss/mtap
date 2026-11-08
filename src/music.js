@@ -481,6 +481,7 @@ export const HATIKVAH_SCORE = { melody: HK_MELODY, chords: HK_CHORDS, bars: HK_B
 //   bar  15    mini build (half-bar roll + gap)
 //   bars 16-19 DROP 2: the repeated last line, biggest — adds bells and a high arp
 // then straight back to bar 0.
+// v4.6: the anthem now loops as CHAPTERS that keep building — see hkBpm below.
 const HK_BPM = 128;
 function composeHatikvah() {
   const melody = new Map();
@@ -606,32 +607,55 @@ const hkSemis = (chord) => HK_CHORD_TONES[chord].map((m) => m - 69);
 const HK_ARP = [0, 1, 2, 1];
 const HK_PIANO_HITS = new Set([0, 3, 6, 8, 11, 14]); // syncopated pop-piano comp
 
+// v4.6 "keeps building": every pass through the anthem is a new CHAPTER that
+// hits harder and runs faster than the last. Chapter c (0, 1, 2, ...):
+//   level      min(c, 3)  — what joins the mix (see scheduleHatikvah)
+//   tempo      128 → 131 → 134 → 137 → 140 BPM, ramped across the last
+//              4 bars of each chapter so it speeds up under you, then holds
+//   key        up a half step at chapter 2 and again at chapter 4
+const hkBpm = (c) => HK_BPM + 3 * Math.min(c, 4);
+const hkTranspose = (c) => (c >= 4 ? 2 : c >= 2 ? 1 : 0);
+const ride = (t, g = 0.035) => { noiseBurst(t, 0.28, 'bandpass', 9500, g); noiseBurst(t, 0.06, 'highpass', 6000, g * 0.6); };
+
 function scheduleHatikvah(globalStep, t) {
   const SPB = STEPS_PER_BAR;
-  const pass = Math.floor(globalStep / song.totalSteps);
+  const chapter = Math.floor(globalStep / song.totalSteps);
+  const L = Math.min(chapter, 3);
   const s = globalStep % song.totalSteps;
   const bar = Math.floor(s / SPB);
   const x = s % SPB;
   const half = Math.floor(s / 8);
+  const tr = hkTranspose(chapter);
   const chord = HK_CHORDS[half];
-  const tones = hkSemis(chord);
-  const root = HK_BASS[chord] - 69 + 12;
+  const tones = hkSemis(chord).map((m) => m + tr);
+  const root = HK_BASS[chord] - 69 + 12 + tr;
+
+  // Tempo: hold the chapter's BPM, then ramp toward the next one over bars 16-19.
+  const from = hkBpm(chapter), to = hkBpm(chapter + 1);
+  const ramp = bar >= 16 ? (s - 16 * SPB) / (4 * SPB) : 0;
+  song.stepDur = 60 / (from + (to - from) * ramp) / 4;
+  song.bpm = from;
 
   const drop = bar >= 8;
   const drop2 = bar >= 16;
   const build = bar === 6 || bar === 7;             // the big build into drop 1
   const miniBuild = bar === 15 && x >= 8;           // the lift into drop 2
   const gap = (bar === 7 && x >= 12) || (bar === 15 && x >= 14);
-  const kickFrom = pass === 0 ? 2 : 0;              // second time round it's straight in
+  const kickFrom = chapter === 0 ? 2 : 0;           // after the first time it's straight in
 
   // ---- punctuation ----
   if (x === 0) {
     if (bar === 8 || bar === 16) impact(t);
-    if (bar === 0 && pass > 0) crash(t, 0.1);
+    if (bar === 0 && chapter > 0) {
+      if (L >= 2) impact(t); else crash(t, 0.1);
+      echo.delayTime.setTargetAtTime(song.stepDur * 6, t, 0.3); // keep the echo on the beat
+    }
     if (bar === 6) riser(t, song.stepDur * (SPB * 2 - 4));
     if (bar === 15) riser(t, song.stepDur * (SPB - 2));
-    if (bar === 0) padLevel(t, 0.1, 0.3);
+    if (bar === 0) padLevel(t, 0.1 + 0.03 * L, 0.3);
     if (bar === 6) padLevel(t, 0.2, song.stepDur * SPB * 2); // opens up through the build
+    // Big chapters: a crash every 4 bars of the drops.
+    if (L >= 3 && drop && bar % 4 === 0 && bar !== 8 && bar !== 16) crash(t, 0.07);
   }
   if (bar === 15 && x === 8) crash(t, 0.06);
 
@@ -641,55 +665,82 @@ function scheduleHatikvah(globalStep, t) {
     // Notes in a build bar stop at the gap so the silence is real.
     const gapAt = bar === 7 ? 12 : bar === 15 ? 14 : SPB;
     const dur = Math.min(note.len, gapAt - x) * song.stepDur;
+    const n = note.semis + tr;
     if (!drop) {
-      piano(t, note.semis + 12, dur, 0.13);
-      if (bar >= 4) vocalChop(t, note.semis, dur, 0.05); // the hook creeps in
+      if (L >= 2 && !build) {
+        // Later verses ride on a filtered pluck-saw + chops instead of solo piano.
+        supersaw(t, n + 12, dur, 0.026 + 0.006 * (L - 2));
+        piano(t, n + 12, dur, 0.07);
+        vocalChop(t, n, dur, 0.05);
+      } else {
+        piano(t, n + 12, dur, 0.13);
+        if (bar >= 4 || L >= 1) vocalChop(t, n, dur, L >= 1 ? 0.06 : 0.05); // the hook
+      }
     } else {
-      supersaw(t, note.semis + 12, dur, drop2 ? 0.075 : 0.065);
-      vocalChop(t, note.semis, dur, drop2 ? 0.09 : 0.08);
-      if (drop2) bell(t, note.semis + 12, 0.03);
+      supersaw(t, n + 12, dur, drop2 ? 0.075 : 0.065);
+      vocalChop(t, n, dur, drop2 ? 0.09 : 0.08);
+      if (drop2 || L >= 2) bell(t, n + 12, 0.03);
+      if (L >= 2) supersaw(t, n, dur, 0.035, false);       // octave-down double: wider
+      if (L >= 3 && drop2) supersaw(t, n + 24, dur, 0.025, false); // and the sky-high one
     }
   }
-  if (gap) { // THE GAP: one beat of nothing, then the drop
+  if (gap) { // THE GAP: a beat of nothing, then the drop
     if ((bar === 7 && x === 12) || (bar === 15 && x === 14)) { padLevel(t, 0.0001, 0.03); echoOut.gain.setTargetAtTime(0, t, 0.015); echoOut.gain.setTargetAtTime(0.5, t + (SPB - x) * song.stepDur, 0.005); }
     return;
   }
 
   // ---- harmony ----
   padChord(half, tones, t);
-  if (!drop && HK_PIANO_HITS.has(x)) {
+  if (!drop && !(L >= 2 && !build) && HK_PIANO_HITS.has(x)) {
     const v = x === 0 || x === 8 ? 0.06 : 0.04;
     for (const semis of tones) piano(t, semis, song.stepDur * 3, v);
     if (x === 0 || x === 8) piano(t, root - 12, song.stepDur * 8, 0.07);
   }
-  if (drop && x % 4 === 2) brassStab(t, tones.map((m) => m + 12), drop2 ? 0.05 : 0.042);
-  if (drop && x % 2 === 0 && (drop2 || x % 4 === 0)) {
+  // Later verses: offbeat brass + a rolling 8th arp keep the energy up.
+  if (!drop && !build && L >= 2 && x % 8 === 6) brassStab(t, tones.map((m) => m + 12), 0.026);
+  if (!drop && !build && L >= 1 && x % 2 === 0) arpNote(t, tones[HK_ARP[(x >> 1) % 4]] + 24, 0.014);
+  if (drop && x % 4 === 2) brassStab(t, tones.map((m) => m + 12), (drop2 ? 0.05 : 0.042) + 0.004 * L);
+  if (drop && x % 2 === 0 && (drop2 || L >= 1 || x % 4 === 0)) {
     arpNote(t, tones[HK_ARP[(x >> 1) % 4]] + 24 + (x % 8 >= 4 ? 12 : 0), 0.02);
   }
 
   // ---- drums ----
   const kicking = drop ? !miniBuild : bar >= kickFrom && bar < 7;
-  if (kicking && x % 4 === 0) kick(t, drop ? 0.58 : 0.48);
-  if (drop && !miniBuild && (x === 4 || x === 12)) clap(t, 0.2);
-  if (!drop && !build && (x === 4 || x === 12)) snap(t, 0.13);
+  const kickVol = drop ? 0.58 : L >= 2 ? 0.54 : 0.48;
+  if (kicking && x % 4 === 0) kick(t, kickVol);
+  if (drop && !miniBuild && (x === 4 || x === 12)) { clap(t, 0.2); if (L >= 1) snare(t, 0.08); }
+  if (!drop && !build && (x === 4 || x === 12)) { if (L >= 2) clap(t, 0.13); else snap(t, 0.13); }
   if (!build && !miniBuild) shaker(t, x % 4 === 2 ? 0.045 : 0.025);
-  if (drop && x % 4 === 2) hatOpen(t, 0.05);
-  if (drop && x % 2 === 1) hatClosed(t, 0.03);
-  // Snare roll: 4ths -> 8ths -> 16ths across the build, rising in level.
+  if ((drop || L >= 2) && !build && x % 4 === 2) hatOpen(t, 0.05);
+  if ((drop || L >= 1) && !build && x % 2 === 1) hatClosed(t, 0.03);
+  if (drop && L >= 1 && !miniBuild && x % 2 === 0 && x % 4 !== 0) hatClosed(t, 0.02); // 16th hats
+  if (drop && L >= 2 && x % 4 === 0) ride(t, 0.03);
+  // Fill into every 4th bar of the big drops.
+  if (drop && L >= 3 && !miniBuild && bar % 4 === 3 && x >= 12) tom(t, 110 + (x - 12) * 30, 0.12);
+
+  // Build: snare roll 4ths -> 8ths -> 16ths, rising. From chapter 1 claps double
+  // it; from chapter 2 the KICK rolls too (quarters -> 8ths), Tiësto style.
   if (build) {
     const k = (bar - 6) * SPB + x; // 0..27
     const every = k < 8 ? 4 : k < 16 ? 2 : 1;
-    if (k % every === 0) snare(t, 0.06 + k * 0.005);
+    if (k % every === 0) { snare(t, 0.06 + k * 0.005); if (L >= 1) clap(t, 0.05 + k * 0.004); }
     if (bar === 7 && x >= 8 && x % 2 === 0) tom(t, 90 + (x - 8) * 22, 0.12);
+    if (bar === 7 && L >= 2 && x % 2 === 0) kick(t, 0.4 + x * 0.008);
   }
-  if (miniBuild && x < 14) snare(t, 0.1 + (x - 8) * 0.02);
+  if (miniBuild && x < 14) {
+    snare(t, 0.1 + (x - 8) * 0.02);
+    if (L >= 2 && x <= 12 && x % 2 === 0) kick(t, 0.38 + (x - 8) * 0.02); // stops short of the gap
+  }
 
   // ---- bass ----
   if (drop && !miniBuild) {
     if (x % 4 === 0) subNote(t, root, 0.2, 0.28);
-    else bassNote(t, root, 0.11, 0.2, 1500);
-  } else if (!drop && bar >= kickFrom && !build && x % 4 === 2) {
-    bassNote(t, root, 0.16, 0.2, 800);
+    // Chapter 2+: bouncy octave bass on the offbeat — more bump.
+    else bassNote(t, root + (L >= 2 && x % 4 === 2 ? 12 : 0), 0.11, 0.2, 1500 + 300 * L);
+  } else if (!drop && bar >= kickFrom && !build) {
+    if (L >= 2 && x % 4 === 2) bassNote(t, root + 12, 0.1, 0.15, 1000);
+    else if (L >= 2 && x % 4 === 3) bassNote(t, root, 0.08, 0.11, 900);
+    else if (L < 2 && x % 4 === 2) bassNote(t, root, 0.16, 0.2, 800);
   } else if (!drop && bar < kickFrom && (x === 0 || x === 8)) {
     subNote(t, root, song.stepDur * 7, 0.18);
   }
