@@ -163,6 +163,18 @@ export const NEWS = [
     diff: 2,
     fact: 'On November 5, 2026, episode 56 of the ongoing Halemaʻumaʻu eruption sent lava fountains over 100 feet high before ending abruptly after about six hours, according to the US Geological Survey.',
   },
+  {
+    pn: 112,
+    slot: 2,
+    name: 'Luján, Argentina',
+    prompt: 'Pope visits a national shrine on the first papal trip to Argentina in decades',
+    lat: -34.5698,
+    lng: -59.1050,
+    country: 'Argentina',
+    continent: 'South America',
+    diff: 2,
+    fact: 'Pope Leo XIV visited the Basilica of Our Lady of Luján during his first trip to Argentina as pontiff, the first papal visit to the country since John Paul II traveled there in 1987.',
+  },
 ];
 
 export function newsRollFor(pn) {
