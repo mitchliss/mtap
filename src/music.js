@@ -59,6 +59,7 @@ export function unlockIosAudio() {
     const p = unlockEl.play();
     if (p && p.catch) p.catch(() => { /* retried on next gesture */ });
     if (ctx && ctx.state === 'suspended') ctx.resume();
+    if (playing && trackMode && trackEl && trackEl.paused) playTrackEl();
   } catch { /* audio unavailable */ }
 }
 
@@ -906,6 +907,67 @@ function schedulerTick() {
   }
 }
 
+// ---- the produced Hatikvah record (v4.7) ----
+// Hatikvah is now a real production, rendered offline by the studio in studio/
+// (see studio/STUDIO.md) and streamed from an AAC file through a media element:
+// it starts while still downloading and never holds the whole song as PCM (a
+// phone-friendly ~0 MB instead of ~80 MB). The song has a real ending; when it
+// finishes it starts again from the top. If the file can't load or decode, the
+// live-synth arrangement above takes over.
+const TRACK_URL = 'audio/hatikvah.m4a';   // relative to the page (Vite base './')
+const TRACK_LEVEL = 0.85;                 // mastered at ~-10 LUFS; bypasses the synth compressor
+let trackEl = null;
+let trackGain = null;
+let trackMode = false;
+let trackFailed = false;
+let trackSeed = 1;
+
+function ensureTrack() {
+  if (trackEl) return true;
+  try {
+    trackEl = new Audio();
+    trackEl.preload = 'auto';
+    trackEl.setAttribute('playsinline', '');
+    trackEl.src = TRACK_URL;
+    trackGain = ctx.createGain();
+    trackGain.gain.value = 0;
+    // Through WebAudio so ducking/fades work on iOS (element.volume is read-only there).
+    ctx.createMediaElementSource(trackEl).connect(trackGain).connect(ctx.destination);
+    trackEl.addEventListener('ended', () => {
+      if (!playing || !trackMode) return;
+      setTimeout(() => { if (playing && trackMode) { trackEl.currentTime = 0; playTrackEl(); } }, 900);
+    });
+    trackEl.addEventListener('error', () => {
+      trackFailed = true;
+      if (playing && trackMode) { stopMusic(true); startMusic('hatikvah', trackSeed); }
+    });
+    return true;
+  } catch {
+    trackFailed = true;
+    trackEl = null;
+    return false;
+  }
+}
+
+function playTrackEl() {
+  const p = trackEl.play();
+  if (p && p.catch) p.catch(() => { /* autoplay blocked: retried on the next tap (unlockIosAudio) */ });
+}
+
+function startTrack(daySeed) {
+  if (!ensureTrack()) return false;
+  trackSeed = daySeed;
+  trackMode = true;
+  playing = true;
+  const t = ctx.currentTime;
+  trackGain.gain.cancelScheduledValues(t);
+  trackGain.gain.setValueAtTime(0.0001, t);
+  trackGain.gain.linearRampToValueAtTime(TRACK_LEVEL, t + 0.6);
+  try { trackEl.currentTime = 0; } catch { /* not seekable yet: starts at 0 anyway */ }
+  playTrackEl();
+  return true;
+}
+
 // ---- public API ----
 
 export const MUSIC_STYLES = ['house', 'trance', 'dnb', 'synthwave', 'rock', 'metal'];
@@ -914,6 +976,7 @@ export function startMusic(styleName = 'house', daySeed = 1) {
   unlockIosAudio();
   ensureCtx();
   if (playing) return;
+  if (styleName === 'hatikvah' && !trackFailed && startTrack(daySeed)) return;
   playing = true;
   song = composeSong(styleName, daySeed);
   echo.delayTime.setValueAtTime(song.stepDur * 6, ctx.currentTime); // dotted 8th
@@ -926,9 +989,19 @@ export function startMusic(styleName = 'house', daySeed = 1) {
   schedulerTimer = setInterval(schedulerTick, 100);
 }
 
-export function stopMusic() {
+export function stopMusic(immediate = false) {
   if (!playing) return;
   playing = false;
+  if (trackMode) {
+    trackMode = false;
+    const t = ctx.currentTime;
+    trackGain.gain.cancelScheduledValues(t);
+    trackGain.gain.setValueAtTime(trackGain.gain.value, t);
+    trackGain.gain.linearRampToValueAtTime(0.0001, t + (immediate ? 0.02 : 0.7));
+    const el = trackEl;
+    setTimeout(() => { if (!trackMode) el.pause(); }, immediate ? 30 : 750);
+    return;
+  }
   clearInterval(schedulerTimer);
   if (ctx && master) {
     master.gain.cancelScheduledValues(ctx.currentTime);
@@ -943,10 +1016,22 @@ export function stopMusic() {
 
 export function isMusicPlaying() { return playing; }
 
+// Debug/test readout for the streamed Hatikvah record.
+export function trackDebug() {
+  return { trackMode, failed: trackFailed, paused: trackEl ? trackEl.paused : null, time: trackEl ? trackEl.currentTime : null, gain: trackGain ? trackGain.gain.value : null };
+}
+
 // Briefly dip the music so a sound effect (the arrow confirm) cuts through.
 export function duckMusic(ms = 400) {
   if (!ctx || !master || !playing) return;
   const t = ctx.currentTime;
+  if (trackMode) {
+    trackGain.gain.cancelScheduledValues(t);
+    trackGain.gain.setValueAtTime(trackGain.gain.value, t);
+    trackGain.gain.linearRampToValueAtTime(TRACK_LEVEL * 0.25, t + 0.03);
+    trackGain.gain.linearRampToValueAtTime(TRACK_LEVEL, t + Math.max(0.2, ms / 1000));
+    return;
+  }
   master.gain.cancelScheduledValues(t);
   master.gain.setValueAtTime(master.gain.value, t);
   master.gain.linearRampToValueAtTime(0.1, t + 0.03);
