@@ -175,6 +175,18 @@ export const NEWS = [
     diff: 2,
     fact: 'Pope Leo XIV visited the Basilica of Our Lady of Luján during his first trip to Argentina as pontiff, the first papal visit to the country since John Paul II traveled there in 1987.',
   },
+  {
+    pn: 113,
+    slot: 2,
+    name: 'Cerveteri Necropolis, Italy',
+    prompt: 'Rock-carved thrones and a painted tomb unearthed in an ancient Etruscan necropolis',
+    lat: 41.985,
+    lng: 12.095,
+    country: 'Italy',
+    continent: 'Europe',
+    diff: 2,
+    fact: 'Emergency conservation work at the Monte Abatone necropolis near Cerveteri uncovered Etruscan burial chambers with rock-carved thrones, painted walls, and a nearly intact decorated jar, researchers reported in November 2026.',
+  },
 ];
 
 export function newsRollFor(pn) {
