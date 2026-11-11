@@ -8,6 +8,9 @@ import { toRad, toDeg } from './geo.js';
 import { mulberry32 } from './rng.js';
 import { TileDetail } from './tiledetail.js';
 import { SpaceScenery } from './space.js';
+import { Sky } from './sky.js';
+import { createAtmosphere } from './atmosphere.js';
+import { glowDiscTexture, makeArcRibbon, softRingTexture } from './effects.js';
 import { GFX, K_ROT, applySunShader, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from './graphics.js';
 
 const GLOBE_RADIUS = 1;
@@ -254,79 +257,115 @@ function drawGlobeTexture(geojson) {
 // ---------- pin sprite textures ----------
 
 function makePinTexture(color, ringColor) {
-  const S = 128;
+  // Drawn in 128-unit space at 2x, so it stays crisp on high-DPI phones.
+  const S = 256, U = 128;
   const c = document.createElement('canvas');
   c.width = S; c.height = S;
   const ctx = c.getContext('2d');
+  ctx.scale(S / U, S / U);
+  const base = new THREE.Color(color);
+  const shade = (k) => base.clone().multiplyScalar(k).getStyle();
   // Classic map pin: circle head + tapered tail, tip at bottom center.
+  const body = () => {
+    ctx.beginPath();
+    ctx.arc(0, 44, 32, Math.PI * 0.8, Math.PI * 0.2);
+    ctx.quadraticCurveTo(14, 84, 0, 116);
+    ctx.quadraticCurveTo(-14, 84, -Math.cos(Math.PI * 0.2) * 32, 44 + Math.sin(Math.PI * 0.8) * 32);
+    ctx.closePath();
+  };
   ctx.save();
-  ctx.translate(S / 2, 0);
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 4;
-  ctx.beginPath();
-  ctx.arc(0, 44, 32, Math.PI * 0.8, Math.PI * 0.2);
-  ctx.quadraticCurveTo(14, 84, 0, 116);
-  ctx.quadraticCurveTo(-14, 84, -Math.cos(Math.PI * 0.2) * 32, 44 + Math.sin(Math.PI * 0.8) * 32);
-  ctx.closePath();
-  const enamel = ctx.createLinearGradient(-28, 16, 28, 116);
-  enamel.addColorStop(0, ringColor);
-  enamel.addColorStop(0.32, color);
-  enamel.addColorStop(1, new THREE.Color(color).multiplyScalar(0.55).getStyle());
+  ctx.translate(U / 2, 0);
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 7;
+  ctx.shadowOffsetY = 3;
+  body();
+  const enamel = ctx.createLinearGradient(-26, 14, 24, 112);
+  enamel.addColorStop(0, base.clone().lerp(new THREE.Color('#ffffff'), 0.38).getStyle());
+  enamel.addColorStop(0.34, color);
+  enamel.addColorStop(1, shade(0.5));
   ctx.fillStyle = enamel;
   ctx.fill();
+  ctx.shadowColor = 'transparent';
+  // Dark keyline, then a light inner rim: reads on snow, sand and sea alike.
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = shade(0.34); ctx.lineWidth = 2.6; ctx.stroke();
+  ctx.save(); body(); ctx.clip();
+  // Gloss: a soft specular sweep across the upper-left of the head.
+  const gloss = ctx.createRadialGradient(-12, 28, 1, -10, 32, 30);
+  gloss.addColorStop(0, 'rgba(255,255,255,0.62)');
+  gloss.addColorStop(0.5, 'rgba(255,255,255,0.14)');
+  gloss.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gloss; ctx.fillRect(-40, 0, 80, 80);
+  // Core shadow down the right flank gives the body some roundness.
+  const flank = ctx.createLinearGradient(-6, 0, 34, 0);
+  flank.addColorStop(0, 'rgba(0,0,0,0)'); flank.addColorStop(1, 'rgba(0,0,0,0.26)');
+  ctx.fillStyle = flank; ctx.fillRect(-40, 0, 80, 120);
   ctx.restore();
-  // Head ring + inner dot.
-  ctx.beginPath();
-  ctx.arc(S / 2, 44, 30, 0, Math.PI * 2);
-  ctx.strokeStyle = ringColor;
-  ctx.lineWidth = 5;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(S / 2, 44, 12, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
+  // Head ring + inset dot.
+  ctx.beginPath(); ctx.arc(0, 44, 28.5, 0, Math.PI * 2);
+  ctx.strokeStyle = ringColor; ctx.lineWidth = 3.2; ctx.globalAlpha = 0.9; ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.arc(0, 45.2, 12.4, 0, Math.PI * 2);
+  ctx.fillStyle = shade(0.42); ctx.fill();
+  const dot = ctx.createRadialGradient(-3, 40, 1, 0, 44, 12);
+  dot.addColorStop(0, '#ffffff'); dot.addColorStop(1, '#e4e9f2');
+  ctx.beginPath(); ctx.arc(0, 44, 11.6, 0, Math.PI * 2);
+  ctx.fillStyle = dot; ctx.fill();
+  ctx.restore();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   return tex;
 }
 
 // Numbered round badge for the post-game overview: colored circle + white number + tail.
 function makeBadgeTexture(number, color) {
-  const S = 128;
+  const S = 256, U = 128;
   const c = document.createElement('canvas');
   c.width = S; c.height = S;
   const ctx = c.getContext('2d');
+  ctx.scale(S / U, S / U);
+  const base = new THREE.Color(color);
+  const fill = ctx.createLinearGradient(0, 12, 0, 116);
+  fill.addColorStop(0, base.clone().lerp(new THREE.Color('#ffffff'), 0.28).getStyle());
+  fill.addColorStop(0.45, color);
+  fill.addColorStop(1, base.clone().multiplyScalar(0.58).getStyle());
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 4;
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 7;
+  ctx.shadowOffsetY = 3;
+  ctx.fillStyle = fill;
   // tail
   ctx.beginPath();
-  ctx.moveTo(S / 2 - 12, 78);
-  ctx.quadraticCurveTo(S / 2, 92, S / 2, 116);
-  ctx.quadraticCurveTo(S / 2, 92, S / 2 + 12, 78);
+  ctx.moveTo(U / 2 - 12, 78);
+  ctx.quadraticCurveTo(U / 2, 92, U / 2, 116);
+  ctx.quadraticCurveTo(U / 2, 92, U / 2 + 12, 78);
   ctx.closePath();
-  ctx.fillStyle = color;
   ctx.fill();
   // head
   ctx.beginPath();
-  ctx.arc(S / 2, 48, 36, 0, Math.PI * 2);
-  ctx.fillStyle = color;
+  ctx.arc(U / 2, 48, 36, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(U / 2, 48, 36, 0, Math.PI * 2); ctx.clip();
+  const gloss = ctx.createRadialGradient(U / 2 - 12, 26, 2, U / 2 - 8, 32, 40);
+  gloss.addColorStop(0, 'rgba(255,255,255,0.42)'); gloss.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gloss; ctx.fillRect(0, 0, U, 96);
+  ctx.restore();
   ctx.beginPath();
-  ctx.arc(S / 2, 48, 36, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = 4;
+  ctx.arc(U / 2, 48, 35, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.92)';
+  ctx.lineWidth = 3.4;
   ctx.stroke();
   ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0,40,20,0.55)'; ctx.shadowBlur = 3; ctx.shadowOffsetY = 1.5;
   ctx.font = '800 44px "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(String(number), S / 2, 50);
+  ctx.fillText(String(number), U / 2, 50);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   return tex;
 }
 
@@ -342,33 +381,47 @@ function makeLabelTexture(lines, opts = {}) {
     measure.font = font(l.bold);
     w = Math.max(w, measure.measureText(l.text).width);
   }
+  // Logical size W x H, painted at 2x so the text stays sharp when the card
+  // is drawn large on a high-DPI screen.
+  const W = Math.ceil(w + pad * 2), H = lines.length * lineH + pad * 2 - 6;
   const c = document.createElement('canvas');
-  c.width = Math.ceil(w + pad * 2);
-  c.height = lines.length * lineH + pad * 2 - 6;
+  c.width = W * 2; c.height = H * 2;
   const g = c.getContext('2d');
-  g.fillStyle = opts.neon ? 'rgba(4, 16, 10, 0.82)' : 'rgba(6, 12, 28, 0.78)';
-  g.beginPath();
+  g.scale(2, 2);
   const r = 14;
-  g.moveTo(r, 0);
-  g.arcTo(c.width, 0, c.width, c.height, r);
-  g.arcTo(c.width, c.height, 0, c.height, r);
-  g.arcTo(0, c.height, 0, 0, r);
-  g.arcTo(0, 0, c.width, 0, r);
-  g.closePath();
-  g.fill();
+  const panel = () => {
+    g.beginPath();
+    g.moveTo(r + 1, 1);
+    g.arcTo(W - 1, 1, W - 1, H - 1, r);
+    g.arcTo(W - 1, H - 1, 1, H - 1, r);
+    g.arcTo(1, H - 1, 1, 1, r);
+    g.arcTo(1, 1, W - 1, 1, r);
+    g.closePath();
+  };
+  const glass = g.createLinearGradient(0, 0, 0, H);
+  if (opts.neon) { glass.addColorStop(0, 'rgba(10, 34, 24, 0.90)'); glass.addColorStop(1, 'rgba(3, 14, 9, 0.88)'); }
+  else { glass.addColorStop(0, 'rgba(18, 30, 58, 0.88)'); glass.addColorStop(1, 'rgba(6, 12, 28, 0.86)'); }
+  panel(); g.fillStyle = glass; g.fill();
   if (opts.neon) {
     g.save();
-    g.strokeStyle = 'rgba(125, 255, 181, 0.85)';
-    g.lineWidth = 2.5;
+    g.strokeStyle = 'rgba(125, 255, 181, 0.9)';
+    g.lineWidth = 2;
     g.shadowColor = '#38d67a';
-    g.shadowBlur = 14;
+    g.shadowBlur = 10;
     g.stroke();
     g.restore();
   } else {
-    g.strokeStyle = 'rgba(120, 160, 255, 0.35)';
-    g.lineWidth = 2;
+    g.strokeStyle = 'rgba(140, 180, 255, 0.42)';
+    g.lineWidth = 1.5;
     g.stroke();
   }
+  // A hairline highlight along the top edge, like light catching glass.
+  g.save(); panel(); g.clip();
+  const sheen = g.createLinearGradient(0, 0, 0, 16);
+  sheen.addColorStop(0, 'rgba(255,255,255,0.13)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = sheen; g.fillRect(0, 0, W, 16);
+  g.restore();
+  g.shadowColor = 'rgba(0,0,0,0.6)'; g.shadowBlur = 3; g.shadowOffsetY = 1;
   lines.forEach((l, i) => {
     g.font = font(l.bold);
     g.fillStyle = l.color || '#e8eefc';
@@ -376,7 +429,8 @@ function makeLabelTexture(lines, opts = {}) {
   });
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return { tex, aspect: c.width / c.height };
+  tex.anisotropy = 4;
+  return { tex, aspect: W / H };
 }
 
 // ---------- main class ----------
@@ -427,8 +481,8 @@ export class Globe {
     fill.position.set(-3, -1, -2);
     this.scene.add(fill);
 
-    // Star field + deep-space scenery (moon, planets, sun glare, Milky Way)
-    this.scene.add(this._makeStars());
+    // Sky (galaxy dome, stars, sun glare) + deep-space scenery (moon, planets)
+    this.sky = new Sky(this.scene, this.renderer, { sunPos: this.sun.position, twinkle: GFX.starTwinkle, compact: this.textureTier.name === 'low' });
     this._makeSpaceScenery(this.sun.position);
 
     // Globe sphere (texture applied after geojson loads)
@@ -438,35 +492,8 @@ export class Globe {
     );
     this.scene.add(this.sphere);
 
-    // Atmosphere glow (backside shell)
-    const atmosphere = new THREE.Mesh(
-      new THREE.SphereGeometry(GLOBE_RADIUS * 1.018, 64, 48),
-      new THREE.ShaderMaterial({
-        side: THREE.BackSide,
-        transparent: true,
-        depthWrite: false,
-        uniforms: { sunDir: { value: this.sunDir } },
-        vertexShader: `
-          varying vec3 vNormal;
-          varying vec3 vWorldNormal;
-          void main() {
-            vNormal = normalize(normalMatrix * normal);
-            vWorldNormal = normalize(mat3(modelMatrix) * normal);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }`,
-        fragmentShader: `
-          varying vec3 vNormal;
-          varying vec3 vWorldNormal;
-          uniform vec3 sunDir;
-          void main() {
-            float intensity = 0.65 * pow(max(0.0, 0.76 - dot(vNormal, vec3(0.0, 0.0, -1.0))), 3.2);
-            float day = dot(normalize(vWorldNormal), normalize(sunDir));
-            vec3 color = mix(vec3(0.12, 0.23, 0.55), vec3(0.32, 0.68, 1.0), smoothstep(-0.15, 0.3, day));
-            gl_FragColor = vec4(color, 1.0) * intensity;
-          }`,
-        blending: THREE.AdditiveBlending,
-      })
-    );
+    // Atmosphere: limb glow, twilight band and forward scattering (atmosphere.js)
+    const atmosphere = createAtmosphere(this.sunDir);
     atmosphere.visible = GFX.atmosphere;
     this.atmosphere = atmosphere;
     this.scene.add(atmosphere);
@@ -538,6 +565,7 @@ export class Globe {
         const materials = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
         for (const m of materials) { m.needsUpdate = true; if (m.map) m.map.needsUpdate = true; }
       });
+      this.sky?.bake();
       this.tileDetail?.cancel(); this.startLoop();
     };
     document.addEventListener('visibilitychange', this._onVisibility);
@@ -551,8 +579,7 @@ export class Globe {
     try {
       tex = await buildEarthTexture(geojson, import.meta.env.BASE_URL, this.textureTier.base);
       this.sphere.material.specularMap = buildSpecularMap(geojson);
-      this.sphere.material.specular = new THREE.Color(GFX.oceanGlint ? 0x88aabb : 0x111111);
-      this.sphere.material.shininess = GFX.oceanGlint ? 30 : 8;
+      this._tuneGlint(false);
     } catch (err) {
       console.warn('Satellite texture unavailable, using painted fallback', err);
       tex = drawGlobeTexture(geojson);
@@ -565,9 +592,16 @@ export class Globe {
     applySunShader(this.sphere.material, this._sunShaderState);
     if (GFX.clouds) {
       const cloudTex = await loadTieredTexture(`${import.meta.env.BASE_URL}textures/earth-clouds.jpg`, this.textureTier.clouds);
-      this.clouds = new THREE.Mesh(new THREE.SphereGeometry(1.006, 96, 64), new THREE.MeshPhongMaterial({
-        map: cloudTex, alphaMap: cloudTex, transparent: true, opacity: 0.35, depthWrite: false, color: 0xffffff,
-      }));
+      const cloudMat = new THREE.MeshPhongMaterial({
+        alphaMap: cloudTex, transparent: true, opacity: 0.5, depthWrite: false, color: 0xffffff, shininess: 4, specular: 0x222222,
+      });
+      // Clean white cloud tops: thin haze in the source map is dropped and the
+      // dense cores firm up, instead of the whole layer reading as grey smudge.
+      cloudMat.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace('#include <alphamap_fragment>',
+          'diffuseColor.a *= smoothstep(0.10, 0.80, texture2D(alphaMap, vAlphaMapUv).g);');
+      };
+      this.clouds = new THREE.Mesh(new THREE.SphereGeometry(1.006, 96, 64), cloudMat);
       this.clouds.renderOrder = 3;
       this.scene.add(this.clouds);
     }
@@ -646,8 +680,20 @@ export class Globe {
     this.ambient.intensity = on ? 0.5 : 1.45;
     this.sun.intensity = on ? 1.65 : 1.0;
     if (on) this.sun.position.copy(this._sunHome);
+    this.atmosphere.material.uniforms.uRealistic.value = on ? 1 : 0;
+    this._tuneGlint(!!on);
     this.sphere.material.needsUpdate = true;
     if (this.tileDetail) this.tileDetail.setLighting(!!on);
+  }
+  // Ocean glint. With the real sun it is a tight, bright sunglint; in
+  // daytime-everywhere mode the light rides the camera, so the highlight sits
+  // dead centre and is kept to a soft sheen instead of a white blot.
+  _tuneGlint(realistic) {
+    const m = this.sphere.material;
+    if (!m.specularMap) return;
+    if (!GFX.oceanGlint) { m.specular.set(0x111111); m.shininess = 8; return; }
+    m.specular.set(realistic ? 0x9fb6c4 : 0x2c3d4c);
+    m.shininess = realistic ? 46 : 22;
   }
   applySunShader(material) { return applySunShader(material, this._sunShaderState); }
   startLoop() { this._clock?.start(); this._clock?.getDelta(); this.renderer.setAnimationLoop(() => this._tick()); }
@@ -948,8 +994,8 @@ export class Globe {
   _spawnPinRipple(lat, lng) {
     if (!GFX.pinRipple) return;
     const pos = latLngToVec3(lat, lng, GLOBE_RADIUS * 1.004);
-    const geo = new THREE.RingGeometry(0.009, 0.012, 36);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xff7896, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthTest: false });
+    const geo = new THREE.PlaneGeometry(0.025, 0.025);
+    const mat = new THREE.MeshBasicMaterial({ map: this._softRing(), color: 0xff8fa8, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
     const ring = new THREE.Mesh(geo, mat);
     ring.renderOrder = 997;
     ring.position.copy(pos);
@@ -1031,10 +1077,12 @@ export class Globe {
 
       if (item.guess) {
         const arc = this._buildArc(item.guess, item);
-        arc.geo.setDrawRange(0, arc.segments + 1); // static, fully drawn
-        arc.line.material.opacity = 0.3;
-        this.markerRoot.add(arc.line);
-        this._overviewMarkers.push(arc.line);
+        // Static and fully drawn: a quieter ribbon, still carrying slow pulses.
+        const u = arc.mesh.material.uniforms;
+        u.uHead.value = 1; u.uFlight.value = 0; u.uGain.value = 0.6;
+        arc.mesh.userData.isArc = true;
+        this.markerRoot.add(arc.mesh);
+        this._overviewMarkers.push(arc.mesh);
 
         const dotGeo = new THREE.CircleGeometry(0.005, 20);
         const dotMat = new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.65 });
@@ -1105,24 +1153,41 @@ export class Globe {
   // green) - readable at any zoom, visibly 3D as the globe spins.
   _makeBeam(coreColor, glowColor, lat, lng) {
     const group = new THREE.Group();
-    const coreGeo = new THREE.CapsuleGeometry(0.0055, 0.10, 6, 20);
+    const coreGeo = new THREE.CapsuleGeometry(0.0048, 0.10, 6, 20);
     coreGeo.translate(0, 0.0555, 0); // base sits at local y=0
     const core = new THREE.Mesh(coreGeo, new THREE.MeshBasicMaterial({ color: coreColor, toneMapped: false }));
     core.renderOrder = 4;
     group.add(core);
-    const glowGeo = new THREE.CapsuleGeometry(0.011, 0.104, 6, 20);
-    glowGeo.translate(0, 0.0575, 0);
-    const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({
-      color: glowColor, transparent: true, opacity: 0.32,
-      blending: THREE.AdditiveBlending, depthWrite: false,
+    // Nested additive shells fall off like a real glow instead of one hard halo.
+    for (const [radius, opacity] of [[0.0095, 0.36], [0.017, 0.15], [0.029, 0.06]]) {
+      const glowGeo = new THREE.CapsuleGeometry(radius, 0.104, 6, 20);
+      glowGeo.translate(0, 0.0575, 0);
+      const glow = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({
+        color: glowColor, transparent: true, opacity,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+      glow.renderOrder = 5;
+      group.add(glow);
+    }
+    // A pool of light on the ground where the beam is planted.
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.12), new THREE.MeshBasicMaterial({
+      map: this._glowDisc(), color: glowColor, transparent: true, opacity: 0.85,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false,
     }));
-    glow.renderOrder = 5;
-    group.add(glow);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.y = 0.0042;
+    pool.renderOrder = 3;
+    group.add(pool);
     const surface = latLngToVec3(lat, lng, GLOBE_RADIUS * 0.9965); // embed the seam
     group.position.copy(surface);
     group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), surface.clone().normalize());
     return group;
   }
+
+  // Shared effect textures (created on first use; three re-uploads them if a
+  // result clean-up disposes the GPU copy).
+  _softRing() { return this._softRingTex || (this._softRingTex = softRingTexture()); }
+  _glowDisc() { return this._glowDiscTex || (this._glowDiscTex = glowDiscTexture()); }
 
   _makeCometHead() {
     const S = 64;
@@ -1164,26 +1229,13 @@ export class Globe {
     // Comet arc (launches at +250ms inside _tick)
     if (guess) {
       const arc = this._buildArc(guess, answer);
-      this.markerRoot.add(arc.line);
-      this._resultObjects.push(arc.line);
-      // Additive trail: same points, per-vertex colors; black = invisible under
-      // additive blending, so ramping colors behind the head is per-vertex alpha
-      // without a shader.
-      const trailGeo = new THREE.BufferGeometry().setFromPoints(arc.points);
-      const colors = new Float32Array((arc.segments + 1) * 3);
-      trailGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-      trailGeo.setDrawRange(0, 0);
-      const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({
-        vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-      }));
-      trail.renderOrder = 5;
-      this.markerRoot.add(trail);
-      this._resultObjects.push(trail);
+      this.markerRoot.add(arc.mesh);
+      this._resultObjects.push(arc.mesh);
       const head = this._makeCometHead();
       head.visible = false;
       this.markerRoot.add(head);
       this._resultObjects.push(head);
-      this._arcAnim = { ...arc, trail, trailGeo, head, launched: false };
+      this._arcAnim = { ...arc, head, launched: false, landedAt: 0 };
     } else {
       this._arcAnim = null;
       this._revealAnswer(); // no guess (shouldn't happen in play) - show at once
@@ -1205,8 +1257,8 @@ export class Globe {
     this._resultObjects.push(ab);
     this._beams.push(ab);
 
-    const ringGeo = new THREE.RingGeometry(0.012, 0.016, 40);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x38d67a, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+    const ringGeo = new THREE.PlaneGeometry(0.034, 0.034);
+    const ringMat = new THREE.MeshBasicMaterial({ map: this._softRing(), color: 0x5dffa2, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
     const ring = new THREE.Mesh(ringGeo, ringMat);
     const ringPos = latLngToVec3(answer.lat, answer.lng, GLOBE_RADIUS * 1.006);
     ring.position.copy(ringPos);
@@ -1245,11 +1297,7 @@ export class Globe {
       const altitude = GLOBE_RADIUS * (1.003 + Math.sin(Math.PI * t) * lift);
       points.push(v.multiplyScalar(altitude));
     }
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.35 });
-    const line = new THREE.Line(geo, mat);
-    geo.setDrawRange(0, 0);
-    return { line, geo, segments, points, progress: 0 };
+    return { mesh: makeArcRibbon(points, angle), segments, points };
   }
 
   _midpointOnSphere(a, b) {
@@ -1352,63 +1400,15 @@ export class Globe {
     const space = new THREE.Group();
     this.scene.add(space);
 
-    // --- Milky Way: a dense band of faint stars on a tilted plane ---
-    {
-      const rng = mulberry32(777);
-      const count = 6200;
-      const positions = new Float32Array(count * 3);
-      const tilt = 1.05; // radians - band crosses the sky diagonally
-      for (let i = 0; i < count; i++) {
-        const theta = rng() * Math.PI * 2;
-        const spread = (rng() + rng() + rng() - 1.5) * 0.16; // gaussian-ish thin band
-        const r = 55 + rng() * 25;
-        const x = r * Math.cos(theta);
-        const z = r * Math.sin(theta);
-        const y = r * spread;
-        // tilt the band
-        positions[i * 3] = x;
-        positions[i * 3 + 1] = y * Math.cos(tilt) - z * Math.sin(tilt) * 0.35;
-        positions[i * 3 + 2] = z * Math.cos(tilt) + y * Math.sin(tilt);
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      space.add(new THREE.Points(geo, new THREE.PointsMaterial({
-        color: 0xd8e4ff, size: 0.09, sizeAttenuation: true, transparent: true, opacity: 0.5,
-      })));
-    }
-
-    // --- Sun glare in the light's direction ---
-    {
-      const S = 128;
-      const c = document.createElement('canvas');
-      c.width = S; c.height = S;
-      const g = c.getContext('2d');
-      const grad = g.createRadialGradient(S/2, S/2, 0, S/2, S/2, S/2);
-      grad.addColorStop(0, 'rgba(255,252,240,1)');
-      grad.addColorStop(0.18, 'rgba(255,244,200,0.9)');
-      grad.addColorStop(0.5, 'rgba(255,225,150,0.25)');
-      grad.addColorStop(1, 'rgba(255,225,150,0)');
-      g.fillStyle = grad;
-      g.fillRect(0, 0, S, S);
-      const mat = new THREE.SpriteMaterial({
-        map: new THREE.CanvasTexture(c), blending: THREE.AdditiveBlending,
-        depthWrite: false, transparent: true,
-      });
-      const sunSprite = new THREE.Sprite(mat);
-      sunSprite.position.copy(sunPos.clone().normalize().multiplyScalar(70));
-      sunSprite.scale.set(14, 14, 1);
-      space.add(sunSprite);
-    }
-
-    this.spaceScenery = new SpaceScenery(this.scene);
+    this.spaceScenery = new SpaceScenery(this.scene, sunPos.clone().normalize());
 
     // --- The Moon: real size ratio, painted craters, positioned by today's
     //     mean orbital longitude, lit by the same sun so phases are right ---
     {
-      const moonTex = this._paintMoonTexture();
+      const { map: moonTex, bump: moonBump } = this._paintMoonTexture();
       const moon = new THREE.Mesh(
-        new THREE.SphereGeometry(0.273, 48, 32), // true Moon/Earth size ratio
-        new THREE.MeshPhongMaterial({ map: moonTex, shininess: 2 })
+        new THREE.SphereGeometry(0.273, 64, 48), // true Moon/Earth size ratio
+        new THREE.MeshPhongMaterial({ map: moonTex, bumpMap: moonBump, bumpScale: 2.2, shininess: 1, specular: 0x111111 })
       );
       // Mean ecliptic longitude of the Moon (low-precision, plenty for scenery):
       // L = 218.316° + 13.176396°/day since J2000.
@@ -1429,75 +1429,66 @@ export class Globe {
     }
   }
 
-  // Paints an original moon texture: grey base, darker maria blobs, craters.
+  // Paints an original Moon: mottled highlands, soft-edged maria on the
+  // Earth-facing side, and a power-law crater field with lit rims, shadowed
+  // floors and a few bright ray systems. A matching height map drives the
+  // bump shading, so craters catch the sunlight along the terminator.
   _paintMoonTexture() {
-    const W = 512, H = 256;
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    const g = c.getContext('2d');
+    const W = 1024, H = 512;
+    const make = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    const colorCanvas = make(), bumpCanvas = make();
+    const g = colorCanvas.getContext('2d'), b = bumpCanvas.getContext('2d');
     const rng = mulberry32(4242);
-    g.fillStyle = '#b9b7ae';
-    g.fillRect(0, 0, W, H);
-    // maria (dark plains)
-    for (let i = 0; i < 14; i++) {
-      g.fillStyle = `rgba(110, 110, 108, ${0.25 + rng() * 0.3})`;
-      g.beginPath();
-      g.ellipse(rng() * W, H * 0.2 + rng() * H * 0.6, 20 + rng() * 55, 14 + rng() * 34, rng() * Math.PI, 0, Math.PI * 2);
-      g.fill();
+    g.fillStyle = '#b4b1a8'; g.fillRect(0, 0, W, H);
+    b.fillStyle = '#808080'; b.fillRect(0, 0, W, H);
+    const blob = (ctx, x, y, rx, ry, rot, inner, outer) => {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(1, ry / rx);
+      const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      grad.addColorStop(0, inner); grad.addColorStop(0.55, inner); grad.addColorStop(1, outer);
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    };
+    // Highland mottling.
+    for (let i = 0; i < 900; i++) {
+      const light = rng() < 0.5, a = 0.02 + rng() * 0.05;
+      blob(g, rng() * W, rng() * H, 6 + rng() * 34, 5 + rng() * 26, rng() * 3.1,
+        light ? 'rgba(232,230,220,' + a + ')' : 'rgba(96,95,92,' + a + ')', light ? 'rgba(232,230,220,0)' : 'rgba(96,95,92,0)');
     }
-    // craters
-    for (let i = 0; i < 160; i++) {
-      const x = rng() * W, y = rng() * H, r = 1 + rng() * 6;
-      g.fillStyle = `rgba(90, 90, 88, ${0.25 + rng() * 0.35})`;
-      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-      g.fillStyle = `rgba(215, 214, 205, ${0.2 + rng() * 0.3})`;
-      g.beginPath(); g.arc(x - r * 0.25, y - r * 0.25, r * 0.55, 0, Math.PI * 2); g.fill();
+    // Maria: dark basalt seas clustered on the near side (u = 0.25 faces Earth).
+    for (let i = 0; i < 26; i++) {
+      const x = W * (0.25 + (rng() + rng() - 1) * 0.17), y = H * (0.30 + rng() * 0.40);
+      const rx = 26 + rng() * 62, ry = 18 + rng() * 44, rot = rng() * 3.1;
+      blob(g, x, y, rx, ry, rot, 'rgba(84,86,92,' + (0.20 + rng() * 0.22) + ')', 'rgba(84,86,92,0)');
+      blob(b, x, y, rx, ry, rot, 'rgba(96,96,96,0.35)', 'rgba(96,96,96,0)');
     }
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }
-
-  _makeStars() {
-    const rng = mulberry32(99);
-    const count = 6500;
-    const positions = new Float32Array(count * 3);
-    const phases = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      // random point on a big sphere
-      const u = rng() * 2 - 1;
-      const theta = rng() * Math.PI * 2;
-      const r = 40 + rng() * 25;
-      const s = Math.sqrt(1 - u * u);
-      positions[i * 3] = r * s * Math.cos(theta);
-      positions[i * 3 + 1] = r * u;
-      positions[i * 3 + 2] = r * s * Math.sin(theta);
-      phases[i] = rng() * Math.PI * 2;
+    // Craters, smallest most numerous.
+    for (let i = 0; i < 620; i++) {
+      const x = rng() * W, y = H * (0.04 + rng() * 0.92);
+      const r = 1.2 + Math.pow(rng(), 3.4) * 20;
+      const stretch = 1 / Math.max(0.35, Math.sin((y / H) * Math.PI)); // equirect: widen toward the poles
+      for (const [ctx, floor, rim, lit] of [[g, 'rgba(70,70,70,0.34)', 'rgba(236,234,226,0.42)', 'rgba(250,248,240,0.30)'], [b, 'rgba(38,38,38,0.85)', 'rgba(236,236,236,0.80)', null]]) {
+        ctx.save(); ctx.translate(x, y); ctx.scale(stretch, 1);
+        const bowl = ctx.createRadialGradient(0, 0, 0, 0, 0, r * 1.28);
+        bowl.addColorStop(0, floor); bowl.addColorStop(0.62, floor); bowl.addColorStop(0.80, rim); bowl.addColorStop(1, 'rgba(128,128,128,0)');
+        ctx.fillStyle = bowl; ctx.beginPath(); ctx.arc(0, 0, r * 1.28, 0, Math.PI * 2); ctx.fill();
+        if (lit && r > 2.5) { ctx.fillStyle = lit; ctx.beginPath(); ctx.arc(-r * 0.22, -r * 0.22, r * 0.5, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+      }
+      // Young craters throw bright rays.
+      if (r > 9 && rng() < 0.4) {
+        g.save(); g.translate(x, y); g.scale(stretch, 1);
+        for (let k = 0; k < 16; k++) {
+          const len = r * (3 + rng() * 7), ang = rng() * Math.PI * 2;
+          const ray = g.createLinearGradient(0, 0, Math.cos(ang) * len, Math.sin(ang) * len);
+          ray.addColorStop(0, 'rgba(244,242,234,0.32)'); ray.addColorStop(1, 'rgba(244,242,234,0)');
+          g.strokeStyle = ray; g.lineWidth = 1 + rng() * 2.2;
+          g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(ang) * len, Math.sin(ang) * len); g.stroke();
+        }
+        g.restore();
+      }
     }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
-    const starCanvas = document.createElement('canvas');
-    starCanvas.width = starCanvas.height = 32;
-    const ctx = starCanvas.getContext('2d');
-    const glow = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
-    glow.addColorStop(0, '#ffffff');
-    glow.addColorStop(0.18, 'rgba(225,239,255,0.95)');
-    glow.addColorStop(0.5, 'rgba(160,195,255,0.25)');
-    glow.addColorStop(1, 'rgba(160,195,255,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, 32, 32);
-    const mat = new THREE.PointsMaterial({ map: new THREE.CanvasTexture(starCanvas), color: 0xcfe0ff, size: 0.16, sizeAttenuation: true, transparent: true, opacity: 0.85, depthWrite: false });
-    if (GFX.starTwinkle) {
-      mat.onBeforeCompile = (shader) => {
-        shader.uniforms.uTime = { value: 0 };
-        shader.vertexShader = shader.vertexShader.replace('void main() {', 'attribute float phase; varying float vTwinkle; uniform float uTime;\nvoid main() {\n vTwinkle = 0.82 + 0.18 * sin(uTime * 1.7 + phase);');
-        shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'varying float vTwinkle;\nvoid main() {').replace('#include <opaque_fragment>', 'diffuseColor.a *= vTwinkle;\n#include <opaque_fragment>');
-        mat.userData.shader = shader;
-      };
-      this._starMaterial = mat;
-    }
-    return new THREE.Points(geo, mat);
+    const map = new THREE.CanvasTexture(colorCanvas);
+    map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
+    return { map, bump: new THREE.CanvasTexture(bumpCanvas) };
   }
 
   // One meteor: a short line streaking along a tangent of the star sphere,
@@ -1533,6 +1524,8 @@ export class Globe {
     if (this._sunShaderState && this._sunShaderState.enabled === false) {
       this.sun.position.copy(this.camera.position).setLength(5);
     }
+    // One shared sun direction drives the surface haze and the atmosphere shell.
+    this.sunDir.copy(this.sun.position).normalize();
     // Clamped so a tab switch can't teleport; the harness may pin it.
     const dt = this._dtOverride ?? THREE.MathUtils.clamp(rawDt, DT_MIN, DT_MAX);
     // Self-healing: if anything ever corrupts the camera (NaN), snap back to a
@@ -1635,7 +1628,12 @@ export class Globe {
     }
     if (this._answerPin) { const s = this._spriteScaleForDistance(this._answerPin.position); this._answerPin.scale.set(s, s, 1); }
     for (const o of this._overviewMarkers) {
-      if (o.userData && o.userData.overviewIndex !== undefined) {
+      if (o.userData && o.userData.isArc) {
+        const u = o.material.uniforms;
+        this.renderer.getDrawingBufferSize(u.uRes.value);
+        u.uWidth.value = 5 * this.renderer.getPixelRatio();
+        u.uTime.value += dt;
+      } else if (o.userData && o.userData.overviewIndex !== undefined) {
         const s = this._spriteScaleForDistance(o.position);
         const k = o.userData.selected ? s * 1.25 : s;
         o.scale.set(k, k, 1);
@@ -1660,38 +1658,31 @@ export class Globe {
     }
     if (this._arcAnim && this._reveal) {
       const elapsed = nowMs - this._reveal.start;
-      if (!this._arcAnim.launched && elapsed >= 250) {
-        this._arcAnim.launched = true;
-        this._arcAnim.head.visible = true;
+      const arc = this._arcAnim, u = arc.mesh.material.uniforms;
+      this.renderer.getDrawingBufferSize(u.uRes.value);
+      u.uWidth.value = 6.5 * this.renderer.getPixelRatio();
+      u.uTime.value += dt;
+      if (!arc.launched && elapsed >= 250) {
+        arc.launched = true;
+        arc.head.visible = true;
       }
-      if (this._arcAnim.launched) {
+      if (arc.launched && !arc.landedAt) {
         const t = Math.min(1, (elapsed - 250) / 700);
         const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
-        const headIdx = Math.floor(e * this._arcAnim.segments);
-        this._arcAnim.geo.setDrawRange(0, headIdx + 1);
-        // Trail: additive colors ramp black -> gold -> white toward the head.
-        const TRAIL = 22;
-        const colors = this._arcAnim.trailGeo.getAttribute('color');
-        for (let i = 0; i <= this._arcAnim.segments; i++) {
-          const back = headIdx - i;
-          let r = 0, g = 0, b = 0;
-          if (back >= 0 && back <= TRAIL) {
-            const w = 1 - back / TRAIL;
-            r = 0.25 + 0.75 * w; g = 0.2 + 0.66 * w; b = 0.55 * w * w;
-          }
-          colors.setXYZ(i, r, g, b);
-        }
-        colors.needsUpdate = true;
-        this._arcAnim.trailGeo.setDrawRange(Math.max(0, headIdx - TRAIL), Math.min(TRAIL, headIdx) + 1);
-        // Head position + pulse
-        const p = this._arcAnim.points[Math.min(headIdx, this._arcAnim.segments)];
-        this._arcAnim.head.position.copy(p);
-        const hk = this._spriteScaleForDistance(p) * 0.5 * (1 + 0.15 * Math.sin(nowMs / 60));
-        this._arcAnim.head.scale.set(hk, hk, 1);
+        u.uHead.value = e;
+        // Comet head rides the leading edge of the ribbon.
+        const f = e * arc.segments, i0 = Math.min(arc.segments, Math.floor(f)), i1 = Math.min(arc.segments, i0 + 1);
+        const p = arc.head.position.copy(arc.points[i0]).lerp(arc.points[i1], f - i0);
+        const hk = this._spriteScaleForDistance(p) * 0.62 * (1 + 0.15 * Math.sin(nowMs / 60));
+        arc.head.scale.set(hk, hk, 1);
         if (t >= 1) {
-          this._arcAnim.head.visible = false;
+          arc.landedAt = nowMs;
+          arc.head.visible = false;
           this._revealAnswer(); // landing: answer beam + ring + label
         }
+      } else if (arc.landedAt) {
+        // The comet's wake cools into the steady arc with travelling pulses.
+        u.uFlight.value = Math.max(0, 1 - (nowMs - arc.landedAt) / 650);
       }
     }
     if (this._resultLabel) {
@@ -1715,11 +1706,10 @@ export class Globe {
     if (this.tileDetail) this.tileDetail.update(dt);
     if (this.clouds) {
       this.clouds.rotation.y += dt * 0.0015;
-      this.clouds.material.opacity = GFX.clouds && !this._gameplayActive && this.camera.position.length() >= 1.7 ? 0.32 : 0;
+      this.clouds.material.opacity = GFX.clouds && !this._gameplayActive && this.camera.position.length() >= 1.7 ? 0.5 : 0;
     }
     this.spaceScenery?.update(dt, this.camera);
-    if (this._starMaterial) this._starMaterial.opacity = 0.48 + 0.37 * Math.min(1, Math.max(0, (this.camera.position.length() - 2.9) / 4));
-    if (this._starMaterial?.userData.shader) this._starMaterial.userData.shader.uniforms.uTime.value += dt;
+    this.sky?.update(dt, this.camera);
 
     // The Moon creeps along its orbit in real time (13.18°/day - correct, and
     // just barely perceptible across a long session).

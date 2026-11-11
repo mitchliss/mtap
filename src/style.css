@@ -939,3 +939,81 @@ button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
 @media (max-width: 600px) and (orientation: portrait) {
   .prompt-card { top: calc(var(--safe-top) + 140px); }
 }
+
+/* ============ v5 visual polish ============
+   Colour, depth and glass only: no sizes, positions or breakpoints change. */
+:root {
+  --panel: rgba(13, 24, 44, 0.88);
+  --panel-border: rgba(150, 200, 245, 0.22);
+  --glass: linear-gradient(158deg, rgba(36, 60, 94, 0.92), rgba(12, 23, 44, 0.93) 55%, rgba(7, 14, 30, 0.94));
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.11), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+  --shadow: 0 18px 48px rgba(0, 4, 16, 0.62), 0 2px 8px rgba(0, 4, 16, 0.42);
+}
+html, body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+/* Soft cinematic vignette over the globe; purely decorative. */
+#globe-container::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(2, 4, 12, 0) 58%, rgba(2, 4, 12, 0.5) 100%);
+}
+
+/* Glass panels: one gradient, one edge highlight, one layered shadow. */
+.scorebox, .puzzle-meta, .icon-btn, .confirm-bar, .result-panel, .end-inner, .modal-card, .overview-panel {
+  background: var(--glass);
+  border-top-color: rgba(176, 222, 255, 0.42);
+  box-shadow: var(--shadow), var(--glass-edge);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: blur(12px) saturate(1.5);
+}
+.scorebox, .puzzle-meta, .icon-btn { box-shadow: 0 6px 20px rgba(0, 4, 16, 0.5), var(--glass-edge); }
+.prompt-card { box-shadow: 0 16px 40px rgba(0, 4, 16, 0.6), 0 0 0 1px rgba(120, 190, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.10); }
+.start-inner {
+  background: linear-gradient(158deg, rgba(30, 56, 90, 0.94), rgba(10, 22, 42, 0.95) 52%, rgba(6, 12, 26, 0.96));
+  border-top-color: rgba(176, 222, 255, 0.45);
+  box-shadow: 0 30px 90px rgba(0, 4, 16, 0.7), 0 0 60px rgba(60, 140, 255, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.overlay-screen { background: radial-gradient(ellipse at center, rgba(6, 10, 24, 0.16) 0%, rgba(6, 10, 24, 0.74) 100%); }
+
+/* Brand: the wordmark picks up the atmosphere's blue. */
+.brand-name .accent, .start-title .accent {
+  background: linear-gradient(180deg, #8fd0ff 0%, #4da3ff 55%, #2b7fe6 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.start-title { text-shadow: none; filter: drop-shadow(0 6px 22px rgba(0, 0, 0, 0.55)); }
+.start-logo { filter: drop-shadow(0 0 26px rgba(90, 170, 255, 0.75)) drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45)); }
+
+/* Buttons: brighter primary with a top sheen, quieter ghosts. */
+.btn.primary {
+  background: linear-gradient(135deg, #3a94ff 0%, #1c6fe4 46%, #129fb8 100%);
+  box-shadow: 0 6px 22px rgba(32, 110, 240, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.30), inset 0 -2px 0 rgba(0, 20, 60, 0.28);
+  text-shadow: 0 1px 2px rgba(0, 20, 60, 0.45);
+}
+.btn.primary:hover { box-shadow: 0 8px 28px rgba(77, 163, 255, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.34), inset 0 -2px 0 rgba(0, 20, 60, 0.28); filter: brightness(1.06); }
+.btn.primary:disabled { filter: saturate(0.55) brightness(0.8); box-shadow: none; cursor: default; }
+.btn.ghost { background: linear-gradient(180deg, rgba(170, 195, 235, 0.13), rgba(170, 195, 235, 0.06)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.btn.ghost:hover { background: linear-gradient(180deg, rgba(120, 180, 255, 0.22), rgba(120, 180, 255, 0.10)); }
+
+/* Numbers that matter get a little light of their own. */
+#score-value, .stat-value.points { text-shadow: 0 0 14px rgba(251, 191, 36, 0.45); }
+#end-score-value {
+  background: linear-gradient(180deg, #ffe58a 0%, #fbbf24 55%, #e89a0c 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  filter: drop-shadow(0 0 18px rgba(251, 191, 36, 0.35));
+}
+.round-dot.current { background: linear-gradient(90deg, #7fd0ff, #b5e6ff); box-shadow: 0 0 10px rgba(110, 190, 255, 0.7); }
+.round-dot.done-good { box-shadow: 0 0 8px rgba(74, 222, 128, 0.45); }
+.round-dot.done-ok { box-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
+.round-dot.done-bad { box-shadow: 0 0 8px rgba(248, 113, 113, 0.4); }
+.end-round-row { background: linear-gradient(180deg, rgba(160, 185, 230, 0.10), rgba(160, 185, 230, 0.05)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04); }
+.discovery-map-label { box-shadow: 0 4px 12px rgba(0, 4, 16, 0.5); }
+
+/* Slim, on-theme scrollbars inside panels (was the browser's white default). */
+* { scrollbar-width: thin; scrollbar-color: rgba(150, 195, 245, 0.34) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(150, 195, 245, 0.30); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: rgba(150, 195, 245, 0.5); border: 2px solid transparent; background-clip: padding-box; }
+
+#imagery-credit { background: rgba(6, 16, 32, 0.55); color: #b9c8d8; border-radius: 6px; }
