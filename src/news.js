@@ -187,6 +187,19 @@ export const NEWS = [
     diff: 2,
     fact: 'Emergency conservation work at the Monte Abatone necropolis near Cerveteri uncovered Etruscan burial chambers with rock-carved thrones, painted walls, and a nearly intact decorated jar, researchers reported in November 2026.',
   },
+  {
+    pn: 115,
+    slot: 2,
+    name: 'Ogasawara Islands, Japan',
+    prompt: "Typhoon brushes past Japan's remote Ogasawara Islands",
+    lat: 26.45,
+    lng: 142.3,
+    country: null,
+    continent: 'Asia',
+    diff: 2,
+    fact: "Typhoon Cempaka passed just south of the Ogasawara Islands in the early hours of November 11, 2026, bringing forecast sustained winds near 90 km/h, gusts over 125 km/h, and seas building to about 6 meters around the remote Chichijima and Hahajima island group.",
+    offshore: true,
+  },
 ];
 
 export function newsRollFor(pn) {
