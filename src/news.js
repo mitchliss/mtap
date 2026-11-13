@@ -200,6 +200,18 @@ export const NEWS = [
     fact: "Typhoon Cempaka passed just south of the Ogasawara Islands in the early hours of November 11, 2026, bringing forecast sustained winds near 90 km/h, gusts over 125 km/h, and seas building to about 6 meters around the remote Chichijima and Hahajima island group.",
     offshore: true,
   },
+  {
+    pn: 116,
+    slot: 2,
+    name: 'Old Dongola, Sudan',
+    prompt: "Archaeologists reach the original floor of medieval Nubia's largest cathedral",
+    lat: 18.223,
+    lng: 30.744,
+    country: 'Sudan',
+    continent: 'Africa',
+    diff: 3,
+    fact: 'A Sudanese-Polish team digging at Old Dongola on the Nile reported in November 2026 that it had uncovered the original floor and a monumental staircase of the Great Church of Jesus, thought to be the largest church ever built in medieval Nubia.',
+  },
 ];
 
 export function newsRollFor(pn) {
