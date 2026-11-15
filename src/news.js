@@ -212,6 +212,18 @@ export const NEWS = [
     diff: 3,
     fact: 'A Sudanese-Polish team digging at Old Dongola on the Nile reported in November 2026 that it had uncovered the original floor and a monumental staircase of the Great Church of Jesus, thought to be the largest church ever built in medieval Nubia.',
   },
+  {
+    pn: 118,
+    slot: 2,
+    name: 'Pucallpa, Peru',
+    prompt: 'Pope makes the first-ever papal visit to the Peruvian Amazon',
+    lat: -8.3791,
+    lng: -74.5539,
+    country: 'Peru',
+    continent: 'South America',
+    diff: 2,
+    fact: "Pope Leo XIV traveled to Pucallpa, a city on the Ucayali River in Peru's Amazon region, the final stop of his November 2026 homecoming tour and the first time a pope has visited the Peruvian Amazon.",
+  },
 ];
 
 export function newsRollFor(pn) {
