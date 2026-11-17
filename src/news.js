@@ -224,6 +224,18 @@ export const NEWS = [
     diff: 2,
     fact: "Pope Leo XIV traveled to Pucallpa, a city on the Ucayali River in Peru's Amazon region, the final stop of his November 2026 homecoming tour and the first time a pope has visited the Peruvian Amazon.",
   },
+  {
+    pn: 120,
+    slot: 2,
+    name: 'Epidaurus, Greece',
+    prompt: 'Archaeologists locate a long-lost sanctuary to the god of healing',
+    lat: 37.637,
+    lng: 23.1555,
+    country: 'Greece',
+    continent: 'Europe',
+    diff: 2,
+    fact: 'Excavators at the ancient city of Epidaurus reported in November 2026 that they had identified the long-lost sanctuary of Asclepius described by the 2nd-century traveler Pausanias, found near the Small Theatre and including an enclosure, a well, and a fountain linked by an underground water channel.',
+  },
 ];
 
 export function newsRollFor(pn) {
