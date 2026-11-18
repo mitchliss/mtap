@@ -236,6 +236,18 @@ export const NEWS = [
     diff: 2,
     fact: 'Excavators at the ancient city of Epidaurus reported in November 2026 that they had identified the long-lost sanctuary of Asclepius described by the 2nd-century traveler Pausanias, found near the Small Theatre and including an enclosure, a well, and a fountain linked by an underground water channel.',
   },
+  {
+    pn: 121,
+    slot: 2,
+    name: 'Aceh Tamiang, Indonesia',
+    prompt: "Monsoon floods force thousands to flee across Indonesia's Aceh province",
+    lat: 4.3708,
+    lng: 97.9509,
+    country: 'Indonesia',
+    continent: 'Asia',
+    diff: 2,
+    fact: 'Heavy monsoon rain in mid-November 2026 triggered flooding and landslides across Aceh province in northern Sumatra, inundating thousands of homes and displacing more than 15,000 people in Aceh Tamiang Regency alone.',
+  },
 ];
 
 export function newsRollFor(pn) {
