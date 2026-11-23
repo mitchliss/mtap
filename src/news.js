@@ -248,6 +248,18 @@ export const NEWS = [
     diff: 2,
     fact: 'Heavy monsoon rain in mid-November 2026 triggered flooding and landslides across Aceh province in northern Sumatra, inundating thousands of homes and displacing more than 15,000 people in Aceh Tamiang Regency alone.',
   },
+  {
+    pn: 126,
+    slot: 2,
+    name: 'St. Johns River near Cocoa, Florida',
+    prompt: 'A Florida river breaks a flood record that stood since 1953',
+    lat: 28.40,
+    lng: -80.85,
+    country: 'United States of America',
+    continent: 'North America',
+    diff: 2,
+    fact: 'After weeks of stalled storms, the St. Johns River near Cocoa, Florida, rose past a flood-stage record set in 1953, with forecasters warning in November 2026 that the high water could linger for weeks.',
+  },
 ];
 
 export function newsRollFor(pn) {
