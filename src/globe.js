@@ -566,6 +566,7 @@ export class Globe {
         for (const m of materials) { m.needsUpdate = true; if (m.map) m.map.needsUpdate = true; }
       });
       this.sky?.bake();
+      if (this.lens) { this.lens.dispose(); this.lens = null; this.setLens(this._lensId); } // GPU copies are gone
       this.tileDetail?.cancel(); this.startLoop();
     };
     document.addEventListener('visibilitychange', this._onVisibility);
@@ -679,6 +680,32 @@ export class Globe {
   }
   setGameplayActive(on) { this._gameplayActive = !!on; }
   setLiveEarth(on) { this._liveEarth = !!on; }
+
+  // Lenses (v5.2): null = none. The lens code loads on first use; it only ever
+  // draws when no pin can be placed (see _tick).
+  setLens(id) {
+    this._lensId = id || null;
+    if (this.lens) { this.lens.setLens(this._lensId); return; }
+    if (!this._lensId || this._lensLoading) return;
+    this._lensLoading = true;
+    import('./lens.js').then(({ LensPass }) => {
+      this.lens = new LensPass(this.renderer, { onSlow: (lens, p90) => this.cb.onLensSlow?.(lens, p90) });
+      this.lens.setLens(this._lensId);
+    }).catch((err) => console.warn('Lenses unavailable', err)).finally(() => { this._lensLoading = false; });
+  }
+  _lensActive() { return !!(this.lens && this._lensId && !this.interactive); }
+
+  // The current view as a 2D canvas (lens included), for share cards. Renders
+  // synchronously so the WebGL buffer is still valid when it is copied.
+  snapshotCanvas() {
+    if (this._lensActive()) this.lens.render(this.scene, this.camera, 0);
+    else this.renderer.render(this.scene, this.camera);
+    const src = this.renderer.domElement;
+    const out = document.createElement('canvas');
+    out.width = src.width; out.height = src.height;
+    out.getContext('2d').drawImage(src, 0, 0);
+    return out;
+  }
   setRealisticLighting(on) {
     this._sunShaderState.enabled = !!on;
     // Realistic: real subsolar sun, dim ambient. Off ("daytime everywhere"):
@@ -703,7 +730,7 @@ export class Globe {
     m.shininess = realistic ? 46 : 22;
   }
   applySunShader(material) { return applySunShader(material, this._sunShaderState); }
-  startLoop() { this._clock?.start(); this._clock?.getDelta(); this.renderer.setAnimationLoop(() => this._tick()); }
+  startLoop() { this._clock?.start(); this._clock?.getDelta(); this.lens?.resetTiming(); this.renderer.setAnimationLoop(() => this._tick()); }
   stopLoop() { this.renderer.setAnimationLoop(null); this._clock?.stop(); this.tileDetail?.cancel(); }
 
   // rotateSpeed slows as you zoom in (fine control near the surface).
@@ -1783,7 +1810,8 @@ export class Globe {
       }
     }
 
-    this.renderer.render(this.scene, this.camera);
+    if (this._lensActive()) this.lens.render(this.scene, this.camera, dt, rawDt * 1000);
+    else this.renderer.render(this.scene, this.camera);
     this.cb.onFrame?.();
     this._frameTimes.push({ t: performance.now(), ms: (this._dtOverride ?? rawDt) * 1000 });
     while (this._frameTimes.length && this._frameTimes[0].t < performance.now() - 10000) this._frameTimes.shift();
@@ -1815,6 +1843,7 @@ export class Globe {
     this.stopLoop();
     this.spaceScenery?.dispose();
     this.live?.dispose();
+    this.lens?.dispose();
     this.renderer.dispose();
   }
 }

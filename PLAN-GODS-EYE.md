@@ -1,6 +1,6 @@
 # MTap × God's Eye View — plan and options
 
-Status: **Option A built (v5.1, 2026-11-25)**; B-E are proposals. Written 2026-11-25. God's Eye View (GEV) is vendored at
+Status: **Option A live (v5.1), option B built (v5.2), 2026-11-25**; C-E are proposals. Written 2026-11-25. God's Eye View (GEV) is vendored at
 `vendor/gods-eye-view` (pinned 7646568a, see `vendor/README.md`).
 
 ## The short version
@@ -64,7 +64,17 @@ Where it plugs in: `experience.reveal()` and `enterOverview()` in `main.js`, plu
 dependency: `satellite.js` (MIT, about 40 KB gzipped).
 Cost: about 2-3 days. Risk: low, because gameplay doesn't change and a fetch failure only hides the layer.
 
-### B. "Lenses": GEV's looks as a reward and a toy
+### B. "Lenses": GEV's looks as a reward and a toy (BUILT, v5.2)
+
+As built: the five GEV shaders copied unchanged into `src/gev/styles/` (credit header; a test checks
+they still match the vendored originals), run by `src/lens.js`: the frame is drawn as normal, copied
+to one texture and drawn again through the lens - no post-processing chain, and nothing at all while
+no lens is chosen or a guess is being made. 🔭 in the top bar picks a lens (remembered per device)
+and makes a snapshot card (phone share sheet, else a download). Lenses are **free**, the default
+while Mitch hasn't chosen between free and unlocks; unlocks can be added on top. Safety: a lens
+that fails to compile is skipped (never a black screen), and one that keeps frames above 24 ms
+(p90) is switched off with a note. Still to do: an iPhone frame-time check with each lens.
+
 
 The five shaders are ported to three.js as optional lenses: Night Owl (night vision), Heat Map
 (thermal), Retro TV (CRT), Cartoon (cel) and Film Noir. They apply to:

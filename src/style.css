@@ -101,6 +101,23 @@ html, body {
   transition: color .15s, border-color .15s, transform .1s;
 }
 .icon-btn:hover { color: var(--text); border-color: var(--accent); transform: scale(1.06); }
+.icon-btn.lens-on { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.25); }
+
+/* ============ Lens picker (v5.2) ============ */
+.lens-note { font-size: .84rem; color: var(--text-dim); line-height: 1.45; margin: -6px 0 12px; }
+.lens-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.lens-option {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: rgba(147, 163, 196, 0.07); border: 1px solid var(--panel-border); border-radius: 14px;
+  padding: 10px 12px; color: var(--text); cursor: pointer; font: inherit;
+  transition: border-color .15s, background .15s;
+}
+.lens-option:hover { border-color: var(--accent); }
+.lens-option.selected { border-color: var(--gold); background: rgba(251, 191, 36, 0.10); }
+.lens-emoji { font-size: 1.6rem; width: 2rem; text-align: center; }
+.lens-text { display: flex; flex-direction: column; gap: 2px; }
+.lens-text b { font-size: .95rem; }
+.lens-text small { font-size: .76rem; color: var(--text-dim); }
 
 /* ============ Prompt card ============ */
 .prompt-card {
@@ -911,6 +928,11 @@ button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
 .guest-invite span { width: 100%; }
 .btn:disabled { opacity: .5; cursor: default; }
 @media (max-width: 420px) {
+  /* v5.2: four top-bar buttons (🔭 ? ⚙) still leave the puzzle label on one line. */
+  .hud-right { gap: 5px; }
+  .icon-btn { width: 32px; height: 32px; font-size: .95rem; }
+  .scorebox { padding: 3px 8px; min-width: 52px; }
+  .puzzle-meta { white-space: nowrap; padding: 4px 8px; gap: 6px; }
   .confirm-bar:has(.nudge-pad:not(.hidden)) .confirm-actions { flex-direction: column; }
   .confirm-bar:has(.nudge-pad:not(.hidden)) .confirm-actions .btn { width: 100%; }
 }

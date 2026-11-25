@@ -1,0 +1,143 @@
+// Lenses (v5.2). Pure Node: no GPU, so the renderer is a stub that records calls.
+import assert from 'node:assert/strict';
+import { readFile, access } from 'node:fs/promises';
+import * as THREE from 'three';
+import { LENSES, lensById, lensMaterial, LensPass } from '../src/lens.js';
+import { cardLayout, lensName, savedLens } from '../src/lensui.js';
+import { Globe } from '../src/globe.js';
+
+let passed = 0;
+async function test(name, fn) {
+  try { await fn(); console.log(`PASS ${name}`); passed++; }
+  catch (error) { console.error(`FAIL ${name}\n${error.stack || error}`); process.exitCode = 1; }
+}
+
+await test('five lenses, family names, picker menu in step with the lens list', async () => {
+  assert.deepEqual(LENSES.map((l) => l.id), ['nightowl', 'heatmap', 'retrotv', 'cartoon', 'noir']);
+  for (const l of LENSES) assert.equal(lensName(l.id), l.name, `picker name for ${l.id}`);
+  assert.equal(lensName(null), 'No lens');
+  assert.equal(lensById('nope'), null);
+  // No "surveillance" framing anywhere a player reads.
+  const ui = await readFile('src/lensui.js', 'utf8') + await readFile('index.html', 'utf8');
+  assert.doesNotMatch(ui, /surveillance|spy|FLIR/i);
+});
+
+await test('each lens material: GLSL3, declares the output GEV writes, every shader setting present', () => {
+  for (const lens of LENSES) {
+    const m = lensMaterial(lens.shader, lens.settings);
+    assert.equal(m.glslVersion, THREE.GLSL3, lens.id);
+    assert.ok(m.fragmentShader.startsWith('layout(location = 0) out highp vec4 out_FragColor;'), lens.id);
+    assert.match(m.fragmentShader, /out_FragColor\s*=/, lens.id);
+    for (const u of ['colorTexture', 'colorTextureDimensions', 'intensity', 'time']) assert.ok(u in m.uniforms, `${lens.id}.${u}`);
+    for (const [name, spec] of Object.entries(lens.shader.uniforms)) {
+      assert.ok(name in m.uniforms, `${lens.id}.${name}`);
+      assert.equal(m.uniforms[name].value, lens.settings?.[name] ?? spec.default, `${lens.id}.${name} value`);
+    }
+    assert.equal(m.toneMapped, false, 'display colours in, display colours out');
+  }
+  assert.equal(lensMaterial(lensById('heatmap').shader, lensById('heatmap').settings).uniforms.palette.value, 1, 'Heat Map is in colour (Ironbow)');
+});
+
+await test('copied God\'s Eye View shaders are unchanged below the credit header', async () => {
+  const vendor = 'vendor/gods-eye-view/src/styles';
+  try { await access(vendor); } catch { console.log('  (submodule not checked out - skipped)'); return; }
+  for (const f of ['surveillance', 'thermal', 'retro', 'anime', 'noir']) {
+    const ours = (await readFile(`src/gev/styles/${f}.js`, 'utf8')).split('\n').slice(4).join('\n');
+    assert.equal(ours, await readFile(`${vendor}/${f}.js`, 'utf8'), f);
+  }
+});
+
+function stubRenderer({ compileFails = false } = {}) {
+  const calls = [];
+  return {
+    calls,
+    debug: { onShaderError: null },
+    render: (scene) => calls.push(scene.isScene && scene.children[0]?.material?.isShaderMaterial ? 'lens' : 'scene'),
+    copyFramebufferToTexture: () => calls.push('copy'),
+    getDrawingBufferSize: (v) => v.set(750, 652),
+    compile() { if (compileFails) this.debug.onShaderError?.({ getShaderInfoLog: () => 'bad', getProgramInfoLog: () => '' }, null, null, null); },
+  };
+}
+
+await test('lens pass: scene, copy, lens draw; fades in; no lens = one plain draw', () => {
+  const r = stubRenderer();
+  const pass = new LensPass(r);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera();
+  pass.render(scene, camera, 1 / 60);
+  assert.deepEqual(r.calls, ['scene'], 'no lens chosen');
+  pass.setLens('retrotv');
+  r.calls.length = 0;
+  pass.render(scene, camera, 1 / 60);
+  assert.deepEqual(r.calls, ['scene', 'copy', 'lens']);
+  const u = pass.quad.material.uniforms;
+  assert.ok(u.intensity.value > 0 && u.intensity.value < 0.1, 'starts faint');
+  for (let i = 0; i < 30; i++) pass.render(scene, camera, 1 / 60);
+  assert.equal(u.intensity.value, 1);
+  assert.deepEqual(u.colorTextureDimensions.value.toArray(), [750, 652]);
+});
+
+await test('a lens this GPU cannot compile is skipped, never a black screen', () => {
+  const r = stubRenderer({ compileFails: true });
+  const warn = console.warn; console.warn = () => {};
+  const pass = new LensPass(r);
+  pass.setLens('noir');
+  console.warn = warn;
+  assert.equal(pass.lensId, null);
+  assert.ok(pass.broken.has('noir'));
+  pass.render(new THREE.Scene(), new THREE.PerspectiveCamera(), 1 / 60);
+  assert.deepEqual(r.calls, ['scene'], 'frame drawn normally');
+  pass.setLens('noir');
+  assert.equal(pass.lensId, null, 'stays skipped');
+});
+
+await test('slow-device guard: switches a lens off only when frames stay slow', () => {
+  const slow = [];
+  const pass = new LensPass(stubRenderer(), { onSlow: (lens, p90) => slow.push([lens.id, p90]) });
+  pass.setLens('heatmap');
+  const s = new THREE.Scene(), c = new THREE.PerspectiveCamera();
+  for (let i = 0; i < 90; i++) pass.render(s, c, 1 / 60, i % 15 === 0 ? 40 : 16); // occasional hitch
+  assert.equal(slow.length, 0, 'a few hitches are fine');
+  for (let i = 0; i < 90; i++) pass.render(s, c, 1 / 60, 30);
+  assert.equal(slow.length, 1);
+  assert.equal(slow[0][0], 'heatmap');
+  pass.resetTiming();
+  for (let i = 0; i < 89; i++) pass.render(s, c, 1 / 60, 30);
+  assert.equal(slow.length, 1, 'no verdict before a full window after a pause');
+});
+
+await test('a lens never draws while a guess is being made', () => {
+  const g = Object.create(Globe.prototype);
+  g.lens = {}; g._lensId = 'nightowl';
+  g.interactive = true;
+  assert.equal(g._lensActive(), false);
+  g.interactive = false;
+  assert.equal(g._lensActive(), true);
+  g._lensId = null;
+  assert.equal(g._lensActive(), false);
+});
+
+await test('share card keeps the view\'s shape: square on a phone, a band on desktop, never past the source', () => {
+  const phone = cardLayout(750, 652);
+  assert.equal(phone.W, 1080); assert.ok(phone.boxH > 900 && phone.boxH <= 1080, `phone box ${phone.boxH}`);
+  assert.equal(phone.H, phone.boxH + 270);
+  const desktop = cardLayout(2048, 600);
+  assert.equal(desktop.boxH, 540, 'wide view floors at 540');
+  const tall = cardLayout(750, 1624);
+  assert.equal(tall.boxH, 1080, 'tall view caps at 1080');
+  for (const L of [phone, desktop, tall]) {
+    assert.ok(L.sx >= -1e-9 && L.sy >= -1e-9, 'crop starts inside the source');
+    assert.ok(Math.abs(L.sw / L.sh - L.W / L.boxH) < 1e-9, 'crop keeps the box aspect');
+  }
+});
+
+await test('remembered lens: only known ids come back', () => {
+  const mem = new Map();
+  globalThis.localStorage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
+  assert.equal(savedLens(), null);
+  mem.set('marctap.lens', 'retrotv'); assert.equal(savedLens(), 'retrotv');
+  mem.set('marctap.lens', 'xray'); assert.equal(savedLens(), null);
+  delete globalThis.localStorage;
+  assert.equal(savedLens(), null, 'no storage (private mode) is fine');
+});
+
+console.log(`\n${passed} lens tests passed`);
