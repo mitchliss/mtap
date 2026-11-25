@@ -892,6 +892,13 @@ button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
 .discovery-actions { order: 4; }
 #discovery-nearby { order: 5; }
 .discovery-credit { order: 6; }
+#discovery-live { order: 5; }
+.live-lines p { font-size: .8rem; line-height: 1.45; margin: 6px 0 0; color: #ffe3b3; }
+.live-lines .live-quake::before { content: '◉ '; color: #ff9a3a; }
+.live-lines .live-iss::before { content: '✦ '; color: #ffd87a; }
+.live-lines .live-credit { display: inline-block; margin-top: 4px; }
+#ov-live { margin-top: 6px; }
+#ov-live p { font-size: .76rem; }
 .result-panel .result-verdict, .result-panel .result-pop { display: none; }
 #discovery-relation { color: #b3e7e1; font-size: .88rem; line-height: 1.5; }
 .discovery-actions { display: flex; gap: 8px; margin: 10px 0; }

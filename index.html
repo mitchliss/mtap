@@ -97,6 +97,7 @@
         <figure id="discovery-world" class="hidden"><canvas width="360" height="180" aria-label="World overview with your pin in pink and destination in green"></canvas><figcaption>Opposite sides of Earth · your pin in pink, destination in green</figcaption></figure>
         <div class="discovery-actions"><button id="discovery-compare" class="btn ghost small">Both pins</button><button id="discovery-explore" class="btn ghost small">Explore destination</button></div>
         <p id="discovery-nearby"></p>
+        <div id="discovery-live" class="live-lines hidden"><p class="live-quake hidden"></p><p class="live-iss hidden"></p><a class="live-credit" href="https://earthquake.usgs.gov/earthquakes/map/" target="_blank" rel="noopener noreferrer">Live data: USGS earthquakes · CelesTrak orbits</a></div>
         <a class="discovery-credit" href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">City geography: Natural Earth</a>
         <figure id="discovery-photo" class="hidden"><img id="discovery-image" alt="" /><figcaption><a id="discovery-photo-source" target="_blank" rel="noopener noreferrer">Photo and credits</a></figcaption></figure>
         <p id="discovery-story"></p><a id="discovery-source" class="hidden" target="_blank" rel="noopener noreferrer">Read the story on Wikipedia ↗</a>
@@ -114,6 +115,7 @@
           <div class="ov-name" id="ov-name"></div>
           <div class="ov-meta" id="ov-meta"></div>
           <div class="ov-fact" id="ov-fact"></div>
+          <div id="ov-live" class="live-lines hidden"><p class="live-quake hidden"></p><p class="live-iss hidden"></p></div>
           <div id="ov-wiki" class="ov-wiki hidden">
             <img id="ov-wiki-img" class="ov-wiki-img hidden" alt="" />
             <div class="ov-wiki-text">
@@ -395,6 +397,10 @@
           <span>Realistic lighting<small>Sunlight, night cities, atmosphere and ocean glint</small></span>
           <input type="checkbox" id="set-realistic-lighting" checked />
         </label>
+        <label class="setting-row">
+          <span>Live Earth<small>After each guess: this week's earthquakes and the Space Station on its real orbit</small></span>
+          <input type="checkbox" id="set-live-earth" checked />
+        </label>
         <button id="btn-restore-family" class="btn ghost small">Restore skipped family questions on this device</button>
         <div class="settings-account">
           <div class="acct-title">Account · cross-device sync</div>
@@ -418,7 +424,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v5.0 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain).
+          MTap v5.1 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain). Live Earth: earthquakes from the <a href="https://earthquake.usgs.gov/" target="_blank" rel="noopener">USGS</a> (public domain), Space Station orbit from <a href="https://celestrak.org/" target="_blank" rel="noopener">CelesTrak</a>, pass prediction adapted from <a href="https://github.com/bilawalsidhu/gods-eye-view" target="_blank" rel="noopener">God&#39;s Eye View</a> (MIT).
         </div>
       </div>
     </div>

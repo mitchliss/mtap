@@ -609,6 +609,12 @@ export class Globe {
     this.pinTexAnswer = makePinTexture('#38d67a', '#d7ffe8');
     // Zoom-detail satellite tile streaming (self-disables if tiles unreachable).
     this.tileDetail = new TileDetail(this, geojson);
+    // Live Earth: quakes + the Space Station, never while a guess is being made.
+    // Loaded on demand (its own chunk with satellite.js) so startup stays as light as before.
+    if (GFX.liveEarth) {
+      import('./livelayer.js').then(({ LiveLayer }) => { this.live = new LiveLayer(this); })
+        .catch((err) => console.warn('Live Earth unavailable', err));
+    }
   }
 
   // Lat/lng of the point on the globe the camera is looking at.
@@ -672,6 +678,7 @@ export class Globe {
     this.flyTo(mid.lat, mid.lng, Math.min(8, d), 850);
   }
   setGameplayActive(on) { this._gameplayActive = !!on; }
+  setLiveEarth(on) { this._liveEarth = !!on; }
   setRealisticLighting(on) {
     this._sunShaderState.enabled = !!on;
     // Realistic: real subsolar sun, dim ambient. Off ("daytime everywhere"):
@@ -1710,6 +1717,8 @@ export class Globe {
     }
     this.spaceScenery?.update(dt, this.camera);
     this.sky?.update(dt, this.camera);
+    // Live Earth decorates the reveal, Explore and menus - off whenever taps place a pin.
+    this.live?.update(dt, this._liveEarth !== false && !this.interactive);
 
     // The Moon creeps along its orbit in real time (13.18°/day - correct, and
     // just barely perceptible across a long session).
@@ -1804,6 +1813,7 @@ export class Globe {
     this._longTaskObserver?.disconnect();
     this.stopLoop();
     this.spaceScenery?.dispose();
+    this.live?.dispose();
     this.renderer.dispose();
   }
 }

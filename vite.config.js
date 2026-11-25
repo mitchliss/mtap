@@ -3,6 +3,10 @@ import { defineConfig } from 'vite';
 // base './' so the built site works from any folder or host (GitHub Pages, Netlify, a subdirectory, etc.)
 export default defineConfig({
   base: './',
+  // vendor/gods-eye-view is a reference submodule (a separate CesiumJS app), not part of
+  // this build: keep Vite's dependency scan to our own page and stop it watching vendor/.
+  optimizeDeps: { entries: ['index.html'] },
+  server: { watch: { ignored: ['**/vendor/**'] } },
   build: {
     target: 'es2019',
     chunkSizeWarningLimit: 1200,
