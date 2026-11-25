@@ -6,6 +6,25 @@ const $ = (id) => document.getElementById(id);
 const visible = (id, on) => $(id).classList.toggle('hidden', !on);
 const TRAINING_SPOT = { lat: 40.7128, lng: -74.006, name: 'New York City' };
 
+// Live Earth lines (quakes near the place, next Space Station pass over it) into a
+// .live-lines box. Only coordinates are used, and they never leave the device: the
+// feeds are fetched whole and the pass is computed here. `isCurrent` drops a stale
+// answer after the player has moved on.
+export function renderLiveLines(box, point, { miles = false, enabled = true, delayMs = 0, isCurrent = () => true } = {}) {
+  box.classList.add('hidden');
+  if (!enabled) return;
+  const quakeEl = box.querySelector('.live-quake'), issEl = box.querySelector('.live-iss');
+  setTimeout(async () => {
+    if (!isCurrent()) return;
+    let lines;
+    try { lines = await (await import('./live.js')).liveLinesFor(point, { miles }); } catch { return; }
+    if (!isCurrent()) return;
+    quakeEl.textContent = lines.quake || ''; quakeEl.classList.toggle('hidden', !lines.quake);
+    issEl.textContent = lines.iss || ''; issEl.classList.toggle('hidden', !lines.iss);
+    box.classList.toggle('hidden', !lines.quake && !lines.iss);
+  }, delayMs);
+}
+
 export class Experience {
   constructor(globe, options) {
     this.globe = globe; this.options = options; this.serial = 0; this.labels = [];
@@ -181,6 +200,10 @@ export class Experience {
         ? 'Nearby mapped cities: ' + nearby.map((c) => `${c.name} (${formatDistance(c.distance, miles)} ${bearingWord(result.target, c)})`).join(' · ')
         : 'Explore the coastline and terrain around the destination on the globe.';
       nearby.forEach((c) => { if (c.distance > 5) addLabel(c, c.name, 'city'); });
+    });
+    // After the comet lands (~1 s), so the pass search can't stutter the reveal.
+    renderLiveLines($('discovery-live'), result.target, {
+      miles, enabled: this.options.liveEarth?.() !== false, delayMs: 1100, isCurrent: () => token === this.serial,
     });
     // Family memories stay private: never send their names to Wikipedia.
     const wiki = result.target.isFamily ? null : await fetchWikiSummary(result.target.name);

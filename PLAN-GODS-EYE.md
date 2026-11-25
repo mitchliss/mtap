@@ -1,6 +1,6 @@
 # MTap × God's Eye View — plan and options
 
-Status: **proposal, nothing built.** Written 2026-11-25. God's Eye View (GEV) is vendored at
+Status: **Option A built (v5.1, 2026-11-25)**; B-E are proposals. Written 2026-11-25. God's Eye View (GEV) is vendored at
 `vendor/gods-eye-view` (pinned 7646568a, see `vendor/README.md`).
 
 ## The short version
@@ -39,7 +39,15 @@ family game).
 
 ## Options
 
-### A. "Eye in the sky" reveal layer: live data after you guess (recommended first)
+### A. "Eye in the sky" reveal layer: live data after you guess (BUILT, v5.1)
+
+As built: `src/live.js` (data + sentences), `src/livelayer.js` (drawing), `src/gev/satellitePass.js`
+(copied from GEV with its MIT credit), Settings > Live Earth, tests in `test/live.mjs`. Differences
+from the sketch below: the Space Station is a drawn icon, not the 2.8 MB GEV model (too heavy for
+a phone, and invisible at globe scale); its orbit is fetched from CelesTrak at most every 12 h per
+device, with `public/data/iss-tle.txt` as the offline fallback (`node scripts/update-iss-tle.mjs`).
+The live modules load on demand, so startup size is unchanged.
+
 
 When a round is revealed, and in "Explore the locations", the globe gains a few real-world layers:
 - **Earthquakes** from the past day (USGS, keyless). A ring for each quake, sized by magnitude,
@@ -129,7 +137,11 @@ deploys).
 
 ## Housekeeping found while doing this
 
-- `npm test` fails on `main` today (`test/mobile.mjs` "touch tap reaches game callback",
-  `test/detail.mjs` `this.missing` undefined). This failure was already there before this
-  branch. CI only builds and does not run the tests, so it hasn't been noticed. Fix it before
-  phase 1.
+- **Pre-existing:** for about a second after the camera lands somewhere new, before the sharp
+  satellite tiles arrive, a few small blue/orange diamond flecks can show on the map. Seen on
+  untouched `main` too (Greece reveal, 2026-11-25), so it belongs to the tile streaming, not Live
+  Earth. Worth a look in `tiledetail.js`.
+
+- Fixed on this branch: `npm test` had been failing on `main` (`test/mobile.mjs`, `test/detail.mjs`)
+  because the test stubs had drifted from the code; CI only builds, so nobody saw it. Worth
+  adding `npm test` to `deploy.yml` so it can't drift again.

@@ -10,6 +10,7 @@ export const GFX = {
   toneMapping: true,
   pinRipple: true,      // expanding ring where a tap drops the pin
   shootingStars: true,  // occasional meteors on menu/end screens (never mid-round)
+  liveEarth: true,      // v5.1 quakes + Space Station after a guess (Settings > Live Earth)
 };
 
 export const K_ROT = 1.1 * 2 * Math.tan(THREE.MathUtils.degToRad(45 / 2)) / (2 * Math.PI);

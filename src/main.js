@@ -5,7 +5,7 @@ import './style.css';
 import { trackViewport } from './viewport.js';
 trackViewport();
 import { Globe } from './globe.js';
-import { Experience } from './experience.js';
+import { Experience, renderLiveLines } from './experience.js';
 import { loadCountries, countryAt, formatDistance } from './geo.js';
 import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
@@ -79,7 +79,7 @@ const els = {
   scoreValue: $('score-value'), puzzleNumber: $('puzzle-number'), puzzleDate: $('puzzle-date'),
   btnHelp: $('btn-help'), btnSettings: $('btn-settings'),
   helpModal: $('help-modal'), settingsModal: $('settings-modal'),
-  setMiles: $('set-miles'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'), setRealisticLighting: $('set-realistic-lighting'),
+  setMiles: $('set-miles'), setSound: $('set-sound'), setMusic: $('set-music'), setMusicStyle: $('set-music-style'), setAutoRotate: $('set-autorotate'), setRealisticLighting: $('set-realistic-lighting'), setLiveEarth: $('set-live-earth'),
   resultPop: $('result-pop'),
   toast: $('toast'),
 };
@@ -698,6 +698,11 @@ function selectOverviewIndex(i) {
   els.ovMeta.textContent = `${emojiForScore(item.score)} Your guess: ${formatDistance(item.distanceKm, settings.miles)} away · +${item.points} pts`;
   els.ovFact.textContent = item.fact;
   globe.selectOverview(overviewIndex);
+  const liveIndex = overviewIndex;
+  renderLiveLines($('ov-live'), item, {
+    miles: settings.miles, enabled: settings.liveEarth !== false,
+    isCurrent: () => overviewItems && overviewIndex === liveIndex,
+  });
 
   // Wikipedia photo + extract, guarded against rapid navigation races.
   hide(els.ovWiki);
@@ -1453,6 +1458,7 @@ async function boot() {
   els.setMusicStyle.value = settings.musicStyle || 'auto';
   els.setAutoRotate.checked = settings.autoRotate;
   els.setRealisticLighting.checked = settings.realisticLighting !== false;
+  els.setLiveEarth.checked = settings.liveEarth !== false;
 
   // Globe
   globe = new Globe(document.getElementById('globe-container'), {
@@ -1467,8 +1473,9 @@ async function boot() {
 
   const geojson = await loadCountries(`${import.meta.env.BASE_URL}data/countries-50m.geojson`);
   await globe.init(geojson);
-  experience = new Experience(globe, { onCandidate: onGlobeTap });
+  experience = new Experience(globe, { onCandidate: onGlobeTap, liveEarth: () => settings.liveEarth !== false });
   globe.setRealisticLighting(settings.realisticLighting !== false);
+  globe.setLiveEarth(settings.liveEarth !== false);
   globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
 
   // Social boot: import any share-link payload (needs country data), then profiles.
@@ -1660,7 +1667,7 @@ async function boot() {
 
   // Settings changes — ONE shared list drives both boot population and listener
   // wiring, so a control can never again be saved-but-not-listened (or vice versa).
-  const settingInputs = [els.setMiles, els.setSound, els.setMusic, els.setMusicStyle, els.setAutoRotate, els.setRealisticLighting];
+  const settingInputs = [els.setMiles, els.setSound, els.setMusic, els.setMusicStyle, els.setAutoRotate, els.setRealisticLighting, els.setLiveEarth];
   const syncSettings = () => {
     const prevStyle = settings.musicStyle;
     settings = {
@@ -1670,11 +1677,13 @@ async function boot() {
       musicStyle: els.setMusicStyle.value,
       autoRotate: els.setAutoRotate.checked,
       realisticLighting: els.setRealisticLighting.checked,
+      liveEarth: els.setLiveEarth.checked,
       v: 4,
     };
     saveSettings(settings);
     if (!session || session.isOver) globe.setAutoRotate(settings.autoRotate);
     globe.setRealisticLighting(settings.realisticLighting);
+    globe.setLiveEarth(settings.liveEarth);
     // Music toggle/style takes effect immediately, even mid-game.
     if (!settings.music) {
       stopMusic();
