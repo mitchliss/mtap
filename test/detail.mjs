@@ -19,7 +19,7 @@ function fixture() {
     enabled: true, mesh: null, prev: null, pendingFinal: null, building: false,
     lastCamPos: camera.position.clone(), stillFor: 1, builtAlt: null,
     lastBuildStarted: -Infinity, lastRegionKey: '', _retired: [], fadeT: 0,
-    cache: new Map(), cacheBytes: 0, hostIdx: 0,
+    cache: new Map(), cacheBytes: 0, hostIdx: 0, missing: new Set(),
   });
   return detail;
 }

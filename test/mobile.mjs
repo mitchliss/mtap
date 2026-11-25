@@ -22,6 +22,8 @@ for (const [width, height, top] of [[390, 664, 0], [390, 844, 47], [375, 548, 80
       globe.pointer = new THREE.Vector2();
       globe.raycaster = new THREE.Raycaster();
       globe.pin = new THREE.Sprite();
+      // The pin-drop ripple (v4.2) needs its ring texture (a DOM canvas otherwise), a root and the pulse list.
+      globe._softRingTex = new THREE.Texture(); globe.markerRoot = new THREE.Group(); globe._pulses = [];
       globe.pinDot = new THREE.Mesh();
       globe.container = { classList: { add() {}, remove() {} } };
       globe._activePointers = new Map();
