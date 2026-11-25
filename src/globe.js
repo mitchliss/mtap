@@ -11,7 +11,7 @@ import { SpaceScenery } from './space.js';
 import { Sky } from './sky.js';
 import { createAtmosphere } from './atmosphere.js';
 import { glowDiscTexture, makeArcRibbon, softRingTexture } from './effects.js';
-import { GFX, K_ROT, applySunShader, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from './graphics.js';
+import { GFX, K_ROT, applySunShader, basePushedBack, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from './graphics.js';
 
 const GLOBE_RADIUS = 1;
 
@@ -1704,10 +1704,11 @@ export class Globe {
     // metres above a landmark without clipping away the ground.
     const near = THREE.MathUtils.clamp((this.camera.position.length() - 1) * 0.01, 0.000001, 0.01);
     if (this.camera.near !== near) { this.camera.near = near; this.camera.updateProjectionMatrix(); }
-    // Close in, push the low-res base sphere back in depth so it can never
-    // z-fight through the satellite patch where the two surfaces nearly touch
-    // (around the base mesh's vertices).
-    const lowAlt = this.camera.position.length() < 1.05;
+    // Whenever a satellite patch is showing (and always close in), push the low-res
+    // base sphere back in depth so it can never poke through the patch where the two
+    // surfaces nearly touch - the base mesh's vertices (v5.1.1: the grid of diamonds).
+    const td = this.tileDetail;
+    const lowAlt = basePushedBack(this.camera.position.length(), td?.mesh?.visible || td?.prev?.visible);
     const sm = this.sphere.material;
     if (sm.polygonOffset !== lowAlt) { sm.polygonOffset = lowAlt; sm.polygonOffsetFactor = 1; sm.polygonOffsetUnits = 1000; }
     if (this.tileDetail) this.tileDetail.update(dt);
