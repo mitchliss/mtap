@@ -137,11 +137,10 @@ deploys).
 
 ## Housekeeping found while doing this
 
-- **Pre-existing:** for about a second after the camera lands somewhere new, before the sharp
-  satellite tiles arrive, a few small blue/orange diamond flecks can show on the map. Seen on
-  untouched `main` too (Greece reveal, 2026-11-25), so it belongs to the tile streaming, not Live
-  Earth. Worth a look in `tiledetail.js`.
-
-- Fixed on this branch: `npm test` had been failing on `main` (`test/mobile.mjs`, `test/detail.mjs`)
-  because the test stubs had drifted from the code; CI only builds, so nobody saw it. Worth
-  adding `npm test` to `deploy.yml` so it can't drift again.
+- **Fixed (v5.1.1):** a grid of small blue/orange diamonds on the map at reveal distance. The coarse
+  base globe poked through the satellite-tile shell at its mesh vertices; the existing depth
+  push-back only applied below camera distance 1.05. It now applies whenever a patch shows
+  (`basePushedBack` in `graphics.js`, tested in `test/run.mjs`).
+- Fixed: `npm test` had been failing on `main` (`test/mobile.mjs`, `test/detail.mjs`) because the
+  test stubs had drifted from the code; CI only built. Since v5.1.1 `deploy.yml` runs `npm test` on
+  every push and pull request, and the site deploys only after it passes.

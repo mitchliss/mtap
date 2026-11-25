@@ -8,7 +8,7 @@ import { LOCATIONS } from '../src/locations.js';
 import { dailyPicksFor, isHeritageDay, HERITAGE_SCHEDULE_START, DAILY_HERITAGE_START, HERITAGE_WINDOW, pickLocations, injectNewsIntoDeal, MAX_GAME_SCORE, ROUND_MULTIPLIERS } from '../src/game.js';
 import { tagsFor } from '../src/themes.js';
 import { countryAt, distanceKm, prepareCountries } from '../src/geo.js';
-import { K_ROT, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from '../src/graphics.js';
+import { K_ROT, basePushedBack, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from '../src/graphics.js';
 import { validateNewsEntries } from '../scripts/validate-news.mjs';
 
 let passed = 0;
@@ -19,6 +19,13 @@ function test(name, fn) {
 
 const geojson = JSON.parse(await readFile(path.resolve('public/data/countries-50m.geojson'), 'utf8'));
 prepareCountries(geojson);
+
+test('base globe is pushed behind the satellite patch whenever the patch shows (no vertex diamonds)', () => {
+  assert.equal(basePushedBack(1.02, false), true, 'street level, as before');
+  assert.equal(basePushedBack(1.15, true), true, 'reveal distance with a patch on screen');
+  assert.equal(basePushedBack(1.15, false), false);
+  assert.equal(basePushedBack(2.9, false), false, 'whole-globe view keeps normal depth');
+});
 
 test('news roll is deterministic and approximately 40% over 1000 days', () => {
   const a = Array.from({ length: 1000 }, (_, i) => newsRollFor(i + 1));

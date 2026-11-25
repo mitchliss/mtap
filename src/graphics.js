@@ -32,6 +32,12 @@ export function selectTextureTier({ mobile, maxTextureSize, promoted = false, co
   };
 }
 
+// Push the coarse base sphere back in depth whenever a satellite-tile patch is on
+// screen, not only at street level. The patch is a smoother shell a hair above the
+// base; at each base-mesh vertex the base pokes through it, which showed as a grid of
+// small diamonds at reveal distance (camera ~1.1-1.3) where the old <1.05 rule was off.
+export const basePushedBack = (cameraDistance, patchVisible) => cameraDistance < 1.05 || !!patchVisible;
+
 export function subsolarPoint(date = new Date()) {
   const start = Date.UTC(date.getUTCFullYear(), 0, 0);
   const day = (date.getTime() - start) / 86400000;
