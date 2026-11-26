@@ -917,6 +917,9 @@ button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
 .live-lines p { font-size: .8rem; line-height: 1.45; margin: 6px 0 0; color: #ffe3b3; }
 .live-lines .live-quake::before { content: '◉ '; color: #ff9a3a; }
 .live-lines .live-iss::before { content: '✦ '; color: #ffd87a; }
+.live-lines .live-storm::before { content: '🌀 '; }
+.live-lines .live-fire::before { content: '🔥 '; }
+.live-lines .live-news a { white-space: nowrap; }
 .live-lines .live-credit { display: inline-block; margin-top: 4px; }
 #ov-live { margin-top: 6px; }
 #ov-live p { font-size: .76rem; }

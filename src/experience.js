@@ -9,22 +9,42 @@ const $ = (id) => document.getElementById(id);
 const visible = (id, on) => $(id).classList.toggle('hidden', !on);
 const TRAINING_SPOT = { lat: 40.7128, lng: -74.006, name: 'New York City' };
 
-// Live Earth lines (quakes near the place, next Space Station pass over it) into a
+// Live Earth lines (quakes, storms, fires and news pins near the place, next Space
+// Station pass over it) into a
 // .live-lines box. Only coordinates are used, and they never leave the device: the
 // feeds are fetched whole and the pass is computed here. `isCurrent` drops a stale
 // answer after the player has moved on.
 export function renderLiveLines(box, point, { miles = false, enabled = true, delayMs = 0, isCurrent = () => true } = {}) {
   box.classList.add('hidden');
   if (!enabled) return;
-  const quakeEl = box.querySelector('.live-quake'), issEl = box.querySelector('.live-iss');
   setTimeout(async () => {
     if (!isCurrent()) return;
     let lines;
     try { lines = await (await import('./live.js')).liveLinesFor(point, { miles }); } catch { return; }
     if (!isCurrent()) return;
-    quakeEl.textContent = lines.quake || ''; quakeEl.classList.toggle('hidden', !lines.quake);
-    issEl.textContent = lines.iss || ''; issEl.classList.toggle('hidden', !lines.iss);
-    box.classList.toggle('hidden', !lines.quake && !lines.iss);
+    let any = false;
+    for (const key of ['quake', 'iss', 'storm', 'fire']) {
+      const el = box.querySelector(`.live-${key}`);
+      if (!el) continue;
+      const text = typeof lines[key] === 'string' ? lines[key] : '';
+      el.textContent = text; el.classList.toggle('hidden', !text);
+      any ||= !!text;
+    }
+    // The news line links its source; built with DOM nodes (feed text is untrusted).
+    const newsEl = box.querySelector('.live-news');
+    if (newsEl) {
+      const n = lines.news;
+      newsEl.replaceChildren();
+      if (n?.text && /^https:\/\//.test(n.url)) {
+        const a = document.createElement('a');
+        a.href = n.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = `${n.host || 'source'} ↗`;
+        newsEl.append(document.createTextNode(`${n.text} `), a);
+      }
+      newsEl.classList.toggle('hidden', !newsEl.childNodes.length);
+      any ||= newsEl.childNodes.length > 0;
+    }
+    box.classList.toggle('hidden', !any);
   }, delayMs);
 }
 

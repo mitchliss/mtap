@@ -1,0 +1,303 @@
+{
+ "title": "EONET Events",
+ "description": "Natural events from EONET.",
+ "link": "https://eonet.gsfc.nasa.gov/api/v3/events",
+ "events": [
+  {
+   "id": "EONET_26463",
+   "title": "Tropical Cyclone Xavier",
+   "description": null,
+   "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_26463",
+   "closed": null,
+   "categories": [
+    {
+     "id": "severeStorms",
+     "title": "Severe Storms"
+    }
+   ],
+   "sources": [
+    {
+     "id": "JTWC",
+     "url": "https://www.metoc.navy.mil/jtwc/products/sh0427.tcw"
+    }
+   ],
+   "geometry": [
+    {
+     "magnitudeValue": 35.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-15T08:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -158.9,
+      -8.2
+     ]
+    },
+    {
+     "magnitudeValue": 50.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-16T00:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -160.6,
+      -8.3
+     ]
+    },
+    {
+     "magnitudeValue": 85.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-16T18:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -162.6,
+      -8.9
+     ]
+    },
+    {
+     "magnitudeValue": 130.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-17T12:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -163.8,
+      -9.3
+     ]
+    },
+    {
+     "magnitudeValue": 115.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-18T06:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -164,
+      -10.2
+     ]
+    },
+    {
+     "magnitudeValue": 100.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-19T00:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -163.5,
+      -10.4
+     ]
+    },
+    {
+     "magnitudeValue": 100.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-19T18:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -162.8,
+      -10.7
+     ]
+    },
+    {
+     "magnitudeValue": 75.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-20T12:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -163.5,
+      -11.4
+     ]
+    },
+    {
+     "magnitudeValue": 40.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-21T06:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -164.7,
+      -11.6
+     ]
+    },
+    {
+     "magnitudeValue": 45.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-22T00:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -166.8,
+      -11.9
+     ]
+    },
+    {
+     "magnitudeValue": 35.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-22T18:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -168.4,
+      -11.8
+     ]
+    },
+    {
+     "magnitudeValue": 30.0,
+     "magnitudeUnit": "kts",
+     "date": "2026-11-23T00:00:00Z",
+     "type": "Point",
+     "coordinates": [
+      -168.8,
+      -11.8
+     ]
+    }
+   ]
+  },
+  {
+   "id": "EONET_26661",
+   "title": "Wildfire Little Ridge, Highland, Virginia",
+   "description": "12 Miles SW from Monterey, VA",
+   "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_26661",
+   "closed": null,
+   "categories": [
+    {
+     "id": "wildfires",
+     "title": "Wildfires"
+    }
+   ],
+   "sources": [
+    {
+     "id": "IRWIN",
+     "url": "https://irwin.doi.gov/observer/incidents/2026-VAVAF-260139"
+    }
+   ],
+   "geometry": [
+    {
+     "magnitudeValue": 900.0,
+     "magnitudeUnit": "acres",
+     "date": "2026-11-21T23:15:00Z",
+     "type": "Point",
+     "coordinates": [
+      -79.791367,
+      38.313617
+     ]
+    }
+   ]
+  },
+  {
+   "id": "EONET_26662",
+   "title": "Wildfire White Oak Flat, Alleghany, Virginia",
+   "description": "2 Miles NW from Clifton Forge, VA",
+   "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_26662",
+   "closed": null,
+   "categories": [
+    {
+     "id": "wildfires",
+     "title": "Wildfires"
+    }
+   ],
+   "sources": [
+    {
+     "id": "IRWIN",
+     "url": "https://irwin.doi.gov/observer/incidents/2026-VAVAF-260136"
+    }
+   ],
+   "geometry": [
+    {
+     "magnitudeValue": 2237.0,
+     "magnitudeUnit": "acres",
+     "date": "2026-11-20T13:16:00Z",
+     "type": "Point",
+     "coordinates": [
+      -79.862117,
+      37.8422
+     ]
+    }
+   ]
+  },
+  {
+   "id": "EONET_26568",
+   "title": "Wildfire Greene - Caney Creek Lane, Greene, Tennessee",
+   "description": null,
+   "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_26568",
+   "closed": null,
+   "categories": [
+    {
+     "id": "wildfires",
+     "title": "Wildfires"
+    }
+   ],
+   "sources": [
+    {
+     "id": "IRWIN",
+     "url": "https://irwin.doi.gov/observer/incidents/2026-TNTNS-261114"
+    }
+   ],
+   "geometry": [
+    {
+     "magnitudeValue": 500.0,
+     "magnitudeUnit": "acres",
+     "date": "2026-11-18T14:11:00Z",
+     "type": "Point",
+     "coordinates": [
+      -82.7985,
+      36.36301667
+     ]
+    }
+   ]
+  },
+  {
+   "id": "EONET_26465",
+   "title": "Wildfire Range 47, Forrest, Mississippi",
+   "description": "16 Miles SE from Hattiesburg, MS",
+   "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_26465",
+   "closed": null,
+   "categories": [
+    {
+     "id": "wildfires",
+     "title": "Wildfires"
+    }
+   ],
+   "sources": [
+    {
+     "id": "IRWIN",
+     "url": "https://irwin.doi.gov/observer/incidents/2026-MSMNF-000723"
+    }
+   ],
+   "geometry": [
+    {
+     "magnitudeValue": 2378.77,
+     "magnitudeUnit": "acres",
+     "date": "2026-11-13T15:18:00Z",
+     "type": "Point",
+     "coordinates": [
+      -89.159329,
+      31.099822
+     ]
+    }
+   ]
+  },
+  {
+   "id": "EONET_26569",
+   "title": "Prescribed Fire 2027 TXTMR HFR RX, Matagorda, Texas",
+   "description": null,
+   "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_26569",
+   "closed": null,
+   "categories": [
+    {
+     "id": "wildfires",
+     "title": "Wildfires"
+    }
+   ],
+   "sources": [
+    {
+     "id": "IRWIN",
+     "url": "https://irwin.doi.gov/observer/incidents/2026-TXHGR-000422"
+    }
+   ],
+   "geometry": [
+    {
+     "magnitudeValue": 1016.0,
+     "magnitudeUnit": "acres",
+     "date": "2026-11-18T09:44:00Z",
+     "type": "Point",
+     "coordinates": [
+      -95.80795,
+      28.762433
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,38 @@
+{
+  "updated": "2026-11-25T21:00:00Z",
+  "pins": [
+    {
+      "id": "sample-natanz-1",
+      "lat": 33.72,
+      "lng": 51.73,
+      "place": "Natanz, Iran",
+      "title": "SAMPLE - Inspectors report on the enrichment site",
+      "summary": "Placeholder pin showing the format. Ids starting with sample- are never drawn; the news routine replaces this file.",
+      "kind": "military",
+      "time": "2026-11-25T18:00:00Z",
+      "source": "https://www.iaea.org/"
+    },
+    {
+      "id": "sample-hormuz-1",
+      "lat": 26.57,
+      "lng": 56.25,
+      "place": "Strait of Hormuz",
+      "title": "SAMPLE - Shipping traffic update in the strait",
+      "summary": "Placeholder pin showing the format. Ids starting with sample- are never drawn; the news routine replaces this file.",
+      "kind": "conflict",
+      "time": "2026-11-25T15:30:00Z",
+      "source": "https://www.reuters.com/world/middle-east/"
+    },
+    {
+      "id": "sample-tehran-1",
+      "lat": 35.69,
+      "lng": 51.39,
+      "place": "Tehran, Iran",
+      "title": "SAMPLE - Government statement on regional talks",
+      "summary": "Placeholder pin showing the format. Ids starting with sample- are never drawn; the news routine replaces this file.",
+      "kind": "politics",
+      "time": "2026-11-25T12:00:00Z",
+      "source": "https://apnews.com/hub/iran"
+    }
+  ]
+}
