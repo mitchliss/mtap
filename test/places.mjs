@@ -59,6 +59,8 @@ await test('relation line names states when it helps, and stays out of the way o
     /^Your pin landed in Texas; the destination is in Oklahoma\./);
   assert.match(relationWithRegions({ guess: { lat: 43.65, lng: -79.38 }, target: t, guessCountry: 'Canada', targetCountry: 'United States of America', guessRegion: { name: 'Ontario', type: 'Province' }, targetRegion: tx }),
     /^Your pin landed in Ontario, Canada, [\d,]+ km northeast of the destination\. The destination is in Texas, United States of America\.$/);
+  assert.equal(relationWithRegions({ guess: { lat: 42.5, lng: 21.9 }, target: { name: 'Gjirokastër, Albania', lat: 40.08, lng: 20.14 }, guessCountry: 'Serbia', targetCountry: 'Albania', guessRegion: { name: 'Pčinja', type: 'District' }, targetRegion: { name: 'Gjirokastër', type: 'County' } }),
+    'Your pin landed in Pčinja, Serbia, 307 km northeast of the destination.', 'no "destination is in Gjirokastër" echo');
   assert.equal(relationWithRegions({ guess: g, target: t, guessCountry: null, targetCountry: 'United States of America', guessRegion: null, targetRegion: tx }), null, 'pin at sea: keep the old line');
 });
 

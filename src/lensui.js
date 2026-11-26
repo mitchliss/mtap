@@ -4,9 +4,9 @@
 // into a 4:5 picture card and hands it to the phone's share sheet, or downloads it.
 
 const LENS_KEY = 'marctap.lens';
+const DAILY = 'daily', OFF = 'off';
 // Kept here (not imported from lens.js) so the picker costs nothing until a lens is used.
-const LENS_MENU = [
-  { id: null, name: 'No lens', emoji: '🌍', blurb: 'The globe as it is' },
+const LENSES_ONLY = [
   { id: 'nightowl', name: 'Night Owl', emoji: '🦉', blurb: 'Green night-vision goggles' },
   { id: 'heatmap', name: 'Heat Map', emoji: '🔥', blurb: 'A thermal camera: warm glows, cool fades' },
   { id: 'retrotv', name: 'Retro TV', emoji: '📺', blurb: 'An old tube TV with wobbly scanlines' },
@@ -14,13 +14,28 @@ const LENS_MENU = [
   { id: 'noir', name: 'Film Noir', emoji: '🎞️', blurb: 'A black-and-white detective movie' },
 ];
 
-export function savedLens() {
-  try { const id = localStorage.getItem(LENS_KEY); return LENS_MENU.some((l) => l.id === id) ? id : null; } catch { return null; }
+// v5.5: a different lens each day, on the menus, end screen and Explore only.
+export const lensOfDay = (puzzle) => LENSES_ONLY[((puzzle % LENSES_ONLY.length) + LENSES_ONLY.length) % LENSES_ONLY.length].id;
+
+// 'daily' (never chosen - the default), 'off', or a lens id the player picked.
+export function lensChoice() {
+  try {
+    const v = localStorage.getItem(LENS_KEY);
+    return v === OFF || LENSES_ONLY.some((l) => l.id === v) ? v : DAILY;
+  } catch { return DAILY; }
 }
-function saveLens(id) {
-  try { if (id) localStorage.setItem(LENS_KEY, id); else localStorage.removeItem(LENS_KEY); } catch { /* private mode */ }
+export function savedLens() { const c = lensChoice(); return c === DAILY || c === OFF ? null : c; }
+function saveChoice(choice) {
+  try { if (choice === DAILY) localStorage.removeItem(LENS_KEY); else localStorage.setItem(LENS_KEY, choice); } catch { /* private mode */ }
 }
-export const lensName = (id) => LENS_MENU.find((l) => l.id === id)?.name || 'No lens';
+export const lensName = (id) => LENSES_ONLY.find((l) => l.id === id)?.name || 'No lens';
+
+// What the globe should run for a choice: [lens id | null, scope].
+export function lensForChoice(choice, puzzle) {
+  if (choice === OFF) return [null, 'always'];
+  if (choice === DAILY) return [lensOfDay(puzzle), 'menus'];
+  return [choice, 'always'];
+}
 
 // Card layout: the picture keeps the view's shape (square-ish on a phone, a band on a
 // wide desktop) between 540 and 1080 px tall, cover-fitted, with a caption band below.
@@ -31,52 +46,63 @@ export function cardLayout(srcW, srcH, W = 1080, band = 270) {
   return { W, H: boxH + band, boxH, sx: (srcW - sw) / 2, sy: (srcH - sh) / 2, sw, sh };
 }
 
-export function initLensUI({ globe, toast, caption }) {
+export function initLensUI({ globe, toast, caption, puzzle }) {
   const $ = (id) => document.getElementById(id);
   const modal = $('lens-modal'), list = $('lens-list');
-  let current = savedLens();
-  globe.setLens(current);
+  let choice = lensChoice();
+  const apply = () => {
+    const [id, scope] = lensForChoice(choice, puzzle());
+    globe.setLens(id, scope);
+    $('btn-lens').classList.toggle('lens-on', !!id);
+  };
+  apply();
 
+  const menu = () => [
+    { choice: DAILY, emoji: '🎲', name: 'Lens of the day', blurb: `Today: ${lensName(lensOfDay(puzzle()))}, on the menus, the end screen and Explore` },
+    { choice: OFF, emoji: '🌍', name: 'No lens', blurb: 'The globe as it is' },
+    ...LENSES_ONLY.map((l) => ({ choice: l.id, emoji: l.emoji, name: l.name, blurb: `${l.blurb}, after every guess` })),
+  ];
   const render = () => {
-    list.replaceChildren(...LENS_MENU.map((lens) => {
+    list.replaceChildren(...menu().map((item) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'lens-option' + (lens.id === current ? ' selected' : '');
-      b.setAttribute('aria-pressed', String(lens.id === current));
+      b.className = 'lens-option' + (item.choice === choice ? ' selected' : '');
+      b.setAttribute('aria-pressed', String(item.choice === choice));
       b.innerHTML = '<span class="lens-emoji"></span><span class="lens-text"><b></b><small></small></span>';
-      b.querySelector('.lens-emoji').textContent = lens.emoji;
-      b.querySelector('b').textContent = lens.name;
-      b.querySelector('small').textContent = lens.blurb;
-      b.onclick = () => choose(lens.id);
+      b.querySelector('.lens-emoji').textContent = item.emoji;
+      b.querySelector('b').textContent = item.name;
+      b.querySelector('small').textContent = item.blurb;
+      b.onclick = () => choose(item.choice);
       return b;
     }));
   };
 
-  const choose = (id) => {
-    current = id;
-    saveLens(id);
-    globe.setLens(id);
+  const choose = (next) => {
+    choice = next;
+    saveChoice(next);
+    apply();
     render();
     modal.classList.add('hidden');
-    $('btn-lens').classList.toggle('lens-on', !!id);
-    if (id) toast(globe.interactive ? `${lensName(id)} switches on after you guess` : `${lensName(id)} on`);
+    if (next === DAILY) toast(`Lens of the day: ${lensName(lensOfDay(puzzle()))}`);
+    else if (next !== OFF) toast(globe.interactive ? `${lensName(next)} switches on after you guess` : `${lensName(next)} on`);
   };
 
   $('btn-lens').addEventListener('click', () => { render(); modal.classList.remove('hidden'); });
-  $('btn-lens').classList.toggle('lens-on', !!current);
   $('lens-snapshot').addEventListener('click', async () => {
     modal.classList.add('hidden');
     // Mid-guess the view would give the answer away (and no lens runs then).
     if (globe.interactive) { toast('Snapshots unlock after you guess 📸'); return; }
     await new Promise((r) => requestAnimationFrame(r)); // let the sheet close and a lens frame land
-    try { await shareCard(globe, caption(), current); } catch (err) { if (err?.name !== 'AbortError') toast('Could not make the snapshot'); }
+    try { await shareCard(globe, caption(), globe._lensActive() ? globe._lensId : null); } catch (err) { if (err?.name !== 'AbortError') toast('Could not make the snapshot'); }
   });
 
-  // Called by the globe when a lens can't hold the frame rate on this device.
   return {
+    // A new day can start while the app stays open: refresh the daily lens.
+    refresh: apply,
+    // Called by the globe when a lens can't hold the frame rate on this device.
     tooSlow(lensId) {
-      if (current !== lensId) return;
-      choose(null);
+      if (!lensId) return;
+      choose(OFF);
       toast(`${lensName(lensId)} switched off to keep the globe smooth on this device`, 4000);
     },
   };

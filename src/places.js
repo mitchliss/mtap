@@ -96,7 +96,9 @@ export function relationWithRegions({ guess, target, miles = false, guessCountry
     return `Your pin landed in ${guessRegion.name}; the destination is in ${targetRegion.name}. Your pin was ${where}.`;
   }
   if (!sameCountry && guessCountry && guessRegion) {
-    const there = targetRegion && targetCountry ? ` The destination is in ${targetRegion.name}, ${targetCountry}.` : '';
+    // Skip it when the place already says it ("Gjirokastër, Albania" is in Gjirokastër).
+    const redundant = targetRegion && String(target.name || '').toLowerCase().includes(targetRegion.name.toLowerCase());
+    const there = targetRegion && targetCountry && !redundant ? ` The destination is in ${targetRegion.name}, ${targetCountry}.` : '';
     return `Your pin landed in ${guessRegion.name}, ${guessCountry}, ${where}.${there}`;
   }
   return null; // nothing new to say: keep the existing line

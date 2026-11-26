@@ -160,6 +160,15 @@ deploys).
 3. Province partial credit (D): yes or no? It changes future scores, never past ones.
 4. Is "Follow the ISS" a regular Sunday round or a one-off special?
 
+## Seen in real play (2026-11-25, puzzle #127)
+
+Played #127 on the live site at phone size: the new graphics were nearly invisible. Answers frame
+the pins ~400-700 km up, so Live Earth showed 0-1 quake dots per answer and the Space Station
+(420 km up) was never in frame; lenses were opt-in; the end card covers the globe on a phone.
+Mitch chose **lens of the day** (v5.5): a different lens each day on the menus, end screen and
+Explore - never in a round - with 🔭 to pick a lens or switch it off. Not chosen (for now): an
+Earth-view button on the answer card, uncovering the end-screen globe, an automatic pull-back.
+
 ## Housekeeping found while doing this
 
 - **Fixed (v5.1.1):** a grid of small blue/orange diamonds on the map at reveal distance. The coarse

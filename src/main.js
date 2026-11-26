@@ -473,6 +473,7 @@ function endGame() {
   globe.clearPin();
   globe.setInteractive(false);
   globe.setGameplayActive(false);
+  lensUI?.refresh(); // the day's lens (a game can end on a new day)
   globe.setAutoRotate(settings.autoRotate);
   stopMusic();
   sounds.fanfare();
@@ -1500,7 +1501,7 @@ async function boot() {
   experience = new Experience(globe, { onCandidate: onGlobeTap, liveEarth: () => settings.liveEarth !== false });
   globe.setRealisticLighting(settings.realisticLighting !== false);
   globe.setLiveEarth(settings.liveEarth !== false);
-  lensUI = initLensUI({ globe, toast, caption: snapshotCaption });
+  lensUI = initLensUI({ globe, toast, caption: snapshotCaption, puzzle: puzzleNumberForToday });
   globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
 
   // Social boot: import any share-link payload (needs country data), then profiles.
