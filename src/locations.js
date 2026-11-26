@@ -2110,6 +2110,42 @@ export const LOCATIONS = [
   { name: 'Monsey, New York', lat: 41.1110, lng: -74.0690, country: 'United States of America', continent: 'North America', diff: 3, fact: 'A quiet Rockland County town with yeshivas, kosher bakeries and dozens of shuls.' },
   { name: 'Teaneck, New Jersey', lat: 40.8900, lng: -74.0110, country: 'United States of America', continent: 'North America', diff: 3, fact: 'Kosher pizza capital of the suburbs, one bridge from Manhattan.' },
   { name: 'Katzrin — Golan Heights Winery', lat: 32.9930, lng: 35.6930, country: 'Israel', continent: 'Asia', diff: 3, fact: 'Israel’s wine revolution started here in 1983 on volcanic soil.' },
+  // ===== v5.6 military & strategic pack (joins the rotation on #129) =====
+  // --- Iran ---
+  { name: 'Natanz enrichment site, Iran', lat: 33.7246, lng: 51.7276, country: 'Iran', continent: 'Asia', diff: 3, fact: 'Iran\'s main uranium-enrichment plant, built largely underground; the Stuxnet computer worm wrecked centrifuges here.' },
+  { name: 'Fordow enrichment plant, Iran', lat: 34.8847, lng: 50.9963, country: 'Iran', continent: 'Asia', diff: 3, fact: 'Tunnelled into a mountain near Qom; US B-2 bombers hit it with bunker-busting bombs in June 2025.' },
+  { name: 'Bushehr nuclear power plant, Iran', lat: 28.8300, lng: 50.9500, country: 'Iran', continent: 'Asia', diff: 3, fact: 'Iran\'s only nuclear power station - started by Germany in the 1970s and finished by Russia in 2011.' },
+  { name: 'Bandar Abbas — Iran\'s navy port', lat: 27.1900, lng: 56.2800, country: 'Iran', continent: 'Asia', diff: 3, fact: 'Iran\'s main naval base and busiest port, guarding the Strait of Hormuz.' },
+  { name: 'Parchin military complex, Iran', lat: 35.5200, lng: 51.7700, country: 'Iran', continent: 'Asia', diff: 3, fact: 'A weapons-testing complex south-east of Tehran that UN nuclear inspectors spent years asking to visit.' },
+  { name: 'Arak heavy-water reactor, Iran', lat: 34.3739, lng: 49.2414, country: 'Iran', continent: 'Asia', diff: 3, fact: 'Its reactor core was filled with concrete in 2016 under the nuclear deal with world powers.' },
+  { name: 'Imam Khomeini Spaceport, Iran', lat: 35.2346, lng: 53.9210, country: 'Iran', continent: 'Asia', diff: 3, fact: 'Iran launches its satellites from this desert spaceport in Semnan province.' },
+  { name: 'Chabahar port, Iran', lat: 25.3500, lng: 60.6500, country: 'Iran', continent: 'Asia', diff: 3, fact: 'Iran\'s only ocean port outside the Strait of Hormuz, developed with India\'s help.' },
+  // --- Around Iran ---
+  { name: 'Al Udeid Air Base, Qatar', lat: 25.1173, lng: 51.3150, country: 'Qatar', continent: 'Asia', diff: 3, fact: 'The largest US military base in the Middle East; Iran fired missiles at it in June 2025.' },
+  { name: 'Al Dhafra Air Base, UAE', lat: 24.2483, lng: 54.5475, country: 'United Arab Emirates', continent: 'Asia', diff: 3, fact: 'An Emirati air base in the desert south of Abu Dhabi that hosts US and French aircraft.' },
+  { name: 'Prince Sultan Air Base, Saudi Arabia', lat: 24.0627, lng: 47.5805, country: 'Saudi Arabia', continent: 'Asia', diff: 3, fact: 'A desert air base south of Riyadh; US forces returned to it in 2019.' },
+  { name: 'Ain al-Asad Air Base, Iraq', lat: 33.7856, lng: 42.4412, country: 'Iraq', continent: 'Asia', diff: 3, fact: 'Iran hit this US-used base with more than a dozen ballistic missiles in January 2020.' },
+  { name: 'Incirlik Air Base, Turkey', lat: 37.0021, lng: 35.4259, country: 'Turkey', continent: 'Asia', diff: 3, fact: 'A Turkish air base near Adana used by NATO since the 1950s.' },
+  { name: 'Hodeidah port, Yemen', lat: 14.8000, lng: 42.9500, country: 'Yemen', continent: 'Asia', diff: 3, fact: 'Yemen\'s main Red Sea port, held by the Houthis, who have fired on ships passing Bab-el-Mandeb.' },
+  { name: 'Tartus naval port, Syria', lat: 34.8900, lng: 35.9300, country: 'Syria', continent: 'Asia', diff: 3, fact: 'Soviet and then Russian warships used this port for half a century.' },
+  { name: 'Hmeimim Air Base, Syria', lat: 35.4011, lng: 35.9486, country: 'Syria', continent: 'Asia', diff: 3, fact: 'Russia flew its air campaign in Syria from this base starting in 2015.' },
+  { name: 'Duqm port, Oman', lat: 19.6600, lng: 57.7100, country: 'Oman', continent: 'Asia', diff: 3, fact: 'A new port on Oman\'s Arabian Sea coast where US and British warships are repaired and resupplied.' },
+  { name: 'Gwadar port, Pakistan', lat: 25.1500, lng: 62.3300, country: 'Pakistan', continent: 'Asia', diff: 3, fact: 'A deep-water port built with Chinese money, about 70 km from the Iranian border.' },
+  { name: 'Camp Lemonnier, Djibouti', lat: 11.5470, lng: 43.1550, country: 'Djibouti', continent: 'Africa', diff: 3, fact: 'The main US base in Africa, beside Djibouti\'s airport at the mouth of the Red Sea.' },
+  { name: 'Diego Garcia', lat: -7.3133, lng: 72.4111, country: 'Br. Indian Ocean Ter.', continent: 'Seven seas (open ocean)', diff: 3, fact: 'A remote atoll and US-UK base; in 2025 Britain agreed to hand it to Mauritius while leasing the base back.' },
+  // --- Famous elsewhere ---
+  { name: 'Area 51, Nevada', lat: 37.2350, lng: -115.8111, country: 'United States of America', continent: 'North America', diff: 2, fact: 'A secret US Air Force test site where the U-2 spy plane and stealth aircraft were first flown.' },
+  { name: 'Cheyenne Mountain — NORAD', lat: 38.7442, lng: -104.8461, country: 'United States of America', continent: 'North America', diff: 3, fact: 'A command centre built inside a mountain, behind 25-ton blast doors, to watch the skies over North America.' },
+  { name: 'Los Alamos, New Mexico', lat: 35.8800, lng: -106.3031, country: 'United States of America', continent: 'North America', diff: 3, fact: 'The secret mesa-top town where the first atomic bombs were designed in 1945.' },
+  { name: 'Guantanamo Bay Naval Base', lat: 19.9500, lng: -75.1000, country: 'Cuba', continent: 'North America', diff: 3, fact: 'The oldest US base overseas, leased from Cuba since 1903.' },
+  { name: 'Pituffik Space Base, Greenland', lat: 76.5312, lng: -68.7031, country: 'Greenland', continent: 'North America', diff: 3, fact: 'The US military\'s northernmost base, watching for missiles over the Arctic.' },
+  { name: 'Ramstein Air Base, Germany', lat: 49.4369, lng: 7.6003, country: 'Germany', continent: 'Europe', diff: 3, fact: 'The hub for US Air Force flights in and out of Europe.' },
+  { name: 'Faslane — Britain\'s nuclear subs', lat: 56.0670, lng: -4.8170, country: 'United Kingdom', continent: 'Europe', diff: 3, fact: 'Home of the Royal Navy\'s Trident nuclear-missile submarines, on a Scottish sea loch.' },
+  { name: 'Sevastopol — Black Sea Fleet', lat: 44.6167, lng: 33.5254, country: 'Russia', continent: 'Europe', diff: 3, fact: 'Home port of the Black Sea Fleet since 1783.' },
+  { name: 'Severomorsk — Northern Fleet', lat: 69.0730, lng: 33.4170, country: 'Russia', continent: 'Europe', diff: 3, fact: 'Headquarters of Russia\'s Northern Fleet, near Murmansk on the Barents Sea.' },
+  { name: 'Yokosuka naval base, Japan', lat: 35.2925, lng: 139.6650, country: 'Japan', continent: 'Asia', diff: 3, fact: 'Home port of the only US aircraft carrier based outside the United States.' },
+  { name: 'Kadena Air Base, Okinawa', lat: 26.3556, lng: 127.7675, country: 'Japan', continent: 'Asia', diff: 3, fact: 'The largest US air base in the Pacific.' },
+  { name: 'Yongbyon nuclear complex, North Korea', lat: 39.7950, lng: 125.7550, country: 'North Korea', continent: 'Asia', diff: 3, fact: 'North Korea\'s main nuclear site, where the plutonium for its first bombs was made.' },
 ];
 
 // Basic sanity: names must be unique (helps avoid duplicate rounds).

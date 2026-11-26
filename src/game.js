@@ -39,6 +39,7 @@ const POOL_TIERS = [
   // (the v3.8 waterways and v3.9 Jewish packs both shipped on #33 — one tier covers both)
   { upToPuzzle: 47, size: 453 }, // through Sep 6, 2026 (v4.1 world pack lands on #48)
   { upToPuzzle: 109, size: 1891 }, // through Nov 7, 2026 (v4.3 heritage pack lands on #110)
+  { upToPuzzle: 128, size: 2047 }, // through Nov 26, 2026 (v5.6 military & strategic pack lands on #129)
 ];
 
 function poolForPuzzle(seed) {
