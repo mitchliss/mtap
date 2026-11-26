@@ -28,7 +28,7 @@ export function featureVerdict(result, miles = false) {
   const d = formatDistance(result.distanceKm, miles);
   if (result.distanceKm <= 0.5) return `🎯 Inside ${name} - full marks!`;
   if (result.score >= 85) return `🔥 So close - just ${d} from the edge of ${name}.`;
-  if (result.score >= 55) return `👍 Not far - ${name} starts ${d} from your pin.`;
+  if (result.score >= 55) return `👍 Not far - the edge of ${name} is ${d} from your pin.`;
   return `🌍 ${name[0].toUpperCase() + name.slice(1)} is ${d} away - now you know where it is!`;
 }
 

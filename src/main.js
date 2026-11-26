@@ -427,8 +427,9 @@ function confirmGuess(lat, lng) {
   clearTimeout(resultPanelTimer);
   resultPanelTimer = setTimeout(() => {
     els.resultPlace.textContent = result.target.name;
+    $('result-distance-label').textContent = result.target.isFeature ? (result.distanceKm <= 0.5 ? 'right on it' : 'from the edge') : 'away';
     els.resultDistance.textContent = result.target.isFeature
-      ? (result.distanceKm <= 0.5 ? '🎯 Inside!' : `${formatDistance(result.distanceKm, settings.miles)} from the edge`)
+      ? (result.distanceKm <= 0.5 ? '🎯 Inside!' : formatDistance(result.distanceKm, settings.miles))
       : result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
     els.resultPoints.textContent = result.hintUsed
       ? `+${result.points} (½ — hint used)`

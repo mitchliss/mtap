@@ -1312,9 +1312,9 @@ export class Globe {
       });
       g.closePath();
     }
-    g.fillStyle = `rgba(${rgb},0.30)`; g.fill('evenodd');
+    g.fillStyle = `rgba(${rgb},0.40)`; g.fill('evenodd');
     g.lineJoin = 'round';
-    g.strokeStyle = `rgba(${rgb},0.35)`; g.lineWidth = Math.max(6, W / 160); g.stroke();
+    g.strokeStyle = `rgba(${rgb},0.55)`; g.lineWidth = Math.max(8, W / 130); g.stroke();
     g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = Math.max(2, W / 520); g.stroke();
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -1342,7 +1342,7 @@ export class Globe {
     const half = Math.min(Math.PI / 2 - 0.05, Math.max(...vs.map((v) => v.angleTo(c))));
     const vertical = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const horizontal = Math.atan(Math.tan(vertical) * this.camera.aspect);
-    const field = Math.min(vertical, horizontal) * 0.78;
+    const field = Math.min(vertical, horizontal) * 0.66;
     const d = Math.max(this.controls?.minDistance ?? 1.04, 1.0005 / Math.max(0.01, Math.cos(half)),
       Math.cos(half) + Math.sin(half) / Math.tan(field));
     const ll = vec3ToLatLng(c);
