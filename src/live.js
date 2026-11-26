@@ -13,6 +13,7 @@ import { twoline2satrec, propagate, gstime, eciToGeodetic, degreesLat, degreesLo
 import { findNextSatellitePass } from './gev/satellitePass.js';
 import { distanceKm, formatDistance } from './geo.js';
 import { bearingWord } from './discovery.js';
+import { withTimeout, loadHazards, loadHeadlines, describeStorm, describeFire, describeNews } from './hazards.js';
 
 export const QUAKE_FEED = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojson';
 export const ISS_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE';
@@ -22,12 +23,6 @@ const TLE_TTL_MS = 12 * 3600 * 1000;
 const TLE_KEY = 'marctap.issTle';
 const EARTH_RADIUS_KM = 6371;
 const DAY_MS = 86400000;
-
-function withTimeout(fetchImpl, url, ms = 8000) {
-  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-  const timer = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
-  return fetchImpl(url, ctrl ? { signal: ctrl.signal } : undefined).finally(() => clearTimeout(timer));
-}
 
 // ---------- earthquakes ----------
 
@@ -215,12 +210,16 @@ function memoPass(satrec, point, now) {
   return passMemo.get(key);
 }
 
-// { quake, iss } sentences for a place; either is null when there's nothing honest to say.
+// { quake, iss, storm, fire, news } for a place; each is null when there's nothing
+// honest to say. news is { text, url, host } (the card links the source).
 export async function liveLinesFor(point, { miles = false, locale } = {}) {
-  const [quakes, satrec] = await Promise.all([loadQuakes(), issSatrecOnce()]);
+  const [quakes, satrec, hazards, pins] = await Promise.all([loadQuakes(), issSatrecOnce(), loadHazards(), loadHeadlines()]);
   const now = Date.now();
   return {
     quake: describeQuakes(quakes, point, { miles, now }),
     iss: satrec ? describePass(memoPass(satrec, point, now), point, { now, locale }) : null,
+    storm: describeStorm(hazards, point, { miles }),
+    fire: describeFire(hazards, point, { miles }),
+    news: describeNews(pins, point, { now }),
   };
 }

@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 
 import { NEWS, NEWS_START, newsRollFor } from '../src/news.js';
 import { LOCATIONS } from '../src/locations.js';
-import { dailyPicksFor, isHeritageDay, HERITAGE_SCHEDULE_START, DAILY_HERITAGE_START, HERITAGE_WINDOW, pickLocations, injectNewsIntoDeal, MAX_GAME_SCORE, ROUND_MULTIPLIERS } from '../src/game.js';
+import { dailyPicksFor, isHeritageDay, HERITAGE_SCHEDULE_START, DAILY_HERITAGE_START, HERITAGE_WINDOW, FEATURE_WINDOW, pickLocations, injectNewsIntoDeal, MAX_GAME_SCORE, ROUND_MULTIPLIERS } from '../src/game.js';
 import { tagsFor } from '../src/themes.js';
 import { countryAt, distanceKm, prepareCountries } from '../src/geo.js';
 import { K_ROT, basePushedBack, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from '../src/graphics.js';
@@ -123,7 +123,8 @@ test('no location repeats within any 365-day span from puzzle 48 onward', functi
       const prev = lastSeen.get(p.name);
       if (prev !== undefined && k >= 48) {
         // v4.6: heritage places (dealt daily from #111) have their own window.
-        const min = k >= DAILY_HERITAGE_START && tagsFor(p).has('jewish') ? HERITAGE_WINDOW : 366;
+        // v5.6: nature rounds (173 shapes, one a day) have their own window too.
+        const min = p.isFeature ? FEATURE_WINDOW : k >= DAILY_HERITAGE_START && tagsFor(p).has('jewish') ? HERITAGE_WINDOW : 366;
         assert.ok(k - prev >= min, `${p.name} dealt at #${prev} and again at #${k} (${k - prev} days)`);
       }
       lastSeen.set(p.name, k);

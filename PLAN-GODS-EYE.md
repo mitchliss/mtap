@@ -178,3 +178,18 @@ Earth-view button on the answer card, uncovering the end-screen globe, an automa
 - Fixed: `npm test` had been failing on `main` (`test/mobile.mjs`, `test/detail.mjs`) because the
   test stubs had drifted from the code; CI only built. Since v5.1.1 `deploy.yml` runs `npm test` on
   every push and pull request, and the site deploys only after it passes.
+
+## v5.6 (Nov 2026) - nature rounds, military places, live hazards, the Grand Tour
+
+- **Nature rounds** (from #129): 173 mountains, deserts, seas, straits and peninsulas
+  (Natural Earth outlines via God's Eye View) dealt one a day; scored on the distance to
+  the nearest edge, inside = 100; the outline lights up on the answer card. Practice games
+  get one too. Deals through #128 are pinned by `test/fixtures/deals-through-128.json`.
+- **Military & strategic pack** (from #129): 32 places, 20 in and around Iran.
+- **Live hazards**: storms with tracks (NASA EONET) and wildfires (GDACS) on the globe and
+  the answer card; **news pins** read from `live/headlines.json` (written by the
+  "MTap news pins" routine; no redeploy needed).
+- **Grand Tour**: a ~10 s cinematic opening once a day per device, past live events,
+  never near the day's answers.
+- Skipped: live military aircraft (the free ADS-B feeds refuse browser requests and the
+  game has no server).

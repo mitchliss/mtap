@@ -82,7 +82,7 @@
       <div class="result-stats">
         <div class="stat">
           <div class="stat-value" id="result-distance">—</div>
-          <div class="stat-label">away</div>
+          <div class="stat-label" id="result-distance-label">away</div>
         </div>
         <div class="stat">
           <div class="stat-value points" id="result-points">+0</div>
@@ -99,7 +99,7 @@
         <figure id="discovery-world" class="hidden"><canvas width="360" height="180" aria-label="World overview with your pin in pink and destination in green"></canvas><figcaption>Opposite sides of Earth · your pin in pink, destination in green</figcaption></figure>
         <div class="discovery-actions"><button id="discovery-compare" class="btn ghost small">Both pins</button><button id="discovery-explore" class="btn ghost small">Explore destination</button></div>
         <p id="discovery-nearby"></p>
-        <div id="discovery-live" class="live-lines hidden"><p class="live-quake hidden"></p><p class="live-iss hidden"></p><a class="live-credit" href="https://earthquake.usgs.gov/earthquakes/map/" target="_blank" rel="noopener noreferrer">Live data: USGS earthquakes · CelesTrak orbits</a></div>
+        <div id="discovery-live" class="live-lines hidden"><p class="live-news hidden"></p><p class="live-storm hidden"></p><p class="live-fire hidden"></p><p class="live-quake hidden"></p><p class="live-iss hidden"></p><a class="live-credit" href="https://earthquake.usgs.gov/earthquakes/map/" target="_blank" rel="noopener noreferrer">Live data: USGS earthquakes · NASA EONET · GDACS · CelesTrak orbits</a></div>
         <a class="discovery-credit" href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Places: Wikidata (CC0) · Natural Earth</a>
         <figure id="discovery-photo" class="hidden"><img id="discovery-image" alt="" /><figcaption><a id="discovery-photo-source" target="_blank" rel="noopener noreferrer">Photo and credits</a></figcaption></figure>
         <p id="discovery-story"></p><a id="discovery-source" class="hidden" target="_blank" rel="noopener noreferrer">Read the story on Wikipedia ↗</a>
@@ -117,7 +117,7 @@
           <div class="ov-name" id="ov-name"></div>
           <div class="ov-meta" id="ov-meta"></div>
           <div class="ov-fact" id="ov-fact"></div>
-          <div id="ov-live" class="live-lines hidden"><p class="live-quake hidden"></p><p class="live-iss hidden"></p></div>
+          <div id="ov-live" class="live-lines hidden"><p class="live-news hidden"></p><p class="live-storm hidden"></p><p class="live-fire hidden"></p><p class="live-quake hidden"></p><p class="live-iss hidden"></p></div>
           <div id="ov-wiki" class="ov-wiki hidden">
             <img id="ov-wiki-img" class="ov-wiki-img hidden" alt="" />
             <div class="ov-wiki-text">
@@ -437,7 +437,7 @@
           </div>
         </div>
         <div class="settings-about">
-          MTap v5.5 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries, states and provinces: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain). Towns and populations: <a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a> (CC0). Live Earth: earthquakes from the <a href="https://earthquake.usgs.gov/" target="_blank" rel="noopener">USGS</a> (public domain), Space Station orbit from <a href="https://celestrak.org/" target="_blank" rel="noopener">CelesTrak</a>, pass prediction and the five lenses from <a href="https://github.com/bilawalsidhu/gods-eye-view" target="_blank" rel="noopener">God&#39;s Eye View</a> (MIT).
+          MTap v5.6 — built for Marc. Earth imagery: <a href="https://visibleearth.nasa.gov/" target="_blank" rel="noopener">NASA Blue Marble</a> (public domain). Zoom detail: <a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless</a> by <a href="https://eox.at" target="_blank" rel="noopener">EOX IT Services GmbH</a>. Boundaries, states and provinces, and the mountains, deserts and seas of nature rounds: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a> (public domain). Towns and populations: <a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a> (CC0). Live Earth: earthquakes from the <a href="https://earthquake.usgs.gov/" target="_blank" rel="noopener">USGS</a> (public domain), storms and US wildfires from <a href="https://eonet.gsfc.nasa.gov/" target="_blank" rel="noopener">NASA EONET</a> (public domain), wildfires and cyclones from <a href="https://www.gdacs.org/" target="_blank" rel="noopener">GDACS (EC JRC)</a>, Space Station orbit from <a href="https://celestrak.org/" target="_blank" rel="noopener">CelesTrak</a>, pass prediction and the five lenses from <a href="https://github.com/bilawalsidhu/gods-eye-view" target="_blank" rel="noopener">God&#39;s Eye View</a> (MIT).
         </div>
       </div>
     </div>

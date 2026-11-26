@@ -1,6 +1,7 @@
 import { countryAt, distanceKm, formatDistance } from './geo.js';
 import { describeNearbyTowns, nearbyTowns, regionAt, relationWithRegions } from './places.js';
 import { quakeFor } from './quakes.js';
+import { featureResultLine, wikiTitleFor } from './nature.js';
 import { fetchWikiSummary } from './enrich.js';
 import { bearingWord, describeQuakeRound, guessRelationship, nearbyCities, shortStory, usgsEventUrl } from './discovery.js';
 
@@ -8,22 +9,42 @@ const $ = (id) => document.getElementById(id);
 const visible = (id, on) => $(id).classList.toggle('hidden', !on);
 const TRAINING_SPOT = { lat: 40.7128, lng: -74.006, name: 'New York City' };
 
-// Live Earth lines (quakes near the place, next Space Station pass over it) into a
+// Live Earth lines (quakes, storms, fires and news pins near the place, next Space
+// Station pass over it) into a
 // .live-lines box. Only coordinates are used, and they never leave the device: the
 // feeds are fetched whole and the pass is computed here. `isCurrent` drops a stale
 // answer after the player has moved on.
 export function renderLiveLines(box, point, { miles = false, enabled = true, delayMs = 0, isCurrent = () => true } = {}) {
   box.classList.add('hidden');
   if (!enabled) return;
-  const quakeEl = box.querySelector('.live-quake'), issEl = box.querySelector('.live-iss');
   setTimeout(async () => {
     if (!isCurrent()) return;
     let lines;
     try { lines = await (await import('./live.js')).liveLinesFor(point, { miles }); } catch { return; }
     if (!isCurrent()) return;
-    quakeEl.textContent = lines.quake || ''; quakeEl.classList.toggle('hidden', !lines.quake);
-    issEl.textContent = lines.iss || ''; issEl.classList.toggle('hidden', !lines.iss);
-    box.classList.toggle('hidden', !lines.quake && !lines.iss);
+    let any = false;
+    for (const key of ['quake', 'iss', 'storm', 'fire']) {
+      const el = box.querySelector(`.live-${key}`);
+      if (!el) continue;
+      const text = typeof lines[key] === 'string' ? lines[key] : '';
+      el.textContent = text; el.classList.toggle('hidden', !text);
+      any ||= !!text;
+    }
+    // The news line links its source; built with DOM nodes (feed text is untrusted).
+    const newsEl = box.querySelector('.live-news');
+    if (newsEl) {
+      const n = lines.news;
+      newsEl.replaceChildren();
+      if (n?.text && /^https:\/\//.test(n.url)) {
+        const a = document.createElement('a');
+        a.href = n.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.textContent = `${n.host || 'source'} ↗`;
+        newsEl.append(document.createTextNode(`${n.text} `), a);
+      }
+      newsEl.classList.toggle('hidden', !newsEl.childNodes.length);
+      any ||= newsEl.childNodes.length > 0;
+    }
+    box.classList.toggle('hidden', !any);
   }, delayMs);
 }
 
@@ -40,12 +61,20 @@ export class Experience {
     $('tutorial-skip').onclick = () => this.finishIntro();
     $('discovery-compare').onclick = () => {
       if (!this.result) return;
-      const { guess, target } = this.result;
-      globe.framePoints(guess, target);
+      this.frame(this.result);
     };
     $('discovery-explore').onclick = () => {
       if (this.result) globe.flyTo(this.result.target.lat, this.result.target.lng, 1.1, 850);
     };
+  }
+
+  // Frame the guess and the answer; a nature round frames its whole outline too.
+  frame(result) {
+    const t = result.target;
+    if (t.isFeature) {
+      const [w, s, e, n] = t.bbox;
+      this.globe.framePointsAll([result.guess, { lat: s, lng: w }, { lat: n, lng: w }, { lat: s, lng: e }, { lat: n, lng: e }, { lat: (s + n) / 2, lng: (w + e) / 2 }]);
+    } else this.globe.framePoints(result.guess, t);
   }
 
   round() {
@@ -170,7 +199,7 @@ export class Experience {
     const token = ++this.serial;
     this.result = result; this.labels = [];
     $('app').classList.add('discovering'); this.globe.resize();
-    this.globe.framePoints(result.guess, result.target);
+    this.frame(result);
     this.active = false; this.precision(false); visible('aim-tools', false);
     const quake = quakeFor(result.target);
     visible('discovery-quake', !!quake);
@@ -178,7 +207,8 @@ export class Experience {
       $('discovery-quake').querySelector('span').textContent = describeQuakeRound(quake);
       $('discovery-quake').querySelector('a').href = usgsEventUrl(quake);
     }
-    $('discovery-relation').textContent = guessRelationship(result.guess, result.target, miles, result.guessCountry ? result.guessCountry.name : null);
+    const isFeature = !!result.target.isFeature;
+    $('discovery-relation').textContent = isFeature ? featureResultLine(result, miles) : guessRelationship(result.guess, result.target, miles, result.guessCountry ? result.guessCountry.name : null);
     visible('discovery-world', result.distanceKm > 17500);
     if (result.distanceKm > 17500) {
       const canvas = $('discovery-world').querySelector('canvas'), ctx = canvas.getContext('2d');
@@ -200,11 +230,11 @@ export class Experience {
     // Name the tapped country on the pin label when it isn't the target's —
     // the family wants to see which country they actually selected.
     const pinLabel = result.guessCountry && !result.countryMatch ? `Your pin · ${result.guessCountry.name}` : 'Your pin';
-    addLabel(result.guess, pinLabel, 'guess'); addLabel(result.target, 'Destination', 'destination');
+    addLabel(result.guess, pinLabel, 'guess'); addLabel(result.target, isFeature ? result.target.name : 'Destination', 'destination');
     // States / provinces (v5.4): sharpen the relation line once the small per-country
     // files arrive; the line above stands if they don't.
-    const targetCountry = countryAt(result.target.lat, result.target.lng);
-    Promise.all([
+    const targetCountry = isFeature ? null : countryAt(result.target.lat, result.target.lng);
+    if (!isFeature) Promise.all([
       result.guessCountry ? regionAt(result.guess.lat, result.guess.lng, result.guessCountry.iso2) : null,
       targetCountry ? regionAt(result.target.lat, result.target.lng, targetCountry.iso2) : null,
     ]).then(([guessRegion, targetRegion]) => {
@@ -236,10 +266,13 @@ export class Experience {
       miles, enabled: this.options.liveEarth?.() !== false, delayMs: 1100, isCurrent: () => token === this.serial,
     });
     // Family memories stay private: never send their names to Wikipedia.
-    const wiki = result.target.isFamily ? null : await fetchWikiSummary(result.target.name);
+    const wiki = result.target.isFamily ? null : await fetchWikiSummary(isFeature ? wikiTitleFor(result.target) : result.target.name);
     if (token !== this.serial) return;
     const coords = wiki?.coordinates;
-    const matched = wiki && (!coords || distanceKm(result.target.lat, result.target.lng, coords.lat, coords.lon) < 150);
+    // A mountain range's article may put its pin anywhere along it: within its outline's
+    // box (plus a margin) counts as a match.
+    const nearFeature = (c) => { const [w, s, e, n] = result.target.bbox; return c.lat >= s - 3 && c.lat <= n + 3 && [c.lon, c.lon + 360, c.lon - 360].some((x) => x >= w - 3 && x <= e + 3); };
+    const matched = wiki && (!coords || (isFeature ? nearFeature(coords) : distanceKm(result.target.lat, result.target.lng, coords.lat, coords.lon) < 150));
     const article = matched && wiki.url?.startsWith('https://en.wikipedia.org/') ? wiki.url : null;
     if (article) {
       visible('result-fact', false);

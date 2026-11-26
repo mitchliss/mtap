@@ -12,6 +12,7 @@ import { Sky } from './sky.js';
 import { createAtmosphere } from './atmosphere.js';
 import { glowDiscTexture, makeArcRibbon, softRingTexture } from './effects.js';
 import { quakeRingSize } from './discovery.js';
+import { buildTourPath, TOUR_END_DISTANCE } from './tour.js';
 import { GFX, K_ROT, applySunShader, basePushedBack, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from './graphics.js';
 
 const GLOBE_RADIUS = 1;
@@ -637,7 +638,10 @@ export class Globe {
   }
 
   setAutoRotate(on) { this.controls.autoRotate = on; }
-  setInteractive(on) { this.interactive = on; }
+  setInteractive(on) {
+    this.interactive = on;
+    if (on) this.skipTour(); // a game is starting: the opening never fights it
+  }
   setPrecisionMode(on) {
     this.precisionMode = !!on;
     if (on) this.updatePrecisionPin();
@@ -1284,6 +1288,71 @@ export class Globe {
     this.framePoints(guess || answer, answer);
   }
 
+  // Nature rounds (v5.6): paint the whole mountain range / desert / sea on the globe.
+  // The outline is drawn into a canvas covering just its bounding box, mapped onto a
+  // matching patch of sphere (equirectangular, like the globe's own texture), so the
+  // edge stays sharp at any size without a world-sized texture. Fades in as the comet
+  // lands, then breathes gently. shape: prepared (featureshape.js); f: its FEATURES row.
+  showFeatureShape(shape, f) {
+    if (!shape || !f) return;
+    const pad = 0.6;
+    let [w, s, e, n] = f.bbox;
+    w -= pad; e += pad; s = Math.max(-89.5, s - pad); n = Math.min(89.5, n + pad);
+    const spanX = e - w, spanY = n - s;
+    const k = Math.cos(((s + n) / 2) * Math.PI / 180);
+    const scale = Math.min(2048 / (spanX * Math.max(0.2, k)), 2048 / spanY, 160);
+    const W = Math.max(64, Math.round(spanX * Math.max(0.2, k) * scale));
+    const H = Math.max(64, Math.round(spanY * scale));
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const water = ['sea', 'gulf', 'strait', 'reef'].includes(f.kind);
+    const rgb = water ? '94,224,255' : '255,196,92';
+    g.beginPath();
+    for (const r of shape.rings) {
+      r.pts.forEach(([x, y], i) => {
+        const px = ((x - w) / spanX) * W, py = ((n - y) / spanY) * H;
+        if (i) g.lineTo(px, py); else g.moveTo(px, py);
+      });
+      g.closePath();
+    }
+    g.fillStyle = `rgba(${rgb},0.40)`; g.fill('evenodd');
+    g.lineJoin = 'round';
+    g.strokeStyle = `rgba(${rgb},0.55)`; g.lineWidth = Math.max(8, W / 130); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = Math.max(2, W / 520); g.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy?.() || 1);
+    const D = Math.PI / 180;
+    const geo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.0035,
+      Math.min(160, Math.ceil(spanX / 1.5) + 4), Math.min(120, Math.ceil(spanY / 1.5) + 4),
+      (w + 180) * D, spanX * D, (90 - n) * D, spanY * D);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 3;
+    mesh.userData.featureBorn = performance.now();
+    this.markerRoot.add(mesh);
+    this._resultObjects.push(mesh);
+    this._featureShape = mesh;
+  }
+
+  // Fit a camera view around several points (a guess plus a shape's corners).
+  framePointsAll(points) {
+    const vs = points.filter(Boolean).map((p) => latLngToVec3(p.lat, p.lng, 1));
+    if (!vs.length) return;
+    const c = vs.reduce((a, v) => a.add(v), new THREE.Vector3());
+    if (c.lengthSq() < 1e-6) return;
+    c.normalize();
+    const half = Math.min(Math.PI / 2 - 0.05, Math.max(...vs.map((v) => v.angleTo(c))));
+    const vertical = THREE.MathUtils.degToRad(this.camera.fov / 2);
+    const horizontal = Math.atan(Math.tan(vertical) * this.camera.aspect);
+    const field = Math.min(vertical, horizontal) * 0.66;
+    const d = Math.max(this.controls?.minDistance ?? 1.04, 1.0005 / Math.max(0.01, Math.cos(half)),
+      Math.cos(half) + Math.sin(half) / Math.tan(field));
+    const ll = vec3ToLatLng(c);
+    this.flyTo(ll.lat, ll.lng, Math.min(8, d), 850);
+  }
+
   // Earthquake rounds (v5.3): three shaking rings spread from the epicentre, sized by
   // magnitude. They wait (negative t) until the comet has landed on the answer.
   showQuakeRings(answer, mag) {
@@ -1396,6 +1465,7 @@ export class Globe {
     this._beams = [];
     this._reveal = null;
     this._resultLabel = null;
+    this._featureShape = null;
   }
 
   // Boot cinematic: swoop from deep space down to play distance with a decaying
@@ -1425,6 +1495,145 @@ export class Globe {
         return t >= 1;
       },
     }];
+  }
+
+  // The Grand Tour (once a day): far out past the Moon, a dive onto the night
+  // side, a low sweep toward the sunrise (past live events when there are
+  // any), then a pull-up that lands exactly on the play view. The path is the
+  // pure builder in tour.js; this method plays it and runs the overlays.
+  // Any tap / key / wheel skips it (~420 ms to the play view); a new flight
+  // (a game starting, flyTo) ends it at once.
+  // opts: { stops, avoid: [{lat,lng}], seed, uiRoot, onDone }
+  grandTour(opts = {}) {
+    this.skipTour(0);
+    let stops = opts.stops;
+    if (!Array.isArray(stops)) {
+      try { stops = this.live?.tourStops?.(); } catch { stops = null; }
+      if (!Array.isArray(stops)) stops = [];
+    }
+    const path = buildTourPath({
+      sun: vec3ToLatLng(this._sunHome),
+      moon: this._moon ? this._moon.position.toArray() : null,
+      stops, avoid: opts.avoid || [], seed: opts.seed ?? 0, endDistance: TOUR_END_DISTANCE,
+    });
+    const uiRoot = opts.uiRoot === undefined ? document.getElementById('app') : opts.uiRoot;
+
+    // Overlays: letterbox bars, vignette, live caption, title. Plain DOM over
+    // the canvas, pointer-events: none (style.css .tour-*).
+    const layer = document.createElement('div');
+    layer.className = 'tour-layer';
+    layer.innerHTML = '<div class="tour-fade"></div><div class="tour-vignette"></div><div class="tour-bar top"></div><div class="tour-bar bottom"></div>'
+      + '<div class="tour-caption" aria-live="polite"></div>'
+      + '<div class="tour-title" aria-hidden="true"><span class="tour-title-mark">🌍</span> M<span class="accent">Tap</span></div>';
+    (uiRoot || document.body).appendChild(layer);
+    const caption = layer.querySelector('.tour-caption');
+    const title = layer.querySelector('.tour-title');
+    uiRoot?.classList.add('touring');
+
+    // Caption windows: each stop is named as the camera passes over it; windows
+    // never overlap, and one too short to read is dropped.
+    const ICON = { storm: '🌀', fire: '🔥', quake: '〰️', news: '📰' };
+    const windows = [];
+    path.stops.forEach((s, i) => {
+      const next = path.stops[i + 1];
+      const from = Math.max(s.at - 0.75, windows.length ? windows[windows.length - 1].to + 0.3 : 0);
+      const to = next ? Math.min(s.at + 0.9, (s.at + next.at) / 2) : s.at + 0.9;
+      if (to - from >= 0.6) windows.push({ from, to, text: `${ICON[s.kind] || '📡'} ${String(s.label || 'Live event').slice(0, 60)} · live` });
+    });
+
+    const baseExposure = this.renderer.toneMappingExposure;
+    const start = performance.now();
+    let shownCaption = null;
+    const tour = {
+      path, layer, uiRoot, baseExposure, onDone: opts.onDone,
+      listeners: [],
+      flight: {
+        step: () => {
+          const t = Math.min(path.duration, (performance.now() - start) / 1000);
+          if (!tour.rolled) { tour.rolled = true; layer.classList.add('rolling'); } // a frame after insertion, so it transitions
+          const { pos, quat } = path.sample(t);
+          this.camera.position.copy(pos);
+          this.camera.quaternion.copy(quat);
+          // Brief exposure lift as the sun clears the limb (tone-mapped tiers only).
+          if (path.sunriseAt !== null && GFX.toneMapping && this._sunShaderState?.enabled !== false) {
+            const x = (t - path.sunriseAt - 0.25) / 0.5;
+            this.renderer.toneMappingExposure = baseExposure * (1 + 0.22 * Math.exp(-x * x));
+          }
+          const w = windows.find((win) => t >= win.from && t < win.to) || null;
+          if (w !== shownCaption) {
+            shownCaption = w;
+            if (w) caption.textContent = w.text;
+            caption.classList.toggle('show', !!w);
+          }
+          title.classList.toggle('show', t >= path.titleAt && t < path.uiAt + 0.15);
+          layer.classList.toggle('opening', t >= path.titleAt + 0.4);
+          if (t >= path.uiAt) uiRoot?.classList.remove('touring');
+          if (t >= path.duration) { this._endTour(); return true; }
+          return false;
+        },
+      },
+    };
+    this._tour = tour;
+    this.controls.maxDistance = 14; // room to start beyond the Moon
+    this._flights = [tour.flight];
+
+    // Skip on any input. Capture phase + passive: the input still reaches its
+    // target, so a tap on a visible button both skips and works.
+    const skip = () => this.skipTour();
+    for (const type of ['pointerdown', 'keydown', 'wheel']) {
+      window.addEventListener(type, skip, { capture: true, passive: true });
+      tour.listeners.push([type, skip]);
+    }
+    return { duration: path.duration, stops: path.stops.map((s) => s.label), sunriseAt: path.sunriseAt, generic: path.generic };
+  }
+
+  // Skip the tour: glide (ms) from wherever the camera is straight up to the
+  // play view over the ground below it. ms = 0 ends it in place.
+  skipTour(ms = 420) {
+    const tour = this._tour;
+    if (!tour || tour.skipping) return;
+    if (!ms) { this._endTour(); return; }
+    tour.skipping = true;
+    tour.uiRoot?.classList.remove('touring');
+    tour.layer.classList.add('out');
+    this.renderer.toneMappingExposure = tour.baseExposure;
+    const fromPos = this.camera.position.clone();
+    const fromQuat = this.camera.quaternion.clone();
+    const ll = vec3ToLatLng(fromPos);
+    const toPos = latLngToVec3(THREE.MathUtils.clamp(ll.lat, -30, 35), ll.lng, TOUR_END_DISTANCE);
+    const toQuat = new THREE.Quaternion().setFromRotationMatrix(
+      new THREE.Matrix4().lookAt(toPos, new THREE.Vector3(), new THREE.Vector3(0, 1, 0)));
+    const fromDir = fromPos.clone().normalize(), toDir = toPos.clone().normalize();
+    const fromAlt = Math.log(Math.max(fromPos.length() - 1, 1e-3)), toAlt = Math.log(TOUR_END_DISTANCE - 1);
+    const start = performance.now();
+    tour.flight = {
+      step: () => {
+        const t = Math.min(1, (performance.now() - start) / ms);
+        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+        const dir = fromDir.clone().lerp(toDir, e).normalize();
+        this.camera.position.copy(dir.multiplyScalar(1 + Math.exp(fromAlt + (toAlt - fromAlt) * e)));
+        this.camera.quaternion.copy(fromQuat).slerp(toQuat, e);
+        if (t >= 1) { this.camera.position.copy(toPos); this.camera.quaternion.copy(toQuat); this._endTour(); }
+        return t >= 1;
+      },
+    };
+    this._flights = [tour.flight];
+  }
+
+  get touring() { return !!this._tour; }
+
+  _endTour() {
+    const tour = this._tour;
+    if (!tour) return;
+    this._tour = null;
+    for (const [type, fn] of tour.listeners) window.removeEventListener(type, fn, { capture: true });
+    this.renderer.toneMappingExposure = tour.baseExposure;
+    tour.uiRoot?.classList.remove('touring');
+    tour.layer.classList.add('out');
+    setTimeout(() => tour.layer.remove(), 700);
+    this.controls.maxDistance = 8.5; // play range incl. deep-space view
+    this._setTargetD(this.camera.position.length());
+    try { tour.onDone?.(); } catch (err) { console.warn('tour onDone', err); }
   }
 
   // Smoothly move the camera so (lat, lng) faces the viewer at the given distance.
@@ -1668,6 +1877,8 @@ export class Globe {
 
     // Camera flights own the camera; keep the dolly target glued to them so
     // the smoothing above never fights a flight or snaps back afterwards.
+    // Another flight (a game starting, flyTo) replaced the tour: end it there.
+    if (this._tour && this._flights[0] !== this._tour.flight) this._endTour();
     if (this._flights.length) {
       const done = this._flights[0].step();
       this._targetD = this.camera.position.length();
@@ -1702,6 +1913,12 @@ export class Globe {
 
     // Reveal choreography: beam pops, comet flight, label fade.
     const nowMs = performance.now();
+    if (this._featureShape) {
+      // Nature round: fade in as the comet lands (~0.9 s), then breathe gently.
+      const age = (nowMs - this._featureShape.userData.featureBorn) / 1000;
+      const fade = THREE.MathUtils.smoothstep(age, 0.7, 1.5);
+      this._featureShape.material.opacity = fade * (0.86 + 0.14 * Math.cos(age * 2.2));
+    }
     if (this._beams && this._beams.length) {
       // Beams keep a legible size while zooming and pop in with easeOutBack.
       const kBase = THREE.MathUtils.clamp((this.camera.position.length() - 1) / 1.6, 0.16, 1);
@@ -1761,10 +1978,10 @@ export class Globe {
     const lowAlt = basePushedBack(this.camera.position.length(), td?.mesh?.visible || td?.prev?.visible);
     const sm = this.sphere.material;
     if (sm.polygonOffset !== lowAlt) { sm.polygonOffset = lowAlt; sm.polygonOffsetFactor = 1; sm.polygonOffsetUnits = 1000; }
-    if (this.tileDetail) this.tileDetail.update(dt);
+    if (this.tileDetail && !this._tour) this.tileDetail.update(dt); // no tile streaming mid-tour
     if (this.clouds) {
       this.clouds.rotation.y += dt * 0.0015;
-      this.clouds.material.opacity = GFX.clouds && !this._gameplayActive && this.camera.position.length() >= 1.7 ? 0.5 : 0;
+      this.clouds.material.opacity = GFX.clouds && !this._gameplayActive && (this.camera.position.length() >= 1.7 || this._tour) ? 0.5 : 0;
     }
     this.spaceScenery?.update(dt, this.camera);
     this.sky?.update(dt, this.camera);

@@ -1,0 +1,322 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "bbox": [
+    78.29,
+    -9.35,
+    78.29,
+    -9.35
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     78.29,
+     -9.35
+    ]
+   },
+   "properties": {
+    "eventtype": "TC",
+    "eventid": 1001352,
+    "episodeid": 1,
+    "eventname": "03-20262027-27",
+    "glide": "",
+    "name": "Tropical Cyclone 03-20262027-27",
+    "description": "Tropical Cyclone 03-20262027-27",
+    "alertlevel": "Green",
+    "alertscore": 1,
+    "episodealertlevel": "Green",
+    "episodealertscore": 1.0,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "",
+    "fromdate": "2026-11-24T06:00:00",
+    "todate": "2026-11-24T06:00:00",
+    "datemodified": "2026-11-25T05:05:04",
+    "iso3": "",
+    "source": "RSMC",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "countryonland": "",
+    "severitydata": {
+     "severity": 63.332928,
+     "severitytext": "Tropical Depression (maximum wind speed of 63 km/h)",
+     "severityunit": "km/h"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    122.2949,
+    -19.1428,
+    122.2949,
+    -19.1428
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     122.2949,
+     -19.1428
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1033859,
+    "episodeid": 33,
+    "eventname": "",
+    "glide": "",
+    "name": "Forest fires in Australia",
+    "description": "Forest fires in Australia",
+    "alertlevel": "Green",
+    "alertscore": 1,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "Australia",
+    "fromdate": "2026-11-14T00:00:00",
+    "todate": "2026-11-25T00:00:00",
+    "datemodified": "2026-11-26T00:13:28",
+    "iso3": "AUS",
+    "source": "GWIS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "severitydata": {
+     "severity": 54932.0,
+     "severitytext": "Green impact for forestfire in 54932 ha",
+     "severityunit": "ha"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    10.494,
+    9.1423,
+    10.494,
+    9.1423
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     10.494,
+     9.1423
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1033886,
+    "episodeid": 26,
+    "eventname": "",
+    "glide": "",
+    "name": "Forest fires in Nigeria",
+    "description": "Forest fires in Nigeria",
+    "alertlevel": "Green",
+    "alertscore": 1,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "Nigeria",
+    "fromdate": "2026-11-12T00:00:00",
+    "todate": "2026-11-24T00:00:00",
+    "datemodified": "2026-11-26T00:23:22",
+    "iso3": "NGA",
+    "source": "GWIS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "severitydata": {
+     "severity": 48008.0,
+     "severitytext": "Green impact for forestfire in 48008 ha",
+     "severityunit": "ha"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    124.1279,
+    -16.4424,
+    124.1279,
+    -16.4424
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     124.1279,
+     -16.4424
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1033911,
+    "episodeid": 28,
+    "eventname": "",
+    "glide": "",
+    "name": "Forest fires in Australia",
+    "description": "Forest fires in Australia",
+    "alertlevel": "Green",
+    "alertscore": 1,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "Australia",
+    "fromdate": "2026-11-12T00:00:00",
+    "todate": "2026-11-25T00:00:00",
+    "datemodified": "2026-11-26T00:21:38",
+    "iso3": "AUS",
+    "source": "GWIS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "severitydata": {
+     "severity": 46598.0,
+     "severitytext": "Green impact for forestfire in 46598 ha",
+     "severityunit": "ha"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    25.702,
+    8.0675,
+    25.702,
+    8.0675
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.702,
+     8.0675
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1033855,
+    "episodeid": 21,
+    "eventname": "",
+    "glide": "",
+    "name": "Forest fires in South Sudan",
+    "description": "Forest fires in South Sudan",
+    "alertlevel": "Green",
+    "alertscore": 1,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "South Sudan",
+    "fromdate": "2026-11-12T00:00:00",
+    "todate": "2026-11-24T00:00:00",
+    "datemodified": "2026-11-26T00:21:23",
+    "iso3": "SSD",
+    "source": "GWIS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "severitydata": {
+     "severity": 37940.0,
+     "severitytext": "Green impact for forestfire in 37940 ha",
+     "severityunit": "ha"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    -53.8329,
+    -2.3932,
+    -53.8329,
+    -2.3932
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -53.8329,
+     -2.3932
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1034086,
+    "episodeid": 1,
+    "eventname": "",
+    "glide": "",
+    "name": "Forest fires in Brazil",
+    "description": "Forest fires in Brazil",
+    "alertlevel": "Green",
+    "alertscore": 1,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "Brazil",
+    "fromdate": "2026-11-12T00:00:00",
+    "todate": "2026-11-25T00:00:00",
+    "datemodified": "2026-11-26T00:22:27",
+    "iso3": "BRA",
+    "source": "GWIS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "severitydata": {
+     "severity": 5033.0,
+     "severitytext": "Green impact for forestfire in 5033 ha",
+     "severityunit": "ha"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    -50.7327,
+    -2.8796,
+    -50.7327,
+    -2.8796
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -50.7327,
+     -2.8796
+    ]
+   },
+   "properties": {
+    "eventtype": "WF",
+    "eventid": 1034070,
+    "episodeid": 1,
+    "eventname": "",
+    "glide": "",
+    "name": "Forest fires in Brazil",
+    "description": "Forest fires in Brazil",
+    "alertlevel": "Green",
+    "alertscore": 1,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "Brazil",
+    "fromdate": "2026-11-13T00:00:00",
+    "todate": "2026-11-25T00:00:00",
+    "datemodified": "2026-11-26T00:17:50",
+    "iso3": "BRA",
+    "source": "GWIS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "severitydata": {
+     "severity": 5018.0,
+     "severitytext": "Green impact for forestfire in 5018 ha",
+     "severityunit": "ha"
+    }
+   }
+  }
+ ],
+ "bbox": null
+}

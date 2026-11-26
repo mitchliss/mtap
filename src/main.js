@@ -9,6 +9,8 @@ import { Experience, renderLiveLines } from './experience.js';
 import { initLensUI } from './lensui.js';
 import { describeQuakeRound } from './discovery.js';
 import { quakeFor } from './quakes.js';
+import { loadFeatureShape, shapeFor, nearestOnShape } from './featureshape.js';
+import { kindChip, promptLabelFor, featureVerdict } from './nature.js';
 import { loadCountries, countryAt, formatDistance } from './geo.js';
 import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
@@ -230,7 +232,49 @@ function startChallenge(c) {
   beginSession(new GameSession(c.puzzle || practiceSeed(), true, null, { locations: c.locations, challenge: c }));
 }
 
+// ---------- opening flight ----------
+
+// Today's answers (and the family place that may be dealt): the Grand Tour
+// never flies low over, or captions anything near, these.
+function openingAvoidList() {
+  const pn = puzzleNumberForToday();
+  const out = [];
+  const add = (p) => { if (p && Number.isFinite(p.lat) && Number.isFinite(p.lng)) out.push({ lat: p.lat, lng: p.lng }); };
+  try { dailyPicksFor(pn).forEach(add); } catch (err) { console.warn('tour avoid list', err); }
+  try { add(familyPlaceForPuzzle(pn)); add(familyPlaceForPuzzle(pn, getActivePlayer())); } catch { /* no family places */ }
+  return out;
+}
+
+// The full Grand Tour plays once per day per device (marctap.tourDay = the
+// puzzle number); later loads that day, and reduced-motion, get the short swoop.
+async function playOpening() {
+  const pn = puzzleNumberForToday();
+  const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  let seen = null;
+  try { seen = localStorage.getItem('marctap.tourDay'); } catch { /* private mode */ }
+  if (reduced || seen === String(pn) || typeof globe.grandTour !== 'function') { globe.cinematicIntro(); return; }
+  try { localStorage.setItem('marctap.tourDay', String(pn)); } catch { /* private mode */ }
+  // Live stops are optional: give the live layer a moment if it says it is
+  // loading, never long enough to notice.
+  // The live layer loads itself on the first menu frames: wait a moment for it.
+  for (let i = 0; i < 12 && !globe.live; i++) await new Promise((r) => setTimeout(r, 50));
+  const live = globe.live;
+  if (typeof live?.ready === 'function') {
+    try { await Promise.race([Promise.resolve(live.ready()), new Promise((r) => setTimeout(r, 600))]); } catch { /* scenic route */ }
+  }
+  if (session && globe.interactive) return; // a game started meanwhile - it owns the camera
+  let stops = [];
+  try { const s = live?.tourStops?.(); if (Array.isArray(s)) stops = s; } catch { /* scenic route */ }
+  try {
+    globe.grandTour({ stops, avoid: openingAvoidList(), seed: pn });
+  } catch (err) {
+    console.warn('grand tour failed, short swoop instead', err);
+    globe.cinematicIntro();
+  }
+}
+
 function startGame(isPractice) {
+  globe?.skipTour?.();
   if (!localStorage.getItem('marctap.introDone') && !localStorage.getItem('marctap.seenHelp')) {
     experience.startIntro(() => startGame(isPractice));
     return;
@@ -248,6 +292,8 @@ function beginSession(s) {
     if (familyPlace) session.appendFamilyRound(familyPlace);
   }
   noteLocationsSeen(session.locations.filter((l) => !l.isFamily).map((l) => l.name));
+  // Nature rounds score against their outline: fetch every one in this game now.
+  for (const l of session.locations) if (l.isFeature) loadFeatureShape(l.id);
   awaitingConfirm = false;
   roundLocked = false;
   hide(els.startScreen);
@@ -326,13 +372,13 @@ function beginRound() {
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
       (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
   } else {
-    labelEl.textContent = quakeFor(loc) ? 'Tap where the ground shook…' : loc.isNews ? 'Tap where this is happening…' : loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
+    labelEl.textContent = loc.isFeature ? promptLabelFor(loc) : quakeFor(loc) ? 'Tap where the ground shook…' : loc.isNews ? 'Tap where this is happening…' : loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
     els.promptCard.classList.remove('family-round');
     const theme = (!session.isPractice || session.replayOf) ? dailyThemeFor(session.replayOf || session.seed) : null;
     const prefix = session.replayOf ? `Replay #${session.replayOf} · ` : session.challenge ? `⚔️ vs ${session.challenge.name.replace(/[<>&]/g, '')} · ` : '';
     els.promptSub.innerHTML = `${prefix}Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
       (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '') +
-      (quakeFor(loc) ? '<span class="news-chip quake-chip">〰️ Earthquake round</span>' : loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
+      (loc.isFeature ? `<span class="news-chip nature-chip">${kindChip(loc.kind)}</span>` : quakeFor(loc) ? '<span class="news-chip quake-chip">〰️ Earthquake round</span>' : loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
   }
   if (isLandmark(loc)) els.promptSub.innerHTML += '<br>Landmark precision: +10 within 100 m · +25 within 25 m';
   renderRoundDots();
@@ -408,7 +454,13 @@ function confirmGuess(lat, lng) {
 
   // Compact DOM labels keep both points readable on narrow screens.
   globe.clearPin();
-  globe.showAnswer(result.guess, { lat: result.target.lat, lng: result.target.lng }, []);
+  // A nature round's comet flies to the nearest edge of the shape (or its middle when
+  // the pin is inside), and the whole outline lights up.
+  const shape = result.target.isFeature ? shapeFor(result.target.id) : null;
+  const edge = shape ? nearestOnShape(shape, result.guess.lat, result.guess.lng) : null;
+  result.edge = edge && !edge.inside ? { lat: edge.lat, lng: edge.lng } : null;
+  globe.showAnswer(result.guess, result.edge || { lat: result.target.lat, lng: result.target.lng }, []);
+  if (shape) globe.showFeatureShape(shape, result.target);
   if (quakeFor(result.target)) globe.showQuakeRings(result.target, quakeFor(result.target).mag);
   hide(els.promptCard);
   experience.reveal(result, settings.miles);
@@ -417,14 +469,17 @@ function confirmGuess(lat, lng) {
   clearTimeout(resultPanelTimer);
   resultPanelTimer = setTimeout(() => {
     els.resultPlace.textContent = result.target.name;
-    els.resultDistance.textContent = result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
+    $('result-distance-label').textContent = result.target.isFeature ? (result.distanceKm <= 0.5 ? 'right on it' : 'from the edge') : 'away';
+    els.resultDistance.textContent = result.target.isFeature
+      ? (result.distanceKm <= 0.5 ? '🎯 Inside!' : formatDistance(result.distanceKm, settings.miles))
+      : result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
     els.resultPoints.textContent = result.hintUsed
       ? `+${result.points} (½ — hint used)`
       : result.multiplier > 1
         ? `+${result.points} (${result.score}×${result.multiplier})`
         : `+${result.points}`;
     if (result.precisionBonus) els.resultPoints.textContent += ` · +${result.precisionBonus} landmark precision`;
-    els.resultVerdict.textContent = verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
+    els.resultVerdict.textContent = result.target.isFeature ? featureVerdict(result, settings.miles) : verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
     if (isLandmark(result.target) && !result.precisionBonus) {
       els.resultVerdict.textContent += ' ' + precisionMessage(result.target, 0);
     }
@@ -433,7 +488,7 @@ function confirmGuess(lat, lng) {
     // near-target match comes back; the curated fact always shows regardless.
     hide(els.resultPop);
     const popRound = session.roundIndex;
-    fetchPopulationNear(result.target.name, result.target.lat, result.target.lng).then((pop) => {
+    (result.target.isFeature ? Promise.resolve(null) : fetchPopulationNear(result.target.name, result.target.lat, result.target.lng)).then((pop) => {
       if (pop && session && session.roundIndex === popRound) {
         els.resultPop.textContent = `👥 Population: ${formatPopulation(pop)}`;
         show(els.resultPop);
@@ -1502,7 +1557,7 @@ async function boot() {
   globe.setRealisticLighting(settings.realisticLighting !== false);
   globe.setLiveEarth(settings.liveEarth !== false);
   lensUI = initLensUI({ globe, toast, caption: snapshotCaption, puzzle: puzzleNumberForToday });
-  globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
+  playOpening(); // the Grand Tour once a day, else the short swoop from deep space
 
   // Social boot: import any share-link payload (needs country data), then profiles.
   processIncomingPayload();

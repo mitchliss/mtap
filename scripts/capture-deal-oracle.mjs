@@ -7,7 +7,7 @@ import { dailyPicksFor } from '../src/game.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // Every fixture is immutable once captured: each one pins the deals that were
 // live through its last puzzle, so any dealer change must reproduce ALL of them.
-const FIXTURES = [43, 47];
+const FIXTURES = [43, 47, 128];
 
 function serialize(last) {
   const actual = Object.fromEntries(
