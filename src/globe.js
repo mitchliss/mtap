@@ -684,8 +684,12 @@ export class Globe {
 
   // Lenses (v5.2): null = none. The lens code loads on first use; it only ever
   // draws when no pin can be placed (see _tick).
-  setLens(id) {
+  // scope 'menus' (lens of the day): menus, end screen and Explore only - never in a
+  // round, answer card included. scope 'always' (a lens the player picked): any time
+  // no pin can be placed.
+  setLens(id, scope = 'always') {
     this._lensId = id || null;
+    this._lensScope = scope;
     if (this.lens) { this.lens.setLens(this._lensId); return; }
     if (!this._lensId || this._lensLoading) return;
     this._lensLoading = true;
@@ -694,7 +698,7 @@ export class Globe {
       this.lens.setLens(this._lensId);
     }).catch((err) => console.warn('Lenses unavailable', err)).finally(() => { this._lensLoading = false; });
   }
-  _lensActive() { return !!(this.lens && this._lensId && !this.interactive); }
+  _lensActive() { return !!(this.lens && this._lensId && !this.interactive && (this._lensScope !== 'menus' || !this._gameplayActive)); }
 
   // The current view as a 2D canvas (lens included), for share cards. Renders
   // synchronously so the WebGL buffer is still valid when it is copied.

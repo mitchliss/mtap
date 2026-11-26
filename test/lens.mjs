@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, access } from 'node:fs/promises';
 import * as THREE from 'three';
 import { LENSES, lensById, lensMaterial, LensPass } from '../src/lens.js';
-import { cardLayout, lensName, savedLens } from '../src/lensui.js';
+import { cardLayout, lensName, savedLens, lensChoice, lensOfDay, lensForChoice } from '../src/lensui.js';
 import { Globe } from '../src/globe.js';
 
 let passed = 0;
@@ -105,15 +105,21 @@ await test('slow-device guard: switches a lens off only when frames stay slow', 
   assert.equal(slow.length, 1, 'no verdict before a full window after a pause');
 });
 
-await test('a lens never draws while a guess is being made', () => {
+await test('a lens never draws while a guess is being made; the lens of the day stays off the whole round', () => {
   const g = Object.create(Globe.prototype);
-  g.lens = {}; g._lensId = 'nightowl';
+  g.lens = {}; g._lensId = 'nightowl'; g._lensScope = 'always';
   g.interactive = true;
   assert.equal(g._lensActive(), false);
   g.interactive = false;
   assert.equal(g._lensActive(), true);
   g._lensId = null;
   assert.equal(g._lensActive(), false);
+  // Lens of the day: menus / end screen / Explore only - not on the answer card.
+  g._lensId = 'heatmap'; g._lensScope = 'menus'; g.interactive = false;
+  g._gameplayActive = true;
+  assert.equal(g._lensActive(), false, 'answer card in a round');
+  g._gameplayActive = false;
+  assert.equal(g._lensActive(), true, 'menus, end screen, Explore');
 });
 
 await test('share card keeps the view\'s shape: square on a phone, a band on desktop, never past the source', () => {
@@ -130,14 +136,25 @@ await test('share card keeps the view\'s shape: square on a phone, a band on des
   }
 });
 
-await test('remembered lens: only known ids come back', () => {
+await test('remembered choice: lens of the day by default, "off" and picked lenses stick, junk is ignored', () => {
   const mem = new Map();
   globalThis.localStorage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
-  assert.equal(savedLens(), null);
-  mem.set('marctap.lens', 'retrotv'); assert.equal(savedLens(), 'retrotv');
-  mem.set('marctap.lens', 'xray'); assert.equal(savedLens(), null);
+  assert.equal(lensChoice(), 'daily');
+  mem.set('marctap.lens', 'retrotv'); assert.equal(lensChoice(), 'retrotv'); assert.equal(savedLens(), 'retrotv');
+  mem.set('marctap.lens', 'off'); assert.equal(lensChoice(), 'off'); assert.equal(savedLens(), null);
+  mem.set('marctap.lens', 'xray'); assert.equal(lensChoice(), 'daily');
   delete globalThis.localStorage;
-  assert.equal(savedLens(), null, 'no storage (private mode) is fine');
+  assert.equal(lensChoice(), 'daily', 'no storage (private mode) is fine');
+});
+
+await test('lens of the day: a different lens each day through all five, menus only', () => {
+  const week = [127, 128, 129, 130, 131].map(lensOfDay);
+  assert.equal(new Set(week).size, 5);
+  for (const id of week) assert.ok(lensById(id), id);
+  assert.equal(lensOfDay(127), lensOfDay(132), 'repeats every five days');
+  assert.deepEqual(lensForChoice('daily', 127), [lensOfDay(127), 'menus']);
+  assert.deepEqual(lensForChoice('off', 127), [null, 'always']);
+  assert.deepEqual(lensForChoice('noir', 127), ['noir', 'always']);
 });
 
 console.log(`\n${passed} lens tests passed`);
