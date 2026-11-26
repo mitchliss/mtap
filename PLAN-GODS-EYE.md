@@ -1,6 +1,6 @@
 # MTap × God's Eye View — plan and options
 
-Status: **Option A live (v5.1), option B built (v5.2), 2026-11-25**; C-E are proposals. Written 2026-11-25. God's Eye View (GEV) is vendored at
+Status: **live: A (v5.1), B (v5.2), C's earthquake round (v5.3)**, 2026-11-25; the rest of C, and D-E, are proposals. Written 2026-11-25. God's Eye View (GEV) is vendored at
 `vendor/gods-eye-view` (pinned 7646568a, see `vendor/README.md`).
 
 ## The short version
@@ -94,7 +94,9 @@ Cost: about 3-4 days (each shader takes about half a day to port and tune). Risk
 
 Each becomes a `news.js` entry, or a sibling list with the same append-only rules, written by
 the existing daily news job, so the deal stays identical for everyone:
-- **Quake round**: "A magnitude 6.8 earthquake struck here yesterday." Taken from USGS and
+- **Quake round** (BUILT, v5.3: an optional `quake: { mag, depthKm, time, usgs }` on a news entry,
+  checked by `scripts/validate-news.mjs`; chip, rings and answer line in the game; the daily news
+  routine prefers an M6+ quake from the last 48 h): "A magnitude 6.8 earthquake struck here yesterday." Taken from USGS and
   frozen into the entry. The reveal shows the shaking rings. This is close to zero engine work,
   because it is a news round with a new chip and a ring effect.
 - **From orbit** (weekly special): the clue is a satellite image of the place (MTap already

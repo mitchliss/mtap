@@ -11,6 +11,7 @@ import { SpaceScenery } from './space.js';
 import { Sky } from './sky.js';
 import { createAtmosphere } from './atmosphere.js';
 import { glowDiscTexture, makeArcRibbon, softRingTexture } from './effects.js';
+import { quakeRingSize } from './discovery.js';
 import { GFX, K_ROT, applySunShader, basePushedBack, rotationSpeedForAltitude, selectTextureTier, smoothingAlpha, subsolarPoint } from './graphics.js';
 
 const GLOBE_RADIUS = 1;
@@ -1279,6 +1280,24 @@ export class Globe {
     this.framePoints(guess || answer, answer);
   }
 
+  // Earthquake rounds (v5.3): three shaking rings spread from the epicentre, sized by
+  // magnitude. They wait (negative t) until the comet has landed on the answer.
+  showQuakeRings(answer, mag) {
+    const size = quakeRingSize(mag);
+    const pos = latLngToVec3(answer.lat, answer.lng, GLOBE_RADIUS * 1.005);
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({
+        map: this._softRing(), color: 0xff9a3a, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false,
+      }));
+      ring.position.copy(pos);
+      ring.lookAt(pos.clone().multiplyScalar(2));
+      ring.visible = false;
+      this.markerRoot.add(ring);
+      this._resultObjects.push(ring);
+      this._pulses.push({ mesh: ring, t: -1.0 - i * 0.75, period: 2.25, grow: 2.6 });
+    }
+  }
+
   // Second act of the reveal: answer beam + pulsing ring + neon label.
   _revealAnswer() {
     if (!this._reveal || this._reveal.answerShown) return;
@@ -1778,9 +1797,12 @@ export class Globe {
         }
         return true;
       }
-      const k = 1 + 2.2 * (p.t % 1.4) / 1.4;
+      if (p.t < 0) return true; // scheduled to start later (quake rings)
+      p.mesh.visible = true;
+      const period = p.period || 1.4, f = (p.t % period) / period;
+      const k = 1 + (p.grow ?? 2.2) * f;
       p.mesh.scale.set(k, k, k);
-      p.mesh.material.opacity = Math.max(0, 0.9 * (1 - (p.t % 1.4) / 1.4));
+      p.mesh.material.opacity = Math.max(0, 0.9 * (1 - f));
       return true;
     });
 

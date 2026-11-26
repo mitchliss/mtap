@@ -24,6 +24,17 @@ export function nearbyCities(target, cities, limit = 3) {
   return cities.map((city) => ({ ...city, distance: distanceKm(target.lat, target.lng, city.lat, city.lng) }))
     .filter((city) => city.distance < 900).sort((a, b) => a.distance - b.distance).slice(0, limit);
 }
+// Earthquake rounds (v5.3): the USGS numbers in one line, time in the player's clock.
+export const usgsEventUrl = (q) => `https://earthquake.usgs.gov/earthquakes/eventpage/${q.usgs}`;
+export function describeQuakeRound(q, locale) {
+  const when = new Date(q.time).toLocaleString(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const depth = q.depthKm < 70 ? `${Math.round(q.depthKm)} km deep, shallow, so it was felt strongly`
+    : q.depthKm < 300 ? `${Math.round(q.depthKm)} km deep` : `${Math.round(q.depthKm)} km deep, very deep, so it was felt gently over a wide area`;
+  return `Magnitude ${q.mag.toFixed(1)} earthquake, ${depth}. It struck ${when} your time.`;
+}
+// Ring size on the globe grows with magnitude (each whole step is ~32x the energy).
+export const quakeRingSize = (mag) => Math.min(0.16, Math.max(0.03, 0.05 * Math.pow(1.5, mag - 6)));
+
 export function shortStory(extract) {
   const sentences = extract.match(/[^.!?]+[.!?]+(?:\s|$)/g);
   const text = sentences?.slice(0, 2).join('').trim() || extract;
