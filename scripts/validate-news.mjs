@@ -17,6 +17,25 @@ export function puzzleNumberInTimeZone(date, timeZone = 'America/New_York') {
   return Math.max(1, Math.round((day - Date.UTC(2026, 6, 22)) / 86400000) + 1);
 }
 
+// Earthquake rounds (v5.3): the numbers come straight from the USGS event.
+// { mag, depthKm, time: ISO UTC, usgs: event id } - the quake must have struck in
+// the week before the puzzle's day (an earthquake round is news, not history).
+export function puzzleStartUtcMs(pn) { return Date.UTC(2026, 6, 22) + (pn - 1) * 86400000; }
+export function quakeErrors(entry) {
+  const q = entry.quake, errors = [];
+  if (!q || typeof q !== 'object') return ['quake must be an object'];
+  if (!Number.isFinite(q.mag) || q.mag < 4 || q.mag >= 10) errors.push('quake.mag must be 4.0-9.9');
+  if (!Number.isFinite(q.depthKm) || q.depthKm < -5 || q.depthKm > 800) errors.push('quake.depthKm must be -5..800');
+  if (typeof q.usgs !== 'string' || !/^[a-z0-9]{6,24}$/.test(q.usgs)) errors.push('quake.usgs must be the USGS event id (e.g. us7000abcd)');
+  const t = typeof q.time === 'string' && /Z$/.test(q.time) ? Date.parse(q.time) : NaN;
+  if (!Number.isFinite(t)) errors.push('quake.time must be an ISO UTC time ending in Z');
+  else if (Number.isInteger(entry.pn)) {
+    const day = puzzleStartUtcMs(entry.pn);
+    if (t > day + 86400000 || t < day - 8 * 86400000) errors.push('quake.time must be within the week before the puzzle');
+  }
+  return errors;
+}
+
 export function validateNewsEntries(entries, { now = new Date(), currentPuzzle = null } = {}) {
   const errors = [];
   const current = currentPuzzle ?? puzzleNumberInTimeZone(now);
@@ -39,6 +58,7 @@ export function validateNewsEntries(entries, { now = new Date(), currentPuzzle =
     if (names.has(entry.name)) errors.push(`${at}: duplicate name`); else names.add(entry.name);
     if (!newsRollFor(entry.pn) && !entry.force) errors.push(`${at}: off-roll entry requires force`);
     if (entry.allowNear && typeof entry.justification !== 'string') errors.push(`${at}: allowNear requires justification`);
+    if (entry.quake !== undefined) for (const e of quakeErrors(entry)) errors.push(`${at}: ${e}`);
     const resolved = Number.isFinite(entry.lat) && Number.isFinite(entry.lng) ? countryAt(entry.lat, entry.lng) : null;
     if (entry.offshore) {
       if (entry.country !== null) errors.push(`${at}: offshore entry must have country null`);

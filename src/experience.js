@@ -1,6 +1,6 @@
 import { distanceKm, formatDistance } from './geo.js';
 import { fetchWikiSummary } from './enrich.js';
-import { bearingWord, guessRelationship, nearbyCities, shortStory } from './discovery.js';
+import { bearingWord, describeQuakeRound, guessRelationship, nearbyCities, shortStory, usgsEventUrl } from './discovery.js';
 
 const $ = (id) => document.getElementById(id);
 const visible = (id, on) => $(id).classList.toggle('hidden', !on);
@@ -170,6 +170,12 @@ export class Experience {
     $('app').classList.add('discovering'); this.globe.resize();
     this.globe.framePoints(result.guess, result.target);
     this.active = false; this.precision(false); visible('aim-tools', false);
+    const quake = result.target.quake;
+    visible('discovery-quake', !!quake);
+    if (quake) {
+      $('discovery-quake').querySelector('span').textContent = describeQuakeRound(quake);
+      $('discovery-quake').querySelector('a').href = usgsEventUrl(quake);
+    }
     $('discovery-relation').textContent = guessRelationship(result.guess, result.target, miles, result.guessCountry ? result.guessCountry.name : null);
     visible('discovery-world', result.distanceKm > 17500);
     if (result.distanceKm > 17500) {
