@@ -1532,7 +1532,7 @@ export class Globe {
 
     // Caption windows: each stop is named as the camera passes over it; windows
     // never overlap, and one too short to read is dropped.
-    const ICON = { storm: '🌀', fire: '🔥', quake: '〰️' };
+    const ICON = { storm: '🌀', fire: '🔥', quake: '〰️', news: '📰' };
     const windows = [];
     path.stops.forEach((s, i) => {
       const next = path.stops[i + 1];

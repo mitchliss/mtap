@@ -256,6 +256,8 @@ async function playOpening() {
   try { localStorage.setItem('marctap.tourDay', String(pn)); } catch { /* private mode */ }
   // Live stops are optional: give the live layer a moment if it says it is
   // loading, never long enough to notice.
+  // The live layer loads itself on the first menu frames: wait a moment for it.
+  for (let i = 0; i < 12 && !globe.live; i++) await new Promise((r) => setTimeout(r, 50));
   const live = globe.live;
   if (typeof live?.ready === 'function') {
     try { await Promise.race([Promise.resolve(live.ready()), new Promise((r) => setTimeout(r, 600))]); } catch { /* scenic route */ }
