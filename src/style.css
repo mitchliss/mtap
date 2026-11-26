@@ -860,6 +860,7 @@ button:focus-visible { outline: 2px solid #a6e2ff; outline-offset: 3px; }
 .start-theme b { color: var(--gold); }
 .theme-chip { display: inline-block; background: rgba(255, 209, 102, 0.16); color: var(--gold); border-radius: 999px; padding: 1px 8px; font-size: 0.78rem; font-weight: 700; margin-left: 6px; }
 .quake-chip { background: rgba(255, 154, 58, 0.18) !important; color: #ffc58a !important; }
+.nature-chip { background: rgba(255, 196, 92, 0.16) !important; color: #ffd98f !important; }
 .news-chip { display: inline-block; background: rgba(80, 190, 255, 0.18); color: #9fddff; border-radius: 999px; padding: 1px 8px; font-size: 0.78rem; font-weight: 700; margin-left: 6px; }
 .debug-overlay { position: fixed; z-index: 9999; left: 6px; bottom: 6px; margin: 0; max-width: min(96vw, 520px); max-height: 45vh; overflow: auto; padding: 7px; border-radius: 6px; background: rgba(0,0,0,.78); color: #9fffc2; font: 10px/1.25 ui-monospace, monospace; pointer-events: none; white-space: pre-wrap; }
 

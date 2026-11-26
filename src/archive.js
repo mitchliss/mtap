@@ -5,15 +5,20 @@
 
 import { LOCATIONS } from './locations.js';
 import { NEWS } from './news.js';
-import { dailyPicksFor, dailyThemeFor, loadHistory, DAILY_GENERATION, emojiForScore } from './game.js';
+import { FEATURES } from './features.js';
+import { dailyPicksFor, dailyThemeFor, loadHistory, DAILY_GENERATION, emojiForScore, featureLoc } from './game.js';
 import { dateForPuzzle } from './themes.js';
 import { puzzleNumberForToday } from './rng.js';
 
 const NEWS_INDEX_BASE = 100000;
+const FEATURE_INDEX_BASE = 200000; // nature rounds (v5.6): FEATURES is append-only too
 const allByName = new Map([
   ...LOCATIONS.map((l, i) => [l.name, { loc: l, index: i }]),
   ...NEWS.map((l, i) => [l.name, { loc: l, index: NEWS_INDEX_BASE + i }]),
+  ...FEATURES.map((f, i) => [f.name, { loc: featureLoc(f), index: FEATURE_INDEX_BASE + i }]),
 ]);
+const locForIndex = (i) => (i >= FEATURE_INDEX_BASE ? featureLoc(FEATURES[i - FEATURE_INDEX_BASE])
+  : i >= NEWS_INDEX_BASE ? NEWS[i - NEWS_INDEX_BASE] : LOCATIONS[i]);
 
 export function shortDate(n) {
   return dateForPuzzle(n).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -56,7 +61,7 @@ export function buildChallengePayload(name, session) {
 
 export function importChallengePayload(p) {
   if (!p || p.t !== 'v' || !Array.isArray(p.i) || !p.i.length) return null;
-  const locs = p.i.map((i) => i >= NEWS_INDEX_BASE ? NEWS[i - NEWS_INDEX_BASE] : LOCATIONS[i]).filter(Boolean);
+  const locs = p.i.map((i) => locForIndex(Number(i))).filter(Boolean);
   if (locs.length !== p.i.length) return null; // a link from a newer build than this one
   return { name: String(p.n || 'A friend').slice(0, 24), locations: locs, score: Number(p.s) || 0, rounds: Array.isArray(p.r) ? p.r.map(Number) : [], puzzle: Number(p.p) || 0 };
 }

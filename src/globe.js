@@ -1284,6 +1284,71 @@ export class Globe {
     this.framePoints(guess || answer, answer);
   }
 
+  // Nature rounds (v5.6): paint the whole mountain range / desert / sea on the globe.
+  // The outline is drawn into a canvas covering just its bounding box, mapped onto a
+  // matching patch of sphere (equirectangular, like the globe's own texture), so the
+  // edge stays sharp at any size without a world-sized texture. Fades in as the comet
+  // lands, then breathes gently. shape: prepared (featureshape.js); f: its FEATURES row.
+  showFeatureShape(shape, f) {
+    if (!shape || !f) return;
+    const pad = 0.6;
+    let [w, s, e, n] = f.bbox;
+    w -= pad; e += pad; s = Math.max(-89.5, s - pad); n = Math.min(89.5, n + pad);
+    const spanX = e - w, spanY = n - s;
+    const k = Math.cos(((s + n) / 2) * Math.PI / 180);
+    const scale = Math.min(2048 / (spanX * Math.max(0.2, k)), 2048 / spanY, 160);
+    const W = Math.max(64, Math.round(spanX * Math.max(0.2, k) * scale));
+    const H = Math.max(64, Math.round(spanY * scale));
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const water = ['sea', 'gulf', 'strait', 'reef'].includes(f.kind);
+    const rgb = water ? '94,224,255' : '255,196,92';
+    g.beginPath();
+    for (const r of shape.rings) {
+      r.pts.forEach(([x, y], i) => {
+        const px = ((x - w) / spanX) * W, py = ((n - y) / spanY) * H;
+        if (i) g.lineTo(px, py); else g.moveTo(px, py);
+      });
+      g.closePath();
+    }
+    g.fillStyle = `rgba(${rgb},0.30)`; g.fill('evenodd');
+    g.lineJoin = 'round';
+    g.strokeStyle = `rgba(${rgb},0.35)`; g.lineWidth = Math.max(6, W / 160); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = Math.max(2, W / 520); g.stroke();
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy?.() || 1);
+    const D = Math.PI / 180;
+    const geo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.0035,
+      Math.min(160, Math.ceil(spanX / 1.5) + 4), Math.min(120, Math.ceil(spanY / 1.5) + 4),
+      (w + 180) * D, spanX * D, (90 - n) * D, spanY * D);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 3;
+    mesh.userData.featureBorn = performance.now();
+    this.markerRoot.add(mesh);
+    this._resultObjects.push(mesh);
+    this._featureShape = mesh;
+  }
+
+  // Fit a camera view around several points (a guess plus a shape's corners).
+  framePointsAll(points) {
+    const vs = points.filter(Boolean).map((p) => latLngToVec3(p.lat, p.lng, 1));
+    if (!vs.length) return;
+    const c = vs.reduce((a, v) => a.add(v), new THREE.Vector3());
+    if (c.lengthSq() < 1e-6) return;
+    c.normalize();
+    const half = Math.min(Math.PI / 2 - 0.05, Math.max(...vs.map((v) => v.angleTo(c))));
+    const vertical = THREE.MathUtils.degToRad(this.camera.fov / 2);
+    const horizontal = Math.atan(Math.tan(vertical) * this.camera.aspect);
+    const field = Math.min(vertical, horizontal) * 0.78;
+    const d = Math.max(this.controls?.minDistance ?? 1.04, 1.0005 / Math.max(0.01, Math.cos(half)),
+      Math.cos(half) + Math.sin(half) / Math.tan(field));
+    const ll = vec3ToLatLng(c);
+    this.flyTo(ll.lat, ll.lng, Math.min(8, d), 850);
+  }
+
   // Earthquake rounds (v5.3): three shaking rings spread from the epicentre, sized by
   // magnitude. They wait (negative t) until the comet has landed on the answer.
   showQuakeRings(answer, mag) {
@@ -1396,6 +1461,7 @@ export class Globe {
     this._beams = [];
     this._reveal = null;
     this._resultLabel = null;
+    this._featureShape = null;
   }
 
   // Boot cinematic: swoop from deep space down to play distance with a decaying
@@ -1702,6 +1768,12 @@ export class Globe {
 
     // Reveal choreography: beam pops, comet flight, label fade.
     const nowMs = performance.now();
+    if (this._featureShape) {
+      // Nature round: fade in as the comet lands (~0.9 s), then breathe gently.
+      const age = (nowMs - this._featureShape.userData.featureBorn) / 1000;
+      const fade = THREE.MathUtils.smoothstep(age, 0.7, 1.5);
+      this._featureShape.material.opacity = fade * (0.86 + 0.14 * Math.cos(age * 2.2));
+    }
     if (this._beams && this._beams.length) {
       // Beams keep a legible size while zooming and pop in with easeOutBack.
       const kBase = THREE.MathUtils.clamp((this.camera.position.length() - 1) / 1.6, 0.16, 1);

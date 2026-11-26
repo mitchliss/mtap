@@ -6,6 +6,8 @@ import { distanceKm, countryAt } from './geo.js';
 import { mulberry32, seededShuffle, puzzleNumberForToday, todayKey } from './rng.js';
 import { themeForPuzzle, tagsFor } from './themes.js';
 import { NEWS, NEWS_START, newsRollFor } from './news.js';
+import { FEATURES } from './features.js';
+import { featureDistanceKm } from './featureshape.js';
 
 export const ROUNDS_PER_GAME = 5;
 export const MAX_ROUND_SCORE = 100;
@@ -194,6 +196,48 @@ export function injectNewsIntoDeal(base, entry) {
   return { picks: base, slot: null, reason: 'deal-invariant' };
 }
 
+// ---------- nature rounds (v5.6) ----------
+// From #129 every daily deals one big natural place - a mountain range, desert, sea,
+// strait or peninsula (src/features.js) - in place of one ordinary round. It never
+// takes the news or heritage slot, prefers the slot whose difficulty matches, never
+// repeats within FEATURE_WINDOW days, and is never one whose outline (bounding box)
+// holds another of the day's answers, so a round can't give another away.
+export const FEATURE_START = 129; // Nov 27, 2026
+export const FEATURE_WINDOW = 150;
+const WANT_DIFF = [1, 1, 2, 3, 3];
+
+export const featureLoc = (f) => (f ? { ...f, country: null, isFeature: true } : null);
+const inBox = (f, l, pad = 1) => {
+  const [w, s, e, n] = f.bbox;
+  if (l.lat < s - pad || l.lat > n + pad) return false;
+  for (const x of [l.lng, l.lng + 360, l.lng - 360]) if (x >= w - pad && x <= e + pad) return true;
+  return false;
+};
+
+function recentFeatureNames(window, k) {
+  const names = new Set();
+  for (const w of window) if (w.n >= k - (FEATURE_WINDOW - 1)) for (const l of w.picks) if (l.isFeature) names.add(l.name);
+  return names;
+}
+
+// Replace one slot of `picks` with a nature round. rng: the day's seeded generator.
+export function injectFeature(picks, rng, recent = new Set()) {
+  const fixed = (l) => l.isNews || l.isFamily || tagsFor(l).has('jewish');
+  const slots = picks.map((l, i) => i).filter((i) => !fixed(picks[i]));
+  if (!slots.length) return picks;
+  const slot = slots[Math.floor(rng() * slots.length)];
+  const others = picks.filter((_, i) => i !== slot);
+  const waterFull = others.filter((l) => tagsFor(l).has('water')).length >= 2;
+  const ok = (f) => !recent.has(f.name) && !others.some((l) => inBox(f, l)) &&
+    !(waterFull && tagsFor(f).has('water')) && !others.some((l) => l.name === f.name);
+  const byDiff = FEATURES.filter((f) => f.diff === WANT_DIFF[slot] && ok(f));
+  const pool = byDiff.length ? byDiff : FEATURES.filter(ok);
+  if (!pool.length) return picks;
+  const out = picks.slice();
+  out[slot] = featureLoc(pool[Math.floor(rng() * pool.length)]);
+  return out;
+}
+
 export function dailyPicksFor(n) {
   if (n < NO_REPEAT_START) return pickLocations(n);
   if (dailyPickCache.has(n)) return dailyPickCache.get(n);
@@ -263,6 +307,7 @@ export function dailyPicksFor(n) {
         }
         if (!balanced || (candidate.filter((l) => tagsFor(l).has('water')).length <= 2 && keepsHeritage(candidate))) picks = candidate;
       }
+      if (k >= FEATURE_START) picks = injectFeature(picks, mulberry32(k * 104729 + 77), recentFeatureNames(window, k));
       dailyPickCache.set(k, picks);
       dailyThemeCache.set(k, theme);
     }
@@ -319,7 +364,9 @@ const CONTINENT_FLOOR = 10;
 const FLOOR_CAP = 80;
 
 export function scoreGuess(guessLat, guessLng, target) {
-  const d = distanceKm(guessLat, guessLng, target.lat, target.lng);
+  // A nature round is scored on the distance to the nearest edge of its outline:
+  // anywhere inside the Sahara is a bullseye.
+  const d = target.isFeature ? featureDistanceKm(target, guessLat, guessLng, distanceKm) : distanceKm(guessLat, guessLng, target.lat, target.lng);
   const accuracy = Math.round(Math.max(0, Math.min(100, 100 * Math.exp(-d / DECAY_KM))));
 
   const guessCountry = countryAt(guessLat, guessLng);
@@ -494,6 +541,8 @@ export class GameSession {
     // Dailies use the deterministic 30-day no-repeat chain; practice uses the
     // raw pick with the caller's local exclusions.
     this.locations = opts.locations ? opts.locations.slice() : (isPractice ? pickLocations(seed, excludeNames) : dailyPicksFor(seed));
+    // Practice games get a nature round too (v5.6), so the new rounds can be tried today.
+    if (isPractice && !opts.locations) this.locations = injectFeature(this.locations, mulberry32(seed * 31 + 5), new Set(excludeNames || []));
     this.roundIndex = 0;
     this.results = [];
   }

@@ -9,6 +9,8 @@ import { Experience, renderLiveLines } from './experience.js';
 import { initLensUI } from './lensui.js';
 import { describeQuakeRound } from './discovery.js';
 import { quakeFor } from './quakes.js';
+import { loadFeatureShape, shapeFor, nearestOnShape } from './featureshape.js';
+import { kindChip, promptLabelFor, featureVerdict } from './nature.js';
 import { loadCountries, countryAt, formatDistance } from './geo.js';
 import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
@@ -248,6 +250,8 @@ function beginSession(s) {
     if (familyPlace) session.appendFamilyRound(familyPlace);
   }
   noteLocationsSeen(session.locations.filter((l) => !l.isFamily).map((l) => l.name));
+  // Nature rounds score against their outline: fetch every one in this game now.
+  for (const l of session.locations) if (l.isFeature) loadFeatureShape(l.id);
   awaitingConfirm = false;
   roundLocked = false;
   hide(els.startScreen);
@@ -326,13 +330,13 @@ function beginRound() {
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
       (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
   } else {
-    labelEl.textContent = quakeFor(loc) ? 'Tap where the ground shook…' : loc.isNews ? 'Tap where this is happening…' : loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
+    labelEl.textContent = loc.isFeature ? promptLabelFor(loc) : quakeFor(loc) ? 'Tap where the ground shook…' : loc.isNews ? 'Tap where this is happening…' : loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
     els.promptCard.classList.remove('family-round');
     const theme = (!session.isPractice || session.replayOf) ? dailyThemeFor(session.replayOf || session.seed) : null;
     const prefix = session.replayOf ? `Replay #${session.replayOf} · ` : session.challenge ? `⚔️ vs ${session.challenge.name.replace(/[<>&]/g, '')} · ` : '';
     els.promptSub.innerHTML = `${prefix}Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
       (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '') +
-      (quakeFor(loc) ? '<span class="news-chip quake-chip">〰️ Earthquake round</span>' : loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
+      (loc.isFeature ? `<span class="news-chip nature-chip">${kindChip(loc.kind)}</span>` : quakeFor(loc) ? '<span class="news-chip quake-chip">〰️ Earthquake round</span>' : loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
   }
   if (isLandmark(loc)) els.promptSub.innerHTML += '<br>Landmark precision: +10 within 100 m · +25 within 25 m';
   renderRoundDots();
@@ -408,7 +412,13 @@ function confirmGuess(lat, lng) {
 
   // Compact DOM labels keep both points readable on narrow screens.
   globe.clearPin();
-  globe.showAnswer(result.guess, { lat: result.target.lat, lng: result.target.lng }, []);
+  // A nature round's comet flies to the nearest edge of the shape (or its middle when
+  // the pin is inside), and the whole outline lights up.
+  const shape = result.target.isFeature ? shapeFor(result.target.id) : null;
+  const edge = shape ? nearestOnShape(shape, result.guess.lat, result.guess.lng) : null;
+  result.edge = edge && !edge.inside ? { lat: edge.lat, lng: edge.lng } : null;
+  globe.showAnswer(result.guess, result.edge || { lat: result.target.lat, lng: result.target.lng }, []);
+  if (shape) globe.showFeatureShape(shape, result.target);
   if (quakeFor(result.target)) globe.showQuakeRings(result.target, quakeFor(result.target).mag);
   hide(els.promptCard);
   experience.reveal(result, settings.miles);
@@ -417,14 +427,16 @@ function confirmGuess(lat, lng) {
   clearTimeout(resultPanelTimer);
   resultPanelTimer = setTimeout(() => {
     els.resultPlace.textContent = result.target.name;
-    els.resultDistance.textContent = result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
+    els.resultDistance.textContent = result.target.isFeature
+      ? (result.distanceKm <= 0.5 ? '🎯 Inside!' : `${formatDistance(result.distanceKm, settings.miles)} from the edge`)
+      : result.bullseye ? '🎯 ' + formatDistance(result.distanceKm, settings.miles) : formatDistance(result.distanceKm, settings.miles);
     els.resultPoints.textContent = result.hintUsed
       ? `+${result.points} (½ — hint used)`
       : result.multiplier > 1
         ? `+${result.points} (${result.score}×${result.multiplier})`
         : `+${result.points}`;
     if (result.precisionBonus) els.resultPoints.textContent += ` · +${result.precisionBonus} landmark precision`;
-    els.resultVerdict.textContent = verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
+    els.resultVerdict.textContent = result.target.isFeature ? featureVerdict(result, settings.miles) : verdictForResult(result, formatDistance(result.distanceKm, settings.miles));
     if (isLandmark(result.target) && !result.precisionBonus) {
       els.resultVerdict.textContent += ' ' + precisionMessage(result.target, 0);
     }
@@ -433,7 +445,7 @@ function confirmGuess(lat, lng) {
     // near-target match comes back; the curated fact always shows regardless.
     hide(els.resultPop);
     const popRound = session.roundIndex;
-    fetchPopulationNear(result.target.name, result.target.lat, result.target.lng).then((pop) => {
+    (result.target.isFeature ? Promise.resolve(null) : fetchPopulationNear(result.target.name, result.target.lat, result.target.lng)).then((pop) => {
       if (pop && session && session.roundIndex === popRound) {
         els.resultPop.textContent = `👥 Population: ${formatPopulation(pop)}`;
         show(els.resultPop);
