@@ -1,38 +1,60 @@
 {
-  "updated": "2026-11-25T21:00:00Z",
+  "updated": "2026-11-26T12:00:00Z",
   "pins": [
     {
-      "id": "sample-natanz-1",
-      "lat": 33.72,
-      "lng": 51.73,
-      "place": "Natanz, Iran",
-      "title": "SAMPLE - Inspectors report on the enrichment site",
-      "summary": "Placeholder pin showing the format. Ids starting with sample- are never drawn; the news routine replaces this file.",
+      "id": "jazan-port-2026-11-25",
+      "lat": 16.89,
+      "lng": 42.55,
+      "place": "Jazan Port, Saudi Arabia",
+      "title": "Houthi projectile reported to hit Saudi Red Sea port of Jazan",
+      "summary": "Bloomberg reported minor damage and no injuries after Houthi forces struck Saudi Red Sea ports in retaliation for a coalition strike on Hodeidah.",
       "kind": "military",
-      "time": "2026-11-25T18:00:00Z",
-      "source": "https://www.iaea.org/"
+      "time": "2026-11-25T12:00:00Z",
+      "source": "https://www.bloomberg.com/news/articles/2026-11-25/houthis-launch-retaliatory-attacks-on-two-saudi-ports-on-red-sea"
     },
     {
-      "id": "sample-hormuz-1",
+      "id": "jeddah-port-2026-11-25",
+      "lat": 21.48,
+      "lng": 39.17,
+      "place": "Jeddah Islamic Port, Saudi Arabia",
+      "title": "Drone reported intercepted near Jeddah Islamic Port",
+      "summary": "Saudi Arabia said a drone was intercepted near the Red Sea port amid escalating Saudi-Houthi strikes. The Houthis have threatened all Saudi Red Sea ports.",
+      "kind": "military",
+      "time": "2026-11-25T12:00:00Z",
+      "source": "https://aljazeera.com/news/2026/11/25/houthis-target-saudi-arabias-red-sea-ports-as-strikes-escalate"
+    },
+    {
+      "id": "hodeidah-strike-2026-11-25",
+      "lat": 14.8,
+      "lng": 42.95,
+      "place": "Hodeidah, Yemen",
+      "title": "Saudi-led coalition reported striking Hodeidah port area",
+      "summary": "The Saudi-led coalition said it struck Hodeidah, prompting Houthi retaliation against Saudi Red Sea ports.",
+      "kind": "conflict",
+      "time": "2026-11-25T10:00:00Z",
+      "source": "https://aljazeera.com/news/2026/11/25/houthis-target-saudi-arabias-red-sea-ports-as-strikes-escalate"
+    },
+    {
+      "id": "hormuz-lng-2026-11-25",
       "lat": 26.57,
       "lng": 56.25,
       "place": "Strait of Hormuz",
-      "title": "SAMPLE - Shipping traffic update in the strait",
-      "summary": "Placeholder pin showing the format. Ids starting with sample- are never drawn; the news routine replaces this file.",
-      "kind": "conflict",
-      "time": "2026-11-25T15:30:00Z",
-      "source": "https://www.reuters.com/world/middle-east/"
+      "title": "IRGC reports LNG vessel fire from naval mine in Hormuz",
+      "summary": "Iran's IRGC said an LNG vessel caught fire after hitting a mine and claimed it downed US drones. These are Iranian claims not independently verified.",
+      "kind": "military",
+      "time": "2026-11-25T12:00:00Z",
+      "source": "https://www.khaleejtimes.com/world/mena/us-israel-iran-saudi-arabia-yemen-war-live-updates-november-25-2026"
     },
     {
-      "id": "sample-tehran-1",
-      "lat": 35.69,
-      "lng": 51.39,
-      "place": "Tehran, Iran",
-      "title": "SAMPLE - Government statement on regional talks",
-      "summary": "Placeholder pin showing the format. Ids starting with sample- are never drawn; the news routine replaces this file.",
+      "id": "s-lebanon-zones-2026-11-25",
+      "lat": 33.2,
+      "lng": 35.4,
+      "place": "Southern Lebanon",
+      "title": "French teams head to Israel over southern Lebanon pilot zones",
+      "summary": "French defense and diplomatic teams were reported heading to Israel to discuss the southern Lebanon pilot zones, which France considers not working.",
       "kind": "politics",
       "time": "2026-11-25T12:00:00Z",
-      "source": "https://apnews.com/hub/iran"
+      "source": "https://www.timesofisrael.com/liveblog-november-25-2026/"
     }
   ]
 }
