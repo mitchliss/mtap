@@ -1,4 +1,5 @@
-import { distanceKm, formatDistance } from './geo.js';
+import { countryAt, distanceKm, formatDistance } from './geo.js';
+import { describeNearbyTowns, nearbyTowns, regionAt, relationWithRegions } from './places.js';
 import { fetchWikiSummary } from './enrich.js';
 import { bearingWord, describeQuakeRound, guessRelationship, nearbyCities, shortStory, usgsEventUrl } from './discovery.js';
 
@@ -199,7 +200,29 @@ export class Experience {
     // the family wants to see which country they actually selected.
     const pinLabel = result.guessCountry && !result.countryMatch ? `Your pin · ${result.guessCountry.name}` : 'Your pin';
     addLabel(result.guess, pinLabel, 'guess'); addLabel(result.target, 'Destination', 'destination');
-    this.cities.then((cities) => {
+    // States / provinces (v5.4): sharpen the relation line once the small per-country
+    // files arrive; the line above stands if they don't.
+    const targetCountry = countryAt(result.target.lat, result.target.lng);
+    Promise.all([
+      result.guessCountry ? regionAt(result.guess.lat, result.guess.lng, result.guessCountry.iso2) : null,
+      targetCountry ? regionAt(result.target.lat, result.target.lng, targetCountry.iso2) : null,
+    ]).then(([guessRegion, targetRegion]) => {
+      if (token !== this.serial) return;
+      const line = relationWithRegions({
+        guess: result.guess, target: result.target, miles,
+        guessCountry: result.guessCountry?.name || null, targetCountry: targetCountry?.name || null, guessRegion, targetRegion,
+      });
+      if (line) $('discovery-relation').textContent = line;
+    }).catch(() => {});
+    // Nearby towns with population (Wikidata tiles); the older city list is the fallback.
+    nearbyTowns(result.target).catch(() => []).then(async (towns) => {
+      if (token !== this.serial) return;
+      if (towns.length) {
+        $('discovery-nearby').textContent = describeNearbyTowns(towns, result.target, miles);
+        towns.forEach((c) => { if (c.distance > 5) addLabel(c, c.name, 'city'); });
+        return;
+      }
+      const cities = await this.cities;
       if (token !== this.serial) return;
       const nearby = nearbyCities(result.target, cities);
       $('discovery-nearby').textContent = nearby.length

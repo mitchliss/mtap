@@ -1,6 +1,6 @@
 # MTap × God's Eye View — plan and options
 
-Status: **live: A (v5.1), B (v5.2), C's earthquake round (v5.3)**, 2026-11-25; the rest of C, and D-E, are proposals. Written 2026-11-25. God's Eye View (GEV) is vendored at
+Status: **live: A (v5.1), B (v5.2), C's earthquake round (v5.3); D built as v5.4 (names, not points)**, 2026-11-25; the rest of C and E are proposals. Written 2026-11-25. God's Eye View (GEV) is vendored at
 `vendor/gods-eye-view` (pinned 7646568a, see `vendor/README.md`).
 
 ## The short version
@@ -109,7 +109,20 @@ Cost: the quake round takes about 1 day; From orbit and Follow the ISS take abou
 each. Risk: medium, because the difficulty needs play-testing and From orbit needs a curated
 image per place.
 
-### D. Better data under the existing game (invisible but useful)
+### D. Better data under the existing game (BUILT as v5.4, without the scoring change)
+
+As built (`src/places.js`, packs from `scripts/build-geo-packs.mjs`): the answer card names the
+state / province of the pin and the destination ("Right country, and the right state too: Texas!",
+"Your pin landed in British Columbia; the destination is in Alberta.") and lists the biggest towns
+nearby with population. Province files are per country (largest: Russia, 82 KB gzipped) and load
+only after a guess; towns come from 10-degree Wikidata tiles.
+
+**Province partial credit was NOT built**, on measurement: a guess in the right country already
+scores its distance, a same-province guess is almost always within ~1,000 km (81+ points before any
+boost), and the country boost is capped at 80. A province floor under that cap changes nothing; one
+above it would add at most ~9 points, and only for 500-1,500 km misses inside very large
+provinces. Not worth a scoring rule. The sketch below is kept for the record.
+
 
 - Natural Earth **states and provinces** (public domain) add a "right state/province" partial
   credit tier between "right country" and distance. Big countries (US, Russia, Brazil, China)
