@@ -3,6 +3,7 @@
 // tap/double-tap picking, a draggable candidate pin, result markers, and great-circle arcs.
 
 import * as THREE from 'three';
+import { overlayRelief } from './relief.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { toRad, toDeg } from './geo.js';
 import { mulberry32 } from './rng.js';
@@ -120,6 +121,15 @@ async function buildEarthTexture(geojson, baseUrl, size = null) {
   ctx.filter = 'brightness(1.35) saturate(1.15)';
   ctx.drawImage(img, 0, 0, W, H);
   ctx.filter = 'none';
+
+  // v5.7 shaded relief (relief.js): mountains in 3-D at every distance. Skipped
+  // silently if the map can't load - the globe is then exactly as before.
+  if (GFX.relief > 0) {
+    try {
+      await overlayRelief(ctx, W, H, `${baseUrl}textures/${W > 4096 ? 'earth-relief.jpg' : 'earth-relief-low.jpg'}`,
+        { strength: GFX.relief, maxW: W > 4096 ? 4096 : 2048 });
+    } catch { /* flat, as before */ }
+  }
 
   // Very faint graticule (helps open-ocean guessing without breaking realism).
   const px = (lng) => ((lng + 180) / 360) * W;
@@ -1981,7 +1991,9 @@ export class Globe {
     if (this.tileDetail && !this._tour) this.tileDetail.update(dt); // no tile streaming mid-tour
     if (this.clouds) {
       this.clouds.rotation.y += dt * 0.0015;
-      this.clouds.material.opacity = GFX.clouds && !this._gameplayActive && (this.camera.position.length() >= 1.7 || this._tour) ? 0.5 : 0;
+      // v5.7: thin clouds on the answer card too (never while a guess is being made).
+      const cloudTarget = !GFX.clouds || this.interactive ? 0 : !this._gameplayActive && (this.camera.position.length() >= 1.7 || this._tour) ? 0.5 : this._gameplayActive && this.camera.position.length() >= 1.35 ? 0.3 : 0;
+      this.clouds.material.opacity += (cloudTarget - this.clouds.material.opacity) * Math.min(1, dt * 3);
     }
     this.spaceScenery?.update(dt, this.camera);
     this.sky?.update(dt, this.camera);

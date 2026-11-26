@@ -246,13 +246,13 @@ function openingAvoidList() {
 }
 
 // The full Grand Tour plays once per day per device (marctap.tourDay = the
-// puzzle number); later loads that day, and reduced-motion, get the short swoop.
+// puzzle number); later loads that day get the short swoop.
 async function playOpening() {
   const pn = puzzleNumberForToday();
-  const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   let seen = null;
   try { seen = localStorage.getItem('marctap.tourDay'); } catch { /* private mode */ }
-  if (reduced || seen === String(pn) || typeof globe.grandTour !== 'function') { globe.cinematicIntro(); return; }
+  // Mitch, 2026-11-26: play it even with iOS Reduce Motion on (a tap still skips it).
+  if (seen === String(pn) || typeof globe.grandTour !== 'function') { globe.cinematicIntro(); return; }
   try { localStorage.setItem('marctap.tourDay', String(pn)); } catch { /* private mode */ }
   // Live stops are optional: give the live layer a moment if it says it is
   // loading, never long enough to notice.
