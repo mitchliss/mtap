@@ -232,7 +232,47 @@ function startChallenge(c) {
   beginSession(new GameSession(c.puzzle || practiceSeed(), true, null, { locations: c.locations, challenge: c }));
 }
 
+// ---------- opening flight ----------
+
+// Today's answers (and the family place that may be dealt): the Grand Tour
+// never flies low over, or captions anything near, these.
+function openingAvoidList() {
+  const pn = puzzleNumberForToday();
+  const out = [];
+  const add = (p) => { if (p && Number.isFinite(p.lat) && Number.isFinite(p.lng)) out.push({ lat: p.lat, lng: p.lng }); };
+  try { dailyPicksFor(pn).forEach(add); } catch (err) { console.warn('tour avoid list', err); }
+  try { add(familyPlaceForPuzzle(pn)); add(familyPlaceForPuzzle(pn, getActivePlayer())); } catch { /* no family places */ }
+  return out;
+}
+
+// The full Grand Tour plays once per day per device (marctap.tourDay = the
+// puzzle number); later loads that day, and reduced-motion, get the short swoop.
+async function playOpening() {
+  const pn = puzzleNumberForToday();
+  const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  let seen = null;
+  try { seen = localStorage.getItem('marctap.tourDay'); } catch { /* private mode */ }
+  if (reduced || seen === String(pn) || typeof globe.grandTour !== 'function') { globe.cinematicIntro(); return; }
+  try { localStorage.setItem('marctap.tourDay', String(pn)); } catch { /* private mode */ }
+  // Live stops are optional: give the live layer a moment if it says it is
+  // loading, never long enough to notice.
+  const live = globe.live;
+  if (typeof live?.ready === 'function') {
+    try { await Promise.race([Promise.resolve(live.ready()), new Promise((r) => setTimeout(r, 600))]); } catch { /* scenic route */ }
+  }
+  if (session && globe.interactive) return; // a game started meanwhile - it owns the camera
+  let stops = [];
+  try { const s = live?.tourStops?.(); if (Array.isArray(s)) stops = s; } catch { /* scenic route */ }
+  try {
+    globe.grandTour({ stops, avoid: openingAvoidList(), seed: pn });
+  } catch (err) {
+    console.warn('grand tour failed, short swoop instead', err);
+    globe.cinematicIntro();
+  }
+}
+
 function startGame(isPractice) {
+  globe?.skipTour?.();
   if (!localStorage.getItem('marctap.introDone') && !localStorage.getItem('marctap.seenHelp')) {
     experience.startIntro(() => startGame(isPractice));
     return;
@@ -1515,7 +1555,7 @@ async function boot() {
   globe.setRealisticLighting(settings.realisticLighting !== false);
   globe.setLiveEarth(settings.liveEarth !== false);
   lensUI = initLensUI({ globe, toast, caption: snapshotCaption, puzzle: puzzleNumberForToday });
-  globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
+  playOpening(); // the Grand Tour once a day, else the short swoop from deep space
 
   // Social boot: import any share-link payload (needs country data), then profiles.
   processIncomingPayload();
