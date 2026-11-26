@@ -8,6 +8,7 @@ import { Globe } from './globe.js';
 import { Experience, renderLiveLines } from './experience.js';
 import { initLensUI } from './lensui.js';
 import { describeQuakeRound } from './discovery.js';
+import { quakeFor } from './quakes.js';
 import { loadCountries, countryAt, formatDistance } from './geo.js';
 import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
@@ -325,13 +326,13 @@ function beginRound() {
     els.promptSub.innerHTML = `<span class="mult-chip">×${mult} bonus</span>` +
       (loc.by ? ` · added by ${loc.by.replace(/[<>&]/g, '')}` : '');
   } else {
-    labelEl.textContent = loc.quake ? 'Tap where the ground shook…' : loc.isNews ? 'Tap where this is happening…' : loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
+    labelEl.textContent = quakeFor(loc) ? 'Tap where the ground shook…' : loc.isNews ? 'Tap where this is happening…' : loc.prompt ? 'Tap the place this describes…' : 'Tap where you think this is…';
     els.promptCard.classList.remove('family-round');
     const theme = (!session.isPractice || session.replayOf) ? dailyThemeFor(session.replayOf || session.seed) : null;
     const prefix = session.replayOf ? `Replay #${session.replayOf} · ` : session.challenge ? `⚔️ vs ${session.challenge.name.replace(/[<>&]/g, '')} · ` : '';
     els.promptSub.innerHTML = `${prefix}Round ${session.roundIndex + 1} of ${ROUNDS_PER_GAME}` +
       (mult > 1 ? ` · <span class="mult-chip">×${mult} points</span>` : '') +
-      (loc.quake ? '<span class="news-chip quake-chip">〰️ Earthquake round</span>' : loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
+      (quakeFor(loc) ? '<span class="news-chip quake-chip">〰️ Earthquake round</span>' : loc.isNews ? '<span class="news-chip">📰 In the news</span>' : theme ? `<span class="theme-chip">${theme.emoji} ${theme.title}</span>` : '');
   }
   if (isLandmark(loc)) els.promptSub.innerHTML += '<br>Landmark precision: +10 within 100 m · +25 within 25 m';
   renderRoundDots();
@@ -408,7 +409,7 @@ function confirmGuess(lat, lng) {
   // Compact DOM labels keep both points readable on narrow screens.
   globe.clearPin();
   globe.showAnswer(result.guess, { lat: result.target.lat, lng: result.target.lng }, []);
-  if (result.target.quake) globe.showQuakeRings(result.target, result.target.quake.mag);
+  if (quakeFor(result.target)) globe.showQuakeRings(result.target, quakeFor(result.target).mag);
   hide(els.promptCard);
   experience.reveal(result, settings.miles);
 
@@ -672,7 +673,7 @@ function buildOverviewItems() {
   let items = null;
   if (session && session.results.length === ROUNDS_PER_GAME) {
     items = session.results.map((r) => ({
-      lat: r.target.lat, lng: r.target.lng, name: r.target.name, fact: r.target.fact || '', quake: r.target.quake || null,
+      lat: r.target.lat, lng: r.target.lng, name: r.target.name, fact: r.target.fact || '', quake: quakeFor(r.target),
       guess: r.guess, distanceKm: r.distanceKm,
       score: r.score, points: r.points, multiplier: r.multiplier,
       pinned: r.countryMatch ? null : r.guessCountry ? r.guessCountry.name : null,
@@ -684,7 +685,7 @@ function buildOverviewItems() {
     // Only the 5 standard rounds reconstruct from the daily seed; a stored family
     // bonus round has no seed-derived location, so it's skipped on revisit.
     items = record.rounds.slice(0, locs.length).filter((r) => !r.b).map((r, i) => ({
-      lat: locs[i].lat, lng: locs[i].lng, name: r.name, fact: locs[i].fact || '', quake: locs[i].quake || null,
+      lat: locs[i].lat, lng: locs[i].lng, name: r.name, fact: locs[i].fact || '', quake: quakeFor(locs[i]),
       guess: r.guess || null, distanceKm: r.distanceKm,
       score: r.score, points: r.points != null ? r.points : r.score,
       multiplier: r.multiplier || multiplierForRound(i),
