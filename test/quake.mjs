@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { quakeErrors, puzzleStartUtcMs } from '../scripts/validate-news.mjs';
 import { describeQuakeRound, quakeRingSize, usgsEventUrl } from '../src/discovery.js';
 import { injectNewsIntoDeal, dailyPicksFor } from '../src/game.js';
+import { NEWS } from '../src/news.js';
+import { PAST_QUAKES, quakeFor } from '../src/quakes.js';
 
 let passed = 0;
 function test(name, fn) {
@@ -52,6 +54,22 @@ test('the quake numbers ride into the deal with the news entry', () => {
   assert.notEqual(slot, null);
   assert.deepEqual(picks[slot].quake, quake);
   assert.equal(picks[slot].isNews, true);
+});
+
+test('replays of past earthquake days play as earthquake rounds (overlay, NEWS untouched)', () => {
+  for (const [name, { pn, quake: q }] of Object.entries(PAST_QUAKES)) {
+    const entry = NEWS.find((n) => n.name === name);
+    assert.ok(entry, `${name} is a real news entry`);
+    assert.equal(entry.pn, pn, name);
+    assert.equal(entry.quake, undefined, 'the append-only entry itself is not edited');
+    assert.deepEqual(quakeErrors({ ...entry, quake: q }), [], name);
+    const dealt = dailyPicksFor(pn).find((l) => l.name === name);
+    assert.ok(dealt, `#${pn}'s replay deals ${name}`);
+    assert.deepEqual(quakeFor(dealt), q, 'the replayed round carries the USGS numbers');
+  }
+  assert.equal(quakeFor({ name: 'Sola, Vanuatu', isNews: false }), null, 'only a news round of that name');
+  assert.equal(quakeFor(null), null);
+  assert.deepEqual(quakeFor({ quake }), quake, 'a v5.3+ entry uses its own field');
 });
 
 console.log(`\n${passed} quake tests passed`);

@@ -1,5 +1,6 @@
 import { countryAt, distanceKm, formatDistance } from './geo.js';
 import { describeNearbyTowns, nearbyTowns, regionAt, relationWithRegions } from './places.js';
+import { quakeFor } from './quakes.js';
 import { fetchWikiSummary } from './enrich.js';
 import { bearingWord, describeQuakeRound, guessRelationship, nearbyCities, shortStory, usgsEventUrl } from './discovery.js';
 
@@ -171,7 +172,7 @@ export class Experience {
     $('app').classList.add('discovering'); this.globe.resize();
     this.globe.framePoints(result.guess, result.target);
     this.active = false; this.precision(false); visible('aim-tools', false);
-    const quake = result.target.quake;
+    const quake = quakeFor(result.target);
     visible('discovery-quake', !!quake);
     if (quake) {
       $('discovery-quake').querySelector('span').textContent = describeQuakeRound(quake);
