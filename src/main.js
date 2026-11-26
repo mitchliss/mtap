@@ -6,6 +6,7 @@ import { trackViewport } from './viewport.js';
 trackViewport();
 import { Globe } from './globe.js';
 import { Experience, renderLiveLines } from './experience.js';
+import { initLensUI } from './lensui.js';
 import { loadCountries, countryAt, formatDistance } from './geo.js';
 import {
   GameSession, ROUNDS_PER_GAME, MAX_GAME_SCORE,
@@ -86,6 +87,8 @@ const els = {
 
 let settings = loadSettings();
 let session = null;
+let shareCaption = null; // what a snapshot card says about the round just revealed
+let lensUI = null;
 let globe = null;
 let experience = null;
 let awaitingConfirm = false;
@@ -267,7 +270,20 @@ function resolveMusicStyle() {
 
 let familyHintUsed = false;
 
+// The words on a snapshot card: the place just revealed, the Explore place, or the game.
+function snapshotCaption() {
+  const n = puzzleNumberForToday();
+  const title = session?.isPractice ? 'Practice' : `#${n}`;
+  if (overviewItems) {
+    const it = overviewItems[overviewIndex];
+    return { title, line: `${it.name} · ${formatDistance(it.distanceKm, settings.miles)} away · +${it.points}`, slug: `${n}-${overviewIndex + 1}` };
+  }
+  if (shareCaption) return { title, ...shareCaption };
+  return { title, line: 'The daily globe game. Five places. How close can you get?', slug: String(n) };
+}
+
 function beginRound() {
+  shareCaption = null;
   experience?.round();
   clearTimeout(resultPanelTimer); // a stale reveal timer must never fire mid-round
   familyHintUsed = false;
@@ -383,6 +399,10 @@ function confirmGuess(lat, lng) {
     }
   }
   saveDailyProgress(); // a reload resumes at the NEXT round - answered ones are settled
+  shareCaption = {
+    line: `${result.target.name} · ${formatDistance(result.distanceKm, settings.miles)} away · +${result.points}`,
+    slug: `${puzzleNumberForToday()}-${session.roundIndex + 1}`,
+  };
 
   // Compact DOM labels keep both points readable on narrow screens.
   globe.clearPin();
@@ -1468,6 +1488,7 @@ async function boot() {
     onPinDragged: () => experience?.pinChanged(),
     onFrame: () => experience?.frame(),
     onOverviewSelect: (i) => selectOverviewIndex(i),
+    onLensSlow: (lens) => lensUI?.tooSlow(lens.id),
   });
   globe.setAutoRotate(settings.autoRotate);
 
@@ -1476,6 +1497,7 @@ async function boot() {
   experience = new Experience(globe, { onCandidate: onGlobeTap, liveEarth: () => settings.liveEarth !== false });
   globe.setRealisticLighting(settings.realisticLighting !== false);
   globe.setLiveEarth(settings.liveEarth !== false);
+  lensUI = initLensUI({ globe, toast, caption: snapshotCaption });
   globe.cinematicIntro(); // swoop in from deep space once the real Earth is painted
 
   // Social boot: import any share-link payload (needs country data), then profiles.
