@@ -578,7 +578,7 @@ export class Globe {
         for (const m of materials) { m.needsUpdate = true; if (m.map) m.map.needsUpdate = true; }
       });
       this.sky?.bake();
-      if (this.lens) { this.lens.dispose(); this.lens = null; this.setLens(this._lensId); } // GPU copies are gone
+      if (this.lens) { this.lens.dispose(); this.lens = null; this._ensureLensPass(); } // GPU copies are gone
       this.tileDetail?.cancel(); this.startLoop();
     };
     document.addEventListener('visibilitychange', this._onVisibility);
@@ -698,21 +698,37 @@ export class Globe {
 
   // Lenses (v5.2): null = none. The lens code loads on first use; it only ever
   // draws when no pin can be placed (see _tick).
-  // scope 'menus' (lens of the day): menus, end screen and Explore only - never in a
-  // round, answer card included. scope 'always' (a lens the player picked): any time
-  // no pin can be placed.
+  // scope 'menus' (lens of the day): menus, end screen and Explore only.
+  // scope 'always' (a lens the player picked): any time no pin can be placed.
+  // v5.8: setRoundLens(id) is the surprise lens for the answer just revealed; it wins
+  // during a game and is ignored on the menus.
   setLens(id, scope = 'always') {
     this._lensId = id || null;
     this._lensScope = scope;
-    if (this.lens) { this.lens.setLens(this._lensId); return; }
-    if (!this._lensId || this._lensLoading) return;
+    if (this._lensId) this._ensureLensPass();
+  }
+  setRoundLens(id) {
+    this._roundLensId = id || null;
+    if (this._roundLensId) this._ensureLensPass();
+  }
+  _ensureLensPass() {
+    if (this.lens || this._lensLoading) return;
     this._lensLoading = true;
     import('./lens.js').then(({ LensPass }) => {
       this.lens = new LensPass(this.renderer, { onSlow: (lens, p90) => this.cb.onLensSlow?.(lens, p90) });
-      this.lens.setLens(this._lensId);
     }).catch((err) => console.warn('Lenses unavailable', err)).finally(() => { this._lensLoading = false; });
   }
-  _lensActive() { return !!(this.lens && this._lensId && !this.interactive && (this._lensScope !== 'menus' || !this._gameplayActive)); }
+  _wantedLens() {
+    if (this.interactive) return null;
+    if (this._gameplayActive) return this._roundLensId || (this._lensScope === 'always' ? this._lensId : null);
+    return this._lensId || null;
+  }
+  _lensActive() {
+    const id = this._wantedLens();
+    if (!this.lens || !id) return false;
+    if (this.lens.lensId !== id) this.lens.setLens(id); // a broken lens stays null and draws plain
+    return this.lens.lensId === id;
+  }
 
   // The current view as a 2D canvas (lens included), for share cards. Renders
   // synchronously so the WebGL buffer is still valid when it is copied.
