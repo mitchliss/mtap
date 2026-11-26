@@ -1,0 +1,898 @@
+{
+  "1": [
+    "Jerusalem Old City",
+    "Hawaii — Waikiki Beach",
+    "Bogotá, Colombia",
+    "Ulaanbaatar, Mongolia",
+    "Bermuda"
+  ],
+  "2": [
+    "Burj Khalifa, Dubai",
+    "Mount Kilimanjaro",
+    "Quebec City",
+    "Kyrgyzstan — Issyk-Kul Lake",
+    "Sahara — Erg Chebbi, Morocco"
+  ],
+  "3": [
+    "Great Wall of China (Badaling)",
+    "Hawaii — Waikiki Beach",
+    "Teotihuacan Pyramids",
+    "Fernando de Noronha",
+    "Kruger National Park"
+  ],
+  "4": [
+    "Bangkok — Grand Palace",
+    "Red Square, Moscow",
+    "Helsinki, Finland",
+    "Ushuaia, Argentina",
+    "Canary Islands — Mount Teide"
+  ],
+  "5": [
+    "Christ the Redeemer, Rio",
+    "Big Ben, London",
+    "Sea of Galilee — Tiberias",
+    "Tbilisi, Georgia",
+    "Azores — Ponta Delgada"
+  ],
+  "6": [
+    "Angkor Wat, Cambodia",
+    "Jerusalem Old City",
+    "Luxor — Karnak Temple",
+    "Muscat, Oman",
+    "Lake Bled, Slovenia"
+  ],
+  "7": [
+    "Istanbul — Hagia Sophia",
+    "Taj Mahal, Agra",
+    "Victoria Falls",
+    "Andorra la Vella",
+    "Nara, Japan"
+  ],
+  "8": [
+    "Sydney Opera House",
+    "Washington — The Capitol",
+    "Pompeii",
+    "Atacama Desert",
+    "Amazon River mouth, Brazil"
+  ],
+  "9": [
+    "Acropolis of Athens",
+    "Buenos Aires — Obelisco",
+    "Nazareth, Israel",
+    "Anchorage, Alaska",
+    "Busan, South Korea"
+  ],
+  "10": [
+    "Uluru (Ayers Rock)",
+    "Lisbon, Portugal",
+    "Nairobi, Kenya",
+    "Guatemala — Tikal",
+    "Costa Rica — Arenal Volcano"
+  ],
+  "11": [
+    "Tel Aviv, Israel",
+    "Kuala Lumpur — Petronas Towers",
+    "Reykjavik, Iceland",
+    "Aswan — Abu Simbel",
+    "Malta — Valletta"
+  ],
+  "12": [
+    "Toronto — CN Tower",
+    "Chichén Itzá, Mexico",
+    "Seoul — Gyeongbokgung Palace",
+    "Azerbaijan — Yanar Dag",
+    "Medellín, Colombia"
+  ],
+  "13": [
+    "Marrakech — Jemaa el-Fnaa",
+    "Beijing — Forbidden City",
+    "St. Louis — Gateway Arch",
+    "Baku, Azerbaijan",
+    "Vilnius, Lithuania"
+  ],
+  "14": [
+    "Brandenburg Gate, Berlin",
+    "Mount Everest",
+    "Nova Festival Memorial, Re'im",
+    "Tromsø — northern lights",
+    "Prague — Old-New Synagogue"
+  ],
+  "15": [
+    "Golden Gate Bridge",
+    "Leaning Tower of Pisa",
+    "Cliffs of Moher",
+    "Guadalajara, Mexico",
+    "Kakadu, Australia"
+  ],
+  "16": [
+    "Machu Picchu, Peru",
+    "Pyramids of Giza",
+    "Borobudur, Indonesia",
+    "Babyn Yar Memorial, Kyiv",
+    "Mauritius"
+  ],
+  "17": [
+    "Table Mountain, Cape Town",
+    "Hong Kong — Victoria Peak",
+    "Queenstown, New Zealand",
+    "Venice Ghetto",
+    "Jamaica — Montego Bay"
+  ],
+  "18": [
+    "Statue of Liberty, New York",
+    "Sagrada Família, Barcelona",
+    "Varanasi Ghats, India",
+    "Belgrade, Serbia",
+    "Djenné Great Mosque, Mali"
+  ],
+  "19": [
+    "Times Square, New York",
+    "Eiffel Tower, Paris",
+    "Wadi Rum, Jordan",
+    "Aconcagua",
+    "Ronda, Spain"
+  ],
+  "20": [
+    "Miami Beach",
+    "Western Wall, Jerusalem",
+    "La Paz, Bolivia",
+    "Kampala, Uganda",
+    "Chengdu, China"
+  ],
+  "21": [
+    "Niagara Falls",
+    "Chicago — The Bean",
+    "Bali — Uluwatu Temple",
+    "Cape Verde — Praia",
+    "Fiji — Nadi"
+  ],
+  "22": [
+    "Grand Canyon",
+    "Colosseum, Rome",
+    "Stonehenge",
+    "Maasai Mara, Kenya",
+    "Palau — Rock Islands"
+  ],
+  "23": [
+    "Tokyo — Shibuya Crossing",
+    "Mumbai — Gateway of India",
+    "Lake Como, Italy",
+    "Safed (Tzfat), Israel",
+    "Dakar, Senegal"
+  ],
+  "24": [
+    "Petra, Jordan",
+    "Mexico City — Zócalo",
+    "Xi'an — Terracotta Army",
+    "Lalibela Rock Churches",
+    "Antigua Guatemala"
+  ],
+  "25": [
+    "Marina Bay Sands, Singapore",
+    "Las Vegas Strip",
+    "Kyiv — Saint Sophia Cathedral",
+    "Accra, Ghana",
+    "Thessaloniki, Greece"
+  ],
+  "26": [
+    "Venice Grand Canal",
+    "Hollywood Sign, Los Angeles",
+    "Dead Sea",
+    "Chefchaouen, Morocco",
+    "Mount Elbrus"
+  ],
+  "27": [
+    "Amsterdam Canal Ring",
+    "Mount Fuji",
+    "Bora Bora",
+    "Greenland — Nuuk",
+    "Windhoek, Namibia"
+  ],
+  "28": [
+    "Great Barrier Reef",
+    "Rosh Hanikra Grottoes",
+    "San Diego, California",
+    "Kamchatka Peninsula",
+    "Komodo Island"
+  ],
+  "29": [
+    "Nashville, Tennessee",
+    "Montevideo, Uruguay",
+    "Hanoi, Vietnam",
+    "Galdhøpiggen, Norway",
+    "Great Ocean Road — Twelve Apostles"
+  ],
+  "30": [
+    "Almaty, Kazakhstan",
+    "Mount Ararat",
+    "Mont-Saint-Michel",
+    "Jungfraujoch, Switzerland",
+    "Zhangjiajie Pillars"
+  ],
+  "31": [
+    "Cinque Terre, Italy",
+    "Timbuktu, Mali",
+    "Oslo, Norway",
+    "Great Blue Hole, Belize",
+    "Mount Bromo, Indonesia"
+  ],
+  "32": [
+    "Mount Kilimanjaro",
+    "Burj Khalifa, Dubai",
+    "Phuket, Thailand",
+    "Everglades, Florida",
+    "Ulaanbaatar, Mongolia"
+  ],
+  "33": [
+    "Hawaii — Waikiki Beach",
+    "Great Wall of China (Badaling)",
+    "Osaka Castle, Japan",
+    "Okavango Delta, Botswana",
+    "Simien Mountains"
+  ],
+  "34": [
+    "Suez Canal",
+    "Red Square, Moscow",
+    "Santorini, Greece",
+    "Sosúa, Dominican Republic",
+    "Lake Superior — Pictured Rocks"
+  ],
+  "35": [
+    "Christ the Redeemer, Rio",
+    "Big Ben, London",
+    "Hallstatt, Austria",
+    "Ezekiel's Tomb, Al Kifl",
+    "Sahara — Erg Chebbi, Morocco"
+  ],
+  "36": [
+    "Harbin, China",
+    "University of Pittsburgh",
+    "Juderia of Cordoba",
+    "Monash University, Melbourne",
+    "Bergen-Belsen Memorial"
+  ],
+  "37": [
+    "Bosporus Strait",
+    "Taj Mahal, Agra",
+    "Vancouver, Canada",
+    "Rotorua, New Zealand",
+    "Santo Domingo"
+  ],
+  "38": [
+    "Washington — The Capitol",
+    "Sydney Opera House",
+    "Luxor — Karnak Temple",
+    "Willemstad, Curaçao",
+    "Kochi — Paradesi Synagogue"
+  ],
+  "39": [
+    "Angkor Wat, Cambodia",
+    "Acropolis of Athens",
+    "Amalfi Coast",
+    "Kīlauea, Hawaii",
+    "Lofoten Islands"
+  ],
+  "40": [
+    "Lisbon, Portugal",
+    "Uluru (Ayers Rock)",
+    "Panama Canal",
+    "Strait of Messina",
+    "Rwanda — Volcanoes National Park"
+  ],
+  "41": [
+    "Buenos Aires — Obelisco",
+    "Bangkok — Grand Palace",
+    "Easter Island (Rapa Nui)",
+    "Toledo, Spain",
+    "Namib Desert — Sossusvlei"
+  ],
+  "42": [
+    "Kuala Lumpur — Petronas Towers",
+    "Chichén Itzá, Mexico",
+    "Quebec City",
+    "Aral Sea — Muynak",
+    "Danube — Iron Gates Gorge"
+  ],
+  "43": [
+    "Marrakech — Jemaa el-Fnaa",
+    "East Cliff, Ramsgate",
+    "Colorado River — Horseshoe Bend",
+    "Rock of Cashel, Ireland",
+    "Dardanelles — Gallipoli"
+  ],
+  "44": [
+    "Brandenburg Gate, Berlin",
+    "Mount Everest",
+    "Galápagos Islands",
+    "Sofia, Bulgaria",
+    "Bay of Fundy"
+  ],
+  "45": [
+    "Golden Gate Bridge",
+    "Azores — Ponta Delgada",
+    "Shanghai — The Bund",
+    "Worms — Rashi Synagogue",
+    "Christmas Island"
+  ],
+  "46": [
+    "Machu Picchu, Peru",
+    "Pyramids of Giza",
+    "Seville, Spain",
+    "Persepolis, Iran",
+    "Valparaíso, Chile"
+  ],
+  "47": [
+    "Mount Sinabung",
+    "Hong Kong — Victoria Peak",
+    "Lake Titicaca",
+    "The mellah of Fez",
+    "Chiang Mai, Thailand"
+  ],
+  "48": [
+    "Munich — Marienplatz",
+    "Cape Canaveral, Florida",
+    "Nile — Aswan High Dam",
+    "Bitola, North Macedonia",
+    "Villa de Leyva, Colombia"
+  ],
+  "49": [
+    "Dublin — Trinity College",
+    "Brussels — Grand Place",
+    "Seattle — Space Needle",
+    "Garden Route — Knysna",
+    "Brest Fortress, Belarus"
+  ],
+  "50": [
+    "Mecca — Masjid al-Haram",
+    "Port-au-Prince, Haiti",
+    "Lyon, France",
+    "Granada, Nicaragua",
+    "Hunza Valley, Pakistan"
+  ],
+  "51": [
+    "Giant's Causeway",
+    "Jiuzhaigou Valley",
+    "Perito Moreno Glacier",
+    "El Nido, Palawan",
+    "Lençóis Maranhenses"
+  ],
+  "52": [
+    "Lake Van — Akdamar Island",
+    "Banff — Lake Louise",
+    "Ha Long Bay, Vietnam",
+    "Lakes of Ounianga, Chad",
+    "Great Salt Lake, Utah"
+  ],
+  "53": [
+    "Tomb of Esther and Mordechai, Hamadan",
+    "Sault Ste. Marie, Ontario",
+    "Vaduz, Liechtenstein",
+    "Pohnpei — Nan Madol",
+    "Mount Cook — Aoraki"
+  ],
+  "54": [
+    "Lublin — Yeshiva Chachmei",
+    "York, England",
+    "Porto, Portugal",
+    "Tashkent, Uzbekistan",
+    "Toamasina, Madagascar"
+  ],
+  "55": [
+    "Sighetu Marmatiei",
+    "Trier — Porta Nigra",
+    "Cleveland, Ohio",
+    "Lagos, Algarve",
+    "Hyderabad — Charminar"
+  ],
+  "56": [
+    "Kaifeng, China",
+    "Malabo, Equatorial Guinea",
+    "Oaxaca, Mexico",
+    "Fresno, California",
+    "Diyarbakır, Turkey"
+  ],
+  "57": [
+    "Drohobych",
+    "Pamplona, Spain",
+    "Da Nang — Golden Bridge",
+    "Ouarzazate, Morocco",
+    "Røros, Norway"
+  ],
+  "58": [
+    "Medzhybizh — the Baal Shem Tov",
+    "Pingyao, China",
+    "Santa Fe, New Mexico",
+    "Cadaqués, Spain",
+    "Skardu, Pakistan"
+  ],
+  "59": [
+    "Odesa",
+    "Shakhrisabz, Uzbekistan",
+    "Cappadocia, Turkey",
+    "Cradle of Humankind, South Africa",
+    "Changsha, China"
+  ],
+  "60": [
+    "Bukhara old Jewish quarter",
+    "São Paulo, Brazil",
+    "Denver, Colorado",
+    "Madurai — Meenakshi Temple",
+    "Lausanne, Switzerland"
+  ],
+  "61": [
+    "Rhodes — Kahal Shalom",
+    "Portland, Oregon",
+    "Loch Ness, Scotland",
+    "Kingston, Ontario",
+    "Potosí, Bolivia"
+  ],
+  "62": [
+    "Auschwitz-Birkenau Memorial, Poland",
+    "Ziguinchor, Senegal",
+    "Key West, Florida",
+    "Sibiu, Romania",
+    "Agrigento — Valley of the Temples"
+  ],
+  "63": [
+    "Warsaw — POLIN Museum",
+    "Nördlingen, Germany",
+    "Jakarta, Indonesia",
+    "Spokane, Washington",
+    "Slieve League, Ireland"
+  ],
+  "64": [
+    "Touro Synagogue, Newport",
+    "Øresund Bridge",
+    "Alexandria, Egypt",
+    "Yellow Mountains — Huangshan",
+    "Atar, Mauritania"
+  ],
+  "65": [
+    "Uman — Rabbi Nachman's grave",
+    "Zakynthos — Navagio Beach",
+    "Big Sur, California",
+    "Yaren, Nauru",
+    "Kuwait City — Kuwait Towers"
+  ],
+  "66": [
+    "Stadtcasino, Basel",
+    "Nantes, France",
+    "Hurricane Polo",
+    "Thunder Bay, Ontario",
+    "Zacatecas, Mexico"
+  ],
+  "67": [
+    "Bialystok",
+    "Uppsala, Sweden",
+    "Rodanthe, North Carolina",
+    "Stratford-upon-Avon",
+    "Kolsai Lakes, Kazakhstan"
+  ],
+  "68": [
+    "Gewandhaus, Leipzig",
+    "Hohhot, China",
+    "Yellowstone — Old Faithful",
+    "Aleppo Citadel, Syria",
+    "Porto Alegre, Brazil"
+  ],
+  "69": [
+    "Qa al-Yahud, Sanaa",
+    "Ezulwini Valley, eSwatini",
+    "Loyalty Islands, New Caledonia",
+    "Hargeisa, Somaliland",
+    "Knoxville, Tennessee"
+  ],
+  "70": [
+    "Troyes — Rashi's town",
+    "To Sua Ocean Trench, Samoa",
+    "Vienna — Schönbrunn Palace",
+    "Szentendre, Hungary",
+    "Curitiba, Brazil"
+  ],
+  "71": [
+    "Fourth Street School, Milwaukee",
+    "Dhaka, Bangladesh",
+    "Bergen — Bryggen Wharf",
+    "Siargao Island, Philippines",
+    "Ouadane, Mauritania"
+  ],
+  "72": [
+    "Łódź Ghetto Memorial",
+    "Kingston, Jamaica",
+    "Detroit, Michigan",
+    "Pantanal, Brazil",
+    "Oviedo, Spain"
+  ],
+  "73": [
+    "Recife — Kahal Zur Israel",
+    "Franceville, Gabon",
+    "Lake Baikal — Listvyanka",
+    "Port Sudan",
+    "Bagan, Myanmar"
+  ],
+  "74": [
+    "Minsk — Yama Memorial",
+    "Loango National Park, Gabon",
+    "Angel Falls, Venezuela",
+    "Rochester, New York",
+    "Manizales, Colombia"
+  ],
+  "75": [
+    "Vitebsk",
+    "Veliko Tarnovo, Bulgaria",
+    "Lake Arendsee, Germany",
+    "Shenyang, China",
+    "Santiago de Cuba"
+  ],
+  "76": [
+    "Charleston — KKBE",
+    "Loch Lomond, Scotland",
+    "Anak Krakatau, Indonesia",
+    "Assisi, Italy",
+    "Manuel Antonio, Costa Rica"
+  ],
+  "77": [
+    "Hibbing, Minnesota",
+    "Manila, Philippines",
+    "Lima, Peru",
+    "Kisumu, Kenya",
+    "Semuc Champey, Guatemala"
+  ],
+  "78": [
+    "Corso Re Umberto 75, Turin",
+    "Seychelles — Mahé",
+    "Mount Rushmore",
+    "Tayrona — Santa Marta",
+    "Yukon River — Dawson City"
+  ],
+  "79": [
+    "Birobidzhan",
+    "Delhi — Red Fort",
+    "Ho Chi Minh City, Vietnam",
+    "Uzhhorod, Ukraine",
+    "Ajaccio, Corsica"
+  ],
+  "80": [
+    "Moises Ville, Santa Fe",
+    "Lucknow, India",
+    "Bordeaux, France",
+    "Mount Mulanje, Malawi",
+    "Coober Pedy, Australia"
+  ],
+  "81": [
+    "El Ghriba Synagogue, Djerba",
+    "Tirana, Albania",
+    "Pamukkale, Turkey",
+    "Ladakh — Leh",
+    "Nosy Be, Madagascar"
+  ],
+  "82": [
+    "Carpentras synagogue",
+    "Fraser Island — K’gari",
+    "Mostar — Stari Most",
+    "Matobo Hills, Zimbabwe",
+    "Orkhon Valley, Mongolia"
+  ],
+  "83": [
+    "Shaar Hashomayim Cemetery, Montreal",
+    "Charleston, West Virginia",
+    "Chimborazo, Ecuador",
+    "Mount Roraima",
+    "Ani Ruins, Turkey"
+  ],
+  "84": [
+    "Sardis synagogue",
+    "Graz, Austria",
+    "Mallorca — Palma",
+    "Barossa Valley, Australia",
+    "Winnipeg, Manitoba"
+  ],
+  "85": [
+    "Jodensavanne, Suriname",
+    "Chittagong Ship-Breaking Coast",
+    "Glacier National Park, Montana",
+    "Hampi, India",
+    "Kharkiv, Ukraine"
+  ],
+  "86": [
+    "Udaipur, India",
+    "Chernobyl — Pripyat",
+    "Roswell, New Mexico",
+    "Nakhon Ratchasima, Thailand",
+    "Fuzhou, China"
+  ],
+  "87": [
+    "Kandy — Temple of the Tooth",
+    "Dodoma, Tanzania",
+    "Goa — Old Goa",
+    "Vientiane, Laos",
+    "Edge of the World, Saudi Arabia"
+  ],
+  "88": [
+    "Dzanga-Sangha, Central African Republic",
+    "Liverpool — Penny Lane",
+    "Acapulco, Mexico",
+    "Juneau, Alaska",
+    "São Tomé town"
+  ],
+  "89": [
+    "Provo, Utah",
+    "Otavalo, Ecuador",
+    "Madeira — Funchal",
+    "Timișoara, Romania",
+    "Chișinău, Moldova"
+  ],
+  "90": [
+    "Abomey, Benin",
+    "Zuma Rock, Nigeria",
+    "Cartagena, Colombia",
+    "Tiradentes, Brazil",
+    "Beppu, Japan"
+  ],
+  "91": [
+    "Levoča, Slovakia",
+    "Great Sand Dunes, Colorado",
+    "Humåtak, Guam",
+    "Lake Garda — Sirmione",
+    "Fouta Djallon — Labé, Guinea"
+  ],
+  "92": [
+    "Axum, Ethiopia",
+    "Chongqing, China",
+    "Atlanta, Georgia",
+    "Mandalay, Myanmar",
+    "Östersund, Sweden"
+  ],
+  "93": [
+    "Bendigo, Australia",
+    "Door County, Wisconsin",
+    "Medina, Saudi Arabia",
+    "Rishikesh, India",
+    "Gdańsk, Poland"
+  ],
+  "94": [
+    "Juba, South Sudan",
+    "Aberdeen, Scotland",
+    "Granada — Alhambra",
+    "Salto, Uruguay",
+    "Bridgetown, Barbados"
+  ],
+  "95": [
+    "Hill of Crosses, Lithuania",
+    "Mount Semeru, Indonesia",
+    "Memphis — Graceland",
+    "Mekong Delta, Vietnam",
+    "Ziggurat of Ur, Iraq"
+  ],
+  "96": [
+    "Kauai — Waimea Canyon",
+    "Nazca Lines, Peru",
+    "Brasília, Brazil",
+    "Poltava, Ukraine",
+    "Falkland Islands — Stanley"
+  ],
+  "97": [
+    "Sola, Vanuatu",
+    "Alice Springs, Australia",
+    "Zanzibar — Stone Town",
+    "Tanna — Mount Yasur, Vanuatu",
+    "Bandung, Indonesia"
+  ],
+  "98": [
+    "Mogadishu, Somalia",
+    "Jericoacoara, Brazil",
+    "Loire Valley — Château de Chambord",
+    "Osh, Kyrgyzstan",
+    "Wilmington, Delaware"
+  ],
+  "99": [
+    "Volgograd — Mamayev Kurgan",
+    "Sun Moon Lake, Taiwan",
+    "Hiroshima Peace Memorial",
+    "Polokwane, South Africa",
+    "Jaisalmer, India"
+  ],
+  "100": [
+    "Cienfuegos, Cuba",
+    "Trois-Rivières, Quebec",
+    "Austin, Texas",
+    "Nanning, China",
+    "Rügen — Chalk Cliffs"
+  ],
+  "101": [
+    "Moab, Utah",
+    "Xiamen, China",
+    "Punta Cana, Dominican Republic",
+    "Katima Mulilo, Namibia",
+    "Pristina, Kosovo"
+  ],
+  "102": [
+    "St. Augustine, Florida",
+    "Theth, Albania",
+    "Tulum, Mexico",
+    "Plitvice Lakes",
+    "Colca Canyon, Peru"
+  ],
+  "103": [
+    "Agadez, Niger",
+    "Chiloé Island, Chile",
+    "Legazpi City, Philippines",
+    "Abel Tasman, New Zealand",
+    "Campo Grande, Brazil"
+  ],
+  "104": [
+    "Naypyidaw, Myanmar",
+    "Lake Baikal, Siberia",
+    "Tonosí, Panama",
+    "Bari, Italy",
+    "Hortobágy, Hungary"
+  ],
+  "105": [
+    "Ouagadougou, Burkina Faso",
+    "Milwaukee, Wisconsin",
+    "Baghdad, Iraq",
+    "Sipi Falls, Uganda",
+    "Tsodilo Hills, Botswana"
+  ],
+  "106": [
+    "Chobe National Park, Botswana",
+    "Salvador, Bahia",
+    "Crete — Knossos",
+    "Murmansk, Russia",
+    "Aspen, Colorado"
+  ],
+  "107": [
+    "Coimbra, Portugal",
+    "Ennedi Plateau, Chad",
+    "Joshua Tree National Park",
+    "Townsville, Australia",
+    "Vang Vieng, Laos"
+  ],
+  "108": [
+    "Foumban, Cameroon",
+    "Maui — Haleakalā Crater",
+    "Yangon — Shwedagon Pagoda",
+    "Xining, China",
+    "St. John’s, Newfoundland"
+  ],
+  "109": [
+    "Dunhuang — Mogao Caves",
+    "Volcano, Hawaii",
+    "Perth, Australia",
+    "Suzdal, Russia",
+    "Pakse — Bolaven Plateau"
+  ],
+  "110": [
+    "Belogradchik Rocks, Bulgaria",
+    "Iskanderkul Lake, Tajikistan",
+    "Taipei 101",
+    "Amedi, Kurdistan",
+    "Sumidero Canyon, Mexico"
+  ],
+  "111": [
+    "N’Djamena, Chad",
+    "Bragança, Portugal",
+    "Rovaniemi — Santa Claus Village",
+    "Beit Alfa synagogue mosaic",
+    "Augusta, Maine"
+  ],
+  "112": [
+    "Bend, Oregon",
+    "Cradle Mountain, Tasmania",
+    "Luján, Argentina",
+    "Pune — Ohel David",
+    "Guayaquil, Ecuador"
+  ],
+  "113": [
+    "Cerveteri Necropolis, Italy",
+    "Isalo National Park, Madagascar",
+    "New York — Lower East Side",
+    "Mar del Plata, Argentina",
+    "Yaoundé, Cameroon"
+  ],
+  "114": [
+    "Verdun, France",
+    "Mbuji-Mayi, DR Congo",
+    "Mount Sinai, Egypt",
+    "Yaotsu — Chiune Sugihara",
+    "Gobi — Flaming Cliffs, Mongolia"
+  ],
+  "115": [
+    "Icefields Parkway — Athabasca Glacier",
+    "Chitwan National Park, Nepal",
+    "Ogasawara Islands, Japan",
+    "Kazimierz Dolny, Poland",
+    "Abha, Saudi Arabia"
+  ],
+  "116": [
+    "Majuro, Marshall Islands",
+    "Savonlinna — Olavinlinna",
+    "Old Dongola, Sudan",
+    "La Ruche, Paris",
+    "Dolomites — Tre Cime"
+  ],
+  "117": [
+    "Fianarantsoa, Madagascar",
+    "El Yunque, Puerto Rico",
+    "Kathmandu — Boudhanath Stupa",
+    "Camp David, Maryland",
+    "Regina, Saskatchewan"
+  ],
+  "118": [
+    "Francistown, Botswana",
+    "Tahiti — Papeete",
+    "Pucallpa, Peru",
+    "Terezín Memorial",
+    "Bonito, Brazil"
+  ],
+  "119": [
+    "Parakou, Benin",
+    "Brasov, Romania",
+    "Iguazu Falls",
+    "Red Village — Qırmızı Qəsəbə",
+    "Cox’s Bazar, Bangladesh"
+  ],
+  "120": [
+    "Huntsville, Alabama",
+    "Samarra Spiral Minaret, Iraq",
+    "Legoland — Billund",
+    "Yotvata Hai-Bar, Israel",
+    "Epidaurus, Greece"
+  ],
+  "121": [
+    "Montpellier, France",
+    "Bangui, Central African Republic",
+    "Aceh Tamiang, Indonesia",
+    "Arad, Israel",
+    "Punakha Dzong, Bhutan"
+  ],
+  "122": [
+    "León, Nicaragua",
+    "Talampaya Canyon, Argentina",
+    "Bengaluru, India",
+    "Rijnsburg — Spinoza House",
+    "Sognefjord, Norway"
+  ],
+  "123": [
+    "Theodore Roosevelt Park, North Dakota",
+    "Krak des Chevaliers, Syria",
+    "Amritsar — Golden Temple",
+    "Rumbula Memorial, Latvia",
+    "Gros Morne National Park"
+  ],
+  "124": [
+    "Tsingy de Bemaraha, Madagascar",
+    "Hermosillo, Mexico",
+    "Wellington, New Zealand",
+    "Akhaltsikhe, Georgia",
+    "Lamu Old Town, Kenya"
+  ],
+  "125": [
+    "Zinder, Niger",
+    "Tana Toraja, Sulawesi",
+    "Rainbow Mountain, Peru",
+    "Boca Raton, Florida",
+    "Campos do Jordão, Brazil"
+  ],
+  "126": [
+    "Isle of Skye",
+    "Cabo Polonio, Uruguay",
+    "St. Johns River near Cocoa, Florida",
+    "Kaliště — Mahler’s birthplace",
+    "Pemba, Mozambique"
+  ],
+  "127": [
+    "Gjirokastër, Albania",
+    "Olympic — Hoh Rain Forest",
+    "Lagos, Nigeria",
+    "Circulo Israelita, La Paz",
+    "Visby, Gotland"
+  ],
+  "128": [
+    "Dalat, Vietnam",
+    "Concepción, Chile",
+    "Mykonos, Greece",
+    "Tomb of Daniel, Susa",
+    "Bamiyan Valley, Afghanistan"
+  ]
+}
