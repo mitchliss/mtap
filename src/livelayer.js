@@ -4,17 +4,23 @@
 //
 // Shown only when no guess is being made (Globe passes `active` from !interactive),
 // so it decorates the reveal, Explore and the menus and never the guessing view.
-// Data comes from live.js; this file only draws.
+// Data comes from live.js; this file only draws. Storms, wildfires and news pins
+// (v5.6) are drawn by HazardLayer, which this layer owns.
 
 import * as THREE from 'three';
 import { latLngToVec3 } from './globe.js';
 import { loadQuakes, loadIssSatrec, issPositionAt, issTrack, altitudeToRadius } from './live.js';
+import { loadHazards, loadHeadlines, pickTourStops } from './hazards.js';
+import { HazardLayer } from './hazardlayer.js';
 
 const QUAKE_R = 1.0025;          // just above the surface (and the tile patch)
 const RING_MIN_MAG = 4.5;        // recent strong quakes get a slow pulsing ring
 const RING_MAX_AGE_MS = 3 * 86400000;
 const MAX_RINGS = 12;
 const TRACK_REFRESH_S = 60;
+const HAZARD_REFRESH_S = 30 * 60;  // the loaders' own caches decide whether this fetches
+const NEWS_REFRESH_S = 10 * 60;
+const READY_MAX_MS = 4000;
 
 function canvasTex(w, h, draw) {
   const c = document.createElement('canvas');
@@ -93,17 +99,53 @@ export class LiveLayer {
     this.group.visible = false;
     globe.scene.add(this.group);
     this.quakes = [];
+    this.hazards = { storms: [], fires: [] };
+    this.news = [];
+    this.hazardLayer = new HazardLayer(globe, this.group);
     this.iss = null;      // { satrec, sprite, track, trackAge }
     this._loading = false;
+    this._firstLoad = null;
     this._t = 0;
+    this._hazardAge = 0; this._newsAge = 0;
   }
 
   // First activation pulls the data; later ones only show/hide.
   _ensureLoaded() {
     if (this._loading) return;
     this._loading = true;
-    loadQuakes().then((q) => this._setQuakes(q));
+    const quakes = loadQuakes().then((q) => this._setQuakes(q));
     loadIssSatrec().then((r) => { if (r) this._setIss(r.satrec); });
+    this._firstLoad = Promise.allSettled([quakes, this._loadHazards(), this._loadNews()]);
+  }
+
+  _loadHazards() {
+    return loadHazards().then((h) => {
+      if (h === this.hazards) return;
+      this.hazards = h;
+      this.hazardLayer.setFires(h.fires);
+      this.hazardLayer.setStorms(h.storms);
+    });
+  }
+
+  _loadNews() {
+    return loadHeadlines().then((pins) => {
+      if (pins === this.news) return;
+      this.news = pins;
+      this.hazardLayer.setNews(pins);
+    });
+  }
+
+  // Resolves once the first load attempt has finished (success or not), at most ~4 s.
+  // Starts loading if nothing has yet; it does not make the layer visible.
+  async ready() {
+    this._ensureLoaded();
+    await Promise.race([this._firstLoad, new Promise((r) => setTimeout(r, READY_MAX_MS))]);
+  }
+
+  // Up to five notable things right now for the opening flight, synchronous over what is
+  // already loaded: [{ lat, lng, kind: 'storm'|'quake'|'news'|'fire', label }], [] if nothing.
+  tourStops(now = Date.now()) {
+    return pickTourStops({ storms: this.hazards.storms, fires: this.hazards.fires, quakes: this.quakes, news: this.news }, now);
   }
 
   _setQuakes(quakes) {
@@ -181,6 +223,9 @@ export class LiveLayer {
     if (!active) return;
     this._t += dt;
     const globe = this.globe;
+    this.hazardLayer.update(this._t);
+    if ((this._hazardAge += dt) > HAZARD_REFRESH_S) { this._hazardAge = 0; this._loadHazards(); }
+    if ((this._newsAge += dt) > NEWS_REFRESH_S) { this._newsAge = 0; this._loadNews(); }
     if (this.quakeUniforms) {
       this.quakeUniforms.uTime.value = this._t;
       this.quakeUniforms.uPixelRatio.value = globe.renderer.getPixelRatio();
@@ -207,6 +252,7 @@ export class LiveLayer {
   }
 
   dispose() {
+    this.hazardLayer.dispose();
     this.group.traverse((o) => {
       o.geometry?.dispose();
       if (o.material) { o.material.map?.dispose(); o.material.dispose(); }

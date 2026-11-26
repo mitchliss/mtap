@@ -6,6 +6,9 @@ name: Deploy MTap to GitHub Pages
 on:
   push:
     branches: [main]
+    # live/ is read by browsers from raw.githubusercontent.com; the news routine's
+    # commits there must not rebuild and redeploy the site.
+    paths-ignore: ['live/**']
   pull_request:
   workflow_dispatch:
 
