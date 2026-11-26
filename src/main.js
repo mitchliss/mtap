@@ -6,7 +6,7 @@ import { trackViewport } from './viewport.js';
 trackViewport();
 import { Globe } from './globe.js';
 import { Experience, renderLiveLines } from './experience.js';
-import { initLensUI } from './lensui.js';
+import { initLensUI, lensLabel } from './lensui.js';
 import { describeQuakeRound } from './discovery.js';
 import { quakeFor } from './quakes.js';
 import { loadFeatureShape, shapeFor, nearestOnShape } from './featureshape.js';
@@ -435,6 +435,8 @@ function confirmGuess(lat, lng) {
   globe.setInteractive(false);
   hide(els.confirmBar);
   sounds.confirm();
+  const revealLens = lensUI?.reveal(); // v5.8: a surprise lens on every answer
+  if (revealLens) toast(lensLabel(revealLens), 1500);
 
   const prevTotal = session.totalScore;
   const result = session.submitGuess(g.lat, g.lng);

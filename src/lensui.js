@@ -29,6 +29,27 @@ function saveChoice(choice) {
   try { if (choice === DAILY) localStorage.removeItem(LENS_KEY); else localStorage.setItem(LENS_KEY, choice); } catch { /* private mode */ }
 }
 export const lensName = (id) => LENSES_ONLY.find((l) => l.id === id)?.name || 'No lens';
+export const lensLabel = (id) => { const l = LENSES_ONLY.find((x) => x.id === id); return l ? `${l.emoji} ${l.name} lens` : ''; };
+
+// v5.8: with the default choice, every answer reveal gets a surprise lens - never the
+// same one twice running (Mitch, 2026-11-26: "select a random lens when revealing").
+// skip: lenses this device could not run smoothly this visit. null when none is left.
+export function pickRevealLens(lastId, rand = Math.random, skip = new Set()) {
+  const ok = LENSES_ONLY.filter((l) => !skip.has(l.id));
+  const pool = ok.length > 1 ? ok.filter((l) => l.id !== lastId) : ok;
+  return pool.length ? pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))].id : null;
+}
+
+// v5.8, once per device: before this, a slow moment switched lenses OFF for good and
+// saved it - which looks exactly like the player turning them off. Clear that once.
+const RESET_KEY = 'marctap.lensReset58';
+export function resetAutoOff(store = globalThis.localStorage) {
+  try {
+    if (store.getItem(RESET_KEY)) return;
+    if (store.getItem(LENS_KEY) === OFF) store.removeItem(LENS_KEY);
+    store.setItem(RESET_KEY, '1');
+  } catch { /* private mode */ }
+}
 
 // What the globe should run for a choice: [lens id | null, scope].
 export function lensForChoice(choice, puzzle) {
@@ -49,16 +70,20 @@ export function cardLayout(srcW, srcH, W = 1080, band = 270) {
 export function initLensUI({ globe, toast, caption, puzzle }) {
   const $ = (id) => document.getElementById(id);
   const modal = $('lens-modal'), list = $('lens-list');
+  resetAutoOff();
   let choice = lensChoice();
+  let lastReveal = null;
+  const skipped = new Set(); // too slow on this device this visit (surprise mode only)
   const apply = () => {
     const [id, scope] = lensForChoice(choice, puzzle());
-    globe.setLens(id, scope);
+    globe.setLens(skipped.has(id) ? null : id, scope);
+    globe.setRoundLens(null);
     $('btn-lens').classList.toggle('lens-on', !!id);
   };
   apply();
 
   const menu = () => [
-    { choice: DAILY, emoji: '🎲', name: 'Lens of the day', blurb: `Today: ${lensName(lensOfDay(puzzle()))}, on the menus, the end screen and Explore` },
+    { choice: DAILY, emoji: '🎲', name: 'Surprise me', blurb: `A different lens each time an answer is revealed; ${lensName(lensOfDay(puzzle()))} on the menus today` },
     { choice: OFF, emoji: '🌍', name: 'No lens', blurb: 'The globe as it is' },
     ...LENSES_ONLY.map((l) => ({ choice: l.id, emoji: l.emoji, name: l.name, blurb: `${l.blurb}, after every guess` })),
   ];
@@ -83,7 +108,7 @@ export function initLensUI({ globe, toast, caption, puzzle }) {
     apply();
     render();
     modal.classList.add('hidden');
-    if (next === DAILY) toast(`Lens of the day: ${lensName(lensOfDay(puzzle()))}`);
+    if (next === DAILY) toast('Surprise lens on every answer 🎲');
     else if (next !== OFF) toast(globe.interactive ? `${lensName(next)} switches on after you guess` : `${lensName(next)} on`);
   };
 
@@ -99,9 +124,23 @@ export function initLensUI({ globe, toast, caption, puzzle }) {
   return {
     // A new day can start while the app stays open: refresh the daily lens.
     refresh: apply,
+    // An answer is being revealed: a surprise lens, unless the player picked one or none.
+    reveal() {
+      if (choice !== DAILY) return null;
+      lastReveal = pickRevealLens(lastReveal, Math.random, skipped);
+      globe.setRoundLens(lastReveal);
+      return lastReveal;
+    },
     // Called by the globe when a lens can't hold the frame rate on this device.
     tooSlow(lensId) {
       if (!lensId) return;
+      if (choice === DAILY) {
+        // Surprise mode: drop just that lens for this visit; nothing is saved.
+        skipped.add(lensId);
+        if (lastReveal === lensId) { lastReveal = null; globe.setRoundLens(null); }
+        apply();
+        return;
+      }
       choose(OFF);
       toast(`${lensName(lensId)} switched off to keep the globe smooth on this device`, 4000);
     },

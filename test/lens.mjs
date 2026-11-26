@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, access } from 'node:fs/promises';
 import * as THREE from 'three';
 import { LENSES, lensById, lensMaterial, LensPass } from '../src/lens.js';
-import { cardLayout, lensName, savedLens, lensChoice, lensOfDay, lensForChoice } from '../src/lensui.js';
+import { cardLayout, lensName, savedLens, lensChoice, lensOfDay, lensForChoice, pickRevealLens, lensLabel, resetAutoOff } from '../src/lensui.js';
 import { Globe } from '../src/globe.js';
 
 let passed = 0;
@@ -107,7 +107,7 @@ await test('slow-device guard: switches a lens off only when frames stay slow', 
 
 await test('a lens never draws while a guess is being made; the lens of the day stays off the whole round', () => {
   const g = Object.create(Globe.prototype);
-  g.lens = {}; g._lensId = 'nightowl'; g._lensScope = 'always';
+  g.lens = { lensId: null, setLens(id) { this.lensId = id; } }; g._lensId = 'nightowl'; g._lensScope = 'always';
   g.interactive = true;
   assert.equal(g._lensActive(), false);
   g.interactive = false;
@@ -120,6 +120,16 @@ await test('a lens never draws while a guess is being made; the lens of the day 
   assert.equal(g._lensActive(), false, 'answer card in a round');
   g._gameplayActive = false;
   assert.equal(g._lensActive(), true, 'menus, end screen, Explore');
+  // v5.8 surprise lens: on the answer card in a round, never while guessing, not on the menus.
+  g._roundLensId = 'retrotv'; g._gameplayActive = true;
+  assert.equal(g._lensActive(), true, 'answer card gets the surprise lens');
+  assert.equal(g.lens.lensId, 'retrotv');
+  g.interactive = true;
+  assert.equal(g._lensActive(), false, 'never while guessing');
+  g.interactive = false; g._gameplayActive = false;
+  assert.equal(g._lensActive(), true); assert.equal(g.lens.lensId, 'heatmap', 'menus go back to the lens of the day');
+  g.lens = { lensId: null, setLens() { this.lensId = null; } }; g._gameplayActive = true; // a shader this phone rejects
+  assert.equal(g._lensActive(), false, 'a broken lens draws the plain globe');
 });
 
 await test('share card keeps the view\'s shape: square on a phone, a band on desktop, never past the source', () => {
@@ -155,6 +165,36 @@ await test('lens of the day: a different lens each day through all five, menus o
   assert.deepEqual(lensForChoice('daily', 127), [lensOfDay(127), 'menus']);
   assert.deepEqual(lensForChoice('off', 127), [null, 'always']);
   assert.deepEqual(lensForChoice('noir', 127), ['noir', 'always']);
+});
+
+await test('surprise lens on each reveal: a real lens, never the same twice running, all five turn up', () => {
+  let last = null; const seen = new Set();
+  for (let i = 0; i < 200; i++) {
+    const next = pickRevealLens(last);
+    assert.ok(lensById(next), next);
+    assert.notEqual(next, last, 'no repeat');
+    seen.add(next); last = next;
+  }
+  assert.equal(seen.size, 5);
+  assert.ok(lensById(pickRevealLens(null, () => 0.9999999)), 'top of the random range');
+  assert.equal(lensLabel('nightowl'), '🦉 Night Owl lens');
+  const skip = new Set(['nightowl', 'heatmap', 'retrotv', 'cartoon']);
+  assert.equal(pickRevealLens('noir', Math.random, skip), 'noir', 'one left: it may repeat');
+  skip.add('noir');
+  assert.equal(pickRevealLens(null, Math.random, skip), null, 'all too slow: no lens');
+});
+
+await test('v5.8 clears an old automatic "off" once, then respects the choice', () => {
+  const m = new Map([['marctap.lens', 'off']]);
+  const store = { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+  resetAutoOff(store);
+  assert.equal(store.getItem('marctap.lens'), null, 'surprise lenses come back');
+  store.setItem('marctap.lens', 'off');
+  resetAutoOff(store);
+  assert.equal(store.getItem('marctap.lens'), 'off', 'a later "No lens" sticks');
+  const picked = new Map([['marctap.lens', 'noir']]);
+  resetAutoOff({ getItem: (k) => picked.get(k) ?? null, setItem: (k, v) => picked.set(k, v), removeItem: (k) => picked.delete(k) });
+  assert.equal(picked.get('marctap.lens'), 'noir', 'a picked lens is left alone');
 });
 
 console.log(`\n${passed} lens tests passed`);
