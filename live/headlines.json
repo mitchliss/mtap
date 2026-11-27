@@ -1,6 +1,39 @@
 {
-  "updated": "2026-11-26T12:00:00Z",
+  "updated": "2026-11-27T10:08:56Z",
   "pins": [
+    {
+      "id": "ras-tanura-2026-11-26",
+      "lat": 26.64,
+      "lng": 50.16,
+      "place": "Ras Tanura, Saudi Arabia",
+      "title": "Houthis claim strike on Ras Tanura refinery; smoke seen on satellite",
+      "summary": "The Houthis said they hit Saudi Arabia's largest refinery in retaliation for Saudi strikes on Hodeidah. Saudi forces said they intercepted four drones there.",
+      "kind": "military",
+      "time": "2026-11-26T12:00:00Z",
+      "source": "https://www.cnn.com/2026/11/26/middleeast/houthi-saudi-oil-refinery-strike-satellite-imagery-intl"
+    },
+    {
+      "id": "riyadh-kaec-2026-11-26",
+      "lat": 24.76,
+      "lng": 46.64,
+      "place": "Riyadh, Saudi Arabia",
+      "title": "Houthis claim strike on Riyadh tower; Saudi authorities report 11 wounded",
+      "summary": "Loud explosions were reported in Riyadh as the Houthis claimed an attack on a building in the King Abdullah financial district. Saudi authorities said 11 people were wounded.",
+      "kind": "military",
+      "time": "2026-11-26T12:00:00Z",
+      "source": "https://www.middleeasteye.net/news/loud-booms-rock-riyadh-houthis-attack-saudi-ports"
+    },
+    {
+      "id": "jazan-refinery-2026-11-26",
+      "lat": 16.83,
+      "lng": 42.6,
+      "place": "Jazan refinery, Saudi Arabia",
+      "title": "Projectile reported to hit Jazan refinery, Saudi energy ministry says",
+      "summary": "Saudi Arabia's Ministry of Energy said a projectile struck the Jazan refinery, according to Arab News.",
+      "kind": "military",
+      "time": "2026-11-26T12:00:00Z",
+      "source": "https://arabnews.com/saudi-arabia/houthi-attack-on-saudi-arabias-jazan-refinery-kills-nepali-worker-3014153"
+    },
     {
       "id": "jazan-port-2026-11-25",
       "lat": 16.89,
