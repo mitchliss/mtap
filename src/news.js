@@ -260,6 +260,18 @@ export const NEWS = [
     diff: 2,
     fact: 'After weeks of stalled storms, the St. Johns River near Cocoa, Florida, rose past a flood-stage record set in 1953, with forecasters warning in November 2026 that the high water could linger for weeks.',
   },
+  {
+    pn: 130,
+    slot: 2,
+    name: 'Ras Tanura, Saudi Arabia',
+    prompt: "Smoke rises over Saudi Arabia's largest oil refinery on the Gulf coast",
+    lat: 26.7,
+    lng: 50.03,
+    country: 'Saudi Arabia',
+    continent: 'Asia',
+    diff: 2,
+    fact: 'Ras Tanura on the Persian Gulf is home to one of the largest oil refining and export complexes in the world; in late November 2026 satellite imagery showed smoke over the site after the Houthis claimed a strike and Saudi forces reported intercepting drones.',
+  },
 ];
 
 export function newsRollFor(pn) {
