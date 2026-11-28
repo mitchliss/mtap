@@ -1,6 +1,28 @@
 {
-  "updated": "2026-11-27T10:08:56Z",
+  "updated": "2026-11-28T10:05:02Z",
   "pins": [
+    {
+      "id": "sanaa-strikes-2026-11-27",
+      "lat": 15.37,
+      "lng": 44.19,
+      "place": "Sanaa, Yemen",
+      "title": "Saudi-led forces reported striking Sanaa and Houthi-held areas",
+      "summary": "Saudi-led forces struck Sanaa and other Houthi-held areas after the Jazan refinery attack. Houthi media reported casualties, not independently confirmed.",
+      "kind": "military",
+      "time": "2026-11-27T12:00:00Z",
+      "source": "https://www.newarab.com/news/kuwait-summons-iran-ambassador-saudi-arabia-strikes-sanaa"
+    },
+    {
+      "id": "kuwait-drone-2026-11-26",
+      "lat": 29.37,
+      "lng": 47.98,
+      "place": "Kuwait",
+      "title": "Two Italian technicians killed in drone attack blamed on Iran in Kuwait",
+      "summary": "Kuwait summoned the Iranian ambassador over the drone attack on air-defence technicians. Iran denies involvement.",
+      "kind": "military",
+      "time": "2026-11-26T12:00:00Z",
+      "source": "https://www.newarab.com/news/two-italians-killed-iranian-drone-attack-kuwait"
+    },
     {
       "id": "ras-tanura-2026-11-26",
       "lat": 26.64,
@@ -54,17 +76,6 @@
       "summary": "Saudi Arabia said a drone was intercepted near the Red Sea port amid escalating Saudi-Houthi strikes. The Houthis have threatened all Saudi Red Sea ports.",
       "kind": "military",
       "time": "2026-11-25T12:00:00Z",
-      "source": "https://aljazeera.com/news/2026/11/25/houthis-target-saudi-arabias-red-sea-ports-as-strikes-escalate"
-    },
-    {
-      "id": "hodeidah-strike-2026-11-25",
-      "lat": 14.8,
-      "lng": 42.95,
-      "place": "Hodeidah, Yemen",
-      "title": "Saudi-led coalition reported striking Hodeidah port area",
-      "summary": "The Saudi-led coalition said it struck Hodeidah, prompting Houthi retaliation against Saudi Red Sea ports.",
-      "kind": "conflict",
-      "time": "2026-11-25T10:00:00Z",
       "source": "https://aljazeera.com/news/2026/11/25/houthis-target-saudi-arabias-red-sea-ports-as-strikes-escalate"
     },
     {
